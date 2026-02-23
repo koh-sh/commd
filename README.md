@@ -3,6 +3,8 @@
 A CLI tool for reviewing Claude Code plan files in an interactive TUI.
 Add inline review comments to each step and send feedback back to Claude Code.
 
+https://github.com/user-attachments/assets/55defd1d-c28c-473b-95ea-9e427f6a4266
+
 ## Install
 
 ### mise
