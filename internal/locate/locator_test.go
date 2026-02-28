@@ -3,6 +3,7 @@ package locate
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -74,6 +75,61 @@ func TestLocatePlanFileEmptyTranscript(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "transcript path is required") {
 		t.Errorf("error = %q, want to contain 'transcript path is required'", err.Error())
+	}
+}
+
+func TestIsUnderDir(t *testing.T) {
+	tests := []struct {
+		name     string
+		filePath string
+		dir      string
+		want     bool
+	}{
+		{
+			name:     "file under dir",
+			filePath: "/home/user/.claude/plans/my-plan.md",
+			dir:      "/home/user/.claude/plans",
+			want:     true,
+		},
+		{
+			name:     "file not under dir",
+			filePath: "/home/user/projects/src/main.go",
+			dir:      "/home/user/.claude/plans",
+			want:     false,
+		},
+		{
+			name:     "dir with trailing separator",
+			filePath: "/home/user/.claude/plans/my-plan.md",
+			dir:      "/home/user/.claude/plans/",
+			want:     true,
+		},
+		{
+			name:     "similar prefix but different dir",
+			filePath: "/home/user/.claude/plans-backup/my-plan.md",
+			dir:      "/home/user/.claude/plans",
+			want:     false,
+		},
+		{
+			name:     "empty dir",
+			filePath: "/home/user/.claude/plans/my-plan.md",
+			dir:      "",
+			want:     false,
+		},
+		{
+			name:     "nested file under dir",
+			filePath: filepath.Join("/home/user/.claude/plans", "subdir", "my-plan.md"),
+			dir:      "/home/user/.claude/plans",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsUnderDir(tt.filePath, tt.dir)
+			if got != tt.want {
+				t.Errorf("IsUnderDir(%q, %q) = %v, want %v", tt.filePath, tt.dir, got, tt.want)
+			}
+		})
 	}
 }
 

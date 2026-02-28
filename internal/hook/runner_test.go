@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koh-sh/ccplan/internal/locate"
+	"github.com/koh-sh/ccplan/internal/pane"
 )
 
 // mockSpawner implements pane.PaneSpawner for testing.
@@ -239,7 +240,7 @@ func TestRunSpawnFailure(t *testing.T) {
 
 	mock := &mockSpawner{
 		available: true,
-		name:      "direct", // name="direct" so fallback is skipped
+		name:      pane.NameDirect, // name="direct" so fallback is skipped
 		spawnFunc: func(cmd string, args []string) error {
 			return fmt.Errorf("spawn failed")
 		},
@@ -291,60 +292,5 @@ func TestRunReviewFileRemoved(t *testing.T) {
 	}
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
-	}
-}
-
-func TestIsUnderPlansDir(t *testing.T) {
-	tests := []struct {
-		name     string
-		filePath string
-		plansDir string
-		want     bool
-	}{
-		{
-			name:     "file under plans dir",
-			filePath: "/home/user/.claude/plans/my-plan.md",
-			plansDir: "/home/user/.claude/plans",
-			want:     true,
-		},
-		{
-			name:     "file not under plans dir",
-			filePath: "/home/user/projects/src/main.go",
-			plansDir: "/home/user/.claude/plans",
-			want:     false,
-		},
-		{
-			name:     "plans dir with trailing separator",
-			filePath: "/home/user/.claude/plans/my-plan.md",
-			plansDir: "/home/user/.claude/plans/",
-			want:     true,
-		},
-		{
-			name:     "similar prefix but different dir",
-			filePath: "/home/user/.claude/plans-backup/my-plan.md",
-			plansDir: "/home/user/.claude/plans",
-			want:     false,
-		},
-		{
-			name:     "empty plans dir",
-			filePath: "/home/user/.claude/plans/my-plan.md",
-			plansDir: "",
-			want:     false,
-		},
-		{
-			name:     "nested file under plans dir",
-			filePath: filepath.Join("/home/user/.claude/plans", "subdir", "my-plan.md"),
-			plansDir: "/home/user/.claude/plans",
-			want:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isUnderPlansDir(tt.filePath, tt.plansDir)
-			if got != tt.want {
-				t.Errorf("isUnderPlansDir(%q, %q) = %v, want %v", tt.filePath, tt.plansDir, got, tt.want)
-			}
-		})
 	}
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/koh-sh/ccplan/internal/locate"
 	"github.com/koh-sh/ccplan/internal/pane"
@@ -21,7 +19,7 @@ type RunConfig struct {
 // Returns exitCode: 0 = continue normally, 2 = feedback to Claude.
 func Run(input *Input, cfg RunConfig) (int, error) {
 	// Early returns
-	if input.PermissionMode != "plan" {
+	if input.PermissionMode != permissionModePlan {
 		return 0, nil
 	}
 	if os.Getenv("PLAN_REVIEW_SKIP") == "1" {
@@ -36,7 +34,7 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 
 	// Check if file is under plans directory
 	plansDir := locate.ResolvePlansDir(input.CWD)
-	if !isUnderPlansDir(planFile, plansDir) {
+	if !locate.IsUnderDir(planFile, plansDir) {
 		return 0, nil
 	}
 
@@ -77,7 +75,7 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	err = spawner.SpawnAndWait(ctx, executable, args)
 	if err != nil {
 		// Fallback to direct if not already direct
-		if spawner.Name() != "direct" {
+		if spawner.Name() != pane.NameDirect {
 			fmt.Fprintf(os.Stderr, "ccplan: %s spawn failed, falling back to direct: %v\n", spawner.Name(), err)
 			direct := &pane.DirectSpawner{}
 			err = direct.SpawnAndWait(ctx, executable, args)
@@ -98,14 +96,4 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	}
 
 	return 0, nil
-}
-
-// isUnderPlansDir checks if filePath is under plansDir.
-func isUnderPlansDir(filePath, plansDir string) bool {
-	if plansDir == "" {
-		return false
-	}
-	cleanPath := filepath.Clean(filePath)
-	cleanDir := filepath.Clean(plansDir) + string(filepath.Separator)
-	return strings.HasPrefix(cleanPath, cleanDir)
 }

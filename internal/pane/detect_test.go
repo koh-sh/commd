@@ -39,8 +39,8 @@ func TestAutoDetect(t *testing.T) {
 		t.Fatal("AutoDetect returned nil")
 	}
 	// In CI/test environment without wezterm, should fall back to DirectSpawner
-	if s.Name() != "wezterm" && s.Name() != "direct" {
-		t.Errorf("AutoDetect name = %s, want wezterm or direct", s.Name())
+	if s.Name() != NameWezTerm && s.Name() != NameDirect {
+		t.Errorf("AutoDetect name = %s, want %s or %s", s.Name(), NameWezTerm, NameDirect)
 	}
 }
 

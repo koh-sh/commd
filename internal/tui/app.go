@@ -162,11 +162,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if msg.String() == "g" {
 			if a.focus == FocusLeft {
 				a.stepList.CursorTop()
-				if a.fullView {
-					a.scrollDetailToSelected()
-				} else {
-					a.refreshDetail()
-				}
+				a.refreshAfterCursorMove()
 			} else {
 				a.detail.Viewport().GotoTop()
 				a.syncCursorToScroll()
@@ -184,11 +180,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		if a.focus == FocusLeft {
 			a.stepList.CursorBottom()
-			if a.fullView {
-				a.scrollDetailToSelected()
-			} else {
-				a.refreshDetail()
-			}
+			a.refreshAfterCursorMove()
 		} else {
 			a.detail.Viewport().GotoBottom()
 			a.syncCursorToScroll()
@@ -234,6 +226,22 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
+	// Horizontal scroll keys apply to the detail pane regardless of focus
+	switch {
+	case key.Matches(msg, a.keymap.Expand):
+		a.detail.Viewport().ScrollRight(4)
+		return a, nil
+	case key.Matches(msg, a.keymap.Collapse):
+		a.detail.Viewport().ScrollLeft(4)
+		return a, nil
+	case key.Matches(msg, a.keymap.ScrollToStart):
+		a.detail.Viewport().SetXOffset(0)
+		return a, nil
+	case key.Matches(msg, a.keymap.ScrollToEnd):
+		a.detail.Viewport().SetXOffset(scrollToEnd)
+		return a, nil
+	}
+
 	if a.focus == FocusLeft {
 		return a.handleLeftPaneKeys(msg)
 	}
@@ -244,34 +252,14 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
 		a.stepList.CursorUp()
-		if a.fullView {
-			a.scrollDetailToSelected()
-		} else {
-			a.refreshDetail()
-		}
+		a.refreshAfterCursorMove()
 
 	case key.Matches(msg, a.keymap.Down):
 		a.stepList.CursorDown()
-		if a.fullView {
-			a.scrollDetailToSelected()
-		} else {
-			a.refreshDetail()
-		}
+		a.refreshAfterCursorMove()
 
 	case key.Matches(msg, a.keymap.Toggle):
 		a.stepList.ToggleExpand()
-
-	case key.Matches(msg, a.keymap.Expand):
-		a.detail.Viewport().ScrollRight(4)
-
-	case key.Matches(msg, a.keymap.Collapse):
-		a.detail.Viewport().ScrollLeft(4)
-
-	case key.Matches(msg, a.keymap.ScrollToStart):
-		a.detail.Viewport().SetXOffset(0)
-
-	case key.Matches(msg, a.keymap.ScrollToEnd):
-		a.detail.Viewport().SetXOffset(scrollToEnd)
 
 	case key.Matches(msg, a.keymap.Comment):
 		if step := a.stepList.Selected(); step != nil {
@@ -306,20 +294,12 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (a *App) handleRightPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, a.keymap.ScrollToStart):
-		a.detail.Viewport().SetXOffset(0)
-	case key.Matches(msg, a.keymap.ScrollToEnd):
-		a.detail.Viewport().SetXOffset(scrollToEnd)
 	case key.Matches(msg, a.keymap.Up):
 		a.detail.Viewport().ScrollUp(1)
 		a.syncCursorToScroll()
 	case key.Matches(msg, a.keymap.Down):
 		a.detail.Viewport().ScrollDown(1)
 		a.syncCursorToScroll()
-	case key.Matches(msg, a.keymap.Expand):
-		a.detail.Viewport().ScrollRight(4)
-	case key.Matches(msg, a.keymap.Collapse):
-		a.detail.Viewport().ScrollLeft(4)
 	}
 	return a, nil
 }
@@ -473,19 +453,11 @@ func (a *App) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
 		a.stepList.CursorUp()
-		if a.fullView {
-			a.scrollDetailToSelected()
-		} else {
-			a.refreshDetail()
-		}
+		a.refreshAfterCursorMove()
 		return a, nil
 	case key.Matches(msg, a.keymap.Down):
 		a.stepList.CursorDown()
-		if a.fullView {
-			a.scrollDetailToSelected()
-		} else {
-			a.refreshDetail()
-		}
+		a.refreshAfterCursorMove()
 		return a, nil
 	}
 
@@ -519,6 +491,16 @@ func (a *App) syncCursorToScroll() {
 		return
 	}
 	a.stepList.SelectByStepID(stepID)
+}
+
+// refreshAfterCursorMove updates the detail pane after cursor movement.
+// In full view, scrolls to the selected step; otherwise, refreshes the detail content.
+func (a *App) refreshAfterCursorMove() {
+	if a.fullView {
+		a.scrollDetailToSelected()
+	} else {
+		a.refreshDetail()
+	}
 }
 
 func (a *App) scrollDetailToSelected() {
@@ -788,11 +770,18 @@ func (a *App) renderConfirm() string {
 
 // clipLines truncates a string to at most maxLines lines.
 func clipLines(s string, maxLines int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) > maxLines {
-		lines = lines[:maxLines]
+	if maxLines <= 0 {
+		return ""
 	}
-	return strings.Join(lines, "\n")
+	pos := 0
+	for range maxLines {
+		idx := strings.IndexByte(s[pos:], '\n')
+		if idx < 0 {
+			return s
+		}
+		pos += idx + 1
+	}
+	return s[:pos-1]
 }
 
 func (a *App) renderHelp() string {

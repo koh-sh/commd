@@ -81,12 +81,6 @@ func (d *DetailPane) SetSize(width, height int) {
 	d.height = height
 	d.viewport.Width = width
 	d.viewport.Height = height
-
-	// Intentionally ignore error: renderContent falls back to plain text when renderer is nil.
-	d.renderer, _ = glamour.NewTermRenderer(
-		glamour.WithStyles(customStyle(d.theme)),
-		glamour.WithWordWrap(0),
-	)
 }
 
 // ShowStep renders and displays a step's content.
@@ -98,7 +92,8 @@ func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
 		md.WriteString(step.Body + "\n")
 	}
 
-	rendered := d.renderContent(md.String())
+	rendered := d.renderMarkdown(md.String())
+	d.setViewportContent(rendered)
 
 	if len(comments) > 0 {
 		var full strings.Builder
@@ -123,7 +118,7 @@ func (d *DetailPane) ShowOverview(p *plan.Plan) {
 		content.WriteString(p.Preamble + "\n")
 	}
 
-	d.renderContent(content.String())
+	d.setViewportContent(d.renderMarkdown(content.String()))
 }
 
 // ShowAll renders the entire plan in a single view.
@@ -153,7 +148,8 @@ func (d *DetailPane) ShowAll(p *plan.Plan, getComments func(string) []*plan.Revi
 	}
 	walkBuild(p.Steps)
 
-	rendered := d.renderContent(md.String())
+	rendered := d.renderMarkdown(md.String())
+	d.setViewportContent(rendered)
 	d.buildSectionOffsets(rendered)
 
 	if d.hasAnyComments(stepOrder, getComments) {
@@ -163,21 +159,24 @@ func (d *DetailPane) ShowAll(p *plan.Plan, getComments func(string) []*plan.Revi
 	}
 }
 
-// renderContent renders Markdown content into the viewport and returns the rendered string.
-func (d *DetailPane) renderContent(md string) string {
+// renderMarkdown renders Markdown to a styled string without setting viewport content.
+func (d *DetailPane) renderMarkdown(md string) string {
 	wrapWidth := d.width - glamourHorizontalOverhead
 	md = renderMermaidBlocks(md)
 	md = wrapProse(md, wrapWidth)
-	rendered := md
 	if d.renderer != nil {
 		if r, err := d.renderer.Render(md); err == nil {
-			rendered = r
+			return r
 		}
 	}
-	d.viewport.SetContent(rendered)
+	return md
+}
+
+// setViewportContent sets the viewport content and resets scroll position.
+func (d *DetailPane) setViewportContent(content string) {
+	d.viewport.SetContent(content)
 	d.viewport.SetXOffset(0)
 	d.viewport.GotoTop()
-	return rendered
 }
 
 // wrapProse wraps prose lines in Markdown to the given width using Markdown

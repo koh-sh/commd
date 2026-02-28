@@ -8,6 +8,9 @@ import (
 	"github.com/koh-sh/ccplan/internal/locate"
 )
 
+// permissionModePlan is the Claude Code permission mode that triggers plan review.
+const permissionModePlan = "plan"
+
 // Input represents the JSON input from a Claude Code PostToolUse hook.
 // It embeds locate.HookInput for the common fields (session_id, transcript_path, cwd).
 type Input struct {

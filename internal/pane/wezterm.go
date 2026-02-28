@@ -38,7 +38,7 @@ func (w *WezTermSpawner) Available() bool {
 }
 
 func (w *WezTermSpawner) Name() string {
-	return "wezterm"
+	return NameWezTerm
 }
 
 func (w *WezTermSpawner) SpawnAndWait(ctx context.Context, cmd string, args []string) error {

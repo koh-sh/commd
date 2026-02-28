@@ -16,12 +16,12 @@ func AutoDetect() PaneSpawner {
 // ByName returns a PaneSpawner by name, falling back to AutoDetect if not found.
 func ByName(name string) PaneSpawner {
 	switch name {
-	case "wezterm":
+	case NameWezTerm:
 		return &WezTermSpawner{}
-	case "tmux":
+	case NameTmux:
 		// tmux support is not yet implemented; fall back to DirectSpawner.
 		return &DirectSpawner{}
-	case "auto", "":
+	case NameAuto, "":
 		return AutoDetect()
 	default:
 		return AutoDetect()

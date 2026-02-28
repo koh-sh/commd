@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // Options configures the plan file location process.
@@ -66,4 +68,14 @@ func LocatePlanFile(opts Options) ([]string, error) {
 	}
 
 	return validated, nil
+}
+
+// IsUnderDir checks if filePath is under dir.
+func IsUnderDir(filePath, dir string) bool {
+	if dir == "" {
+		return false
+	}
+	cleanPath := filepath.Clean(filePath)
+	cleanDir := filepath.Clean(dir) + string(filepath.Separator)
+	return strings.HasPrefix(cleanPath, cleanDir)
 }

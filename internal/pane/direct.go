@@ -15,7 +15,7 @@ func (d *DirectSpawner) Available() bool {
 }
 
 func (d *DirectSpawner) Name() string {
-	return "direct"
+	return NameDirect
 }
 
 func (d *DirectSpawner) SpawnAndWait(ctx context.Context, cmd string, args []string) error {

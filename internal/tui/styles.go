@@ -102,8 +102,3 @@ func stylesForTheme(theme string) Styles {
 	}
 	return buildStyles(darkPalette)
 }
-
-// defaultStyles returns the default dark theme styles.
-func defaultStyles() Styles {
-	return buildStyles(darkPalette)
-}

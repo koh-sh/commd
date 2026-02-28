@@ -4,6 +4,11 @@ import (
 	"testing"
 )
 
+// defaultStyles returns the default dark theme styles for use in tests.
+func defaultStyles() Styles {
+	return buildStyles(darkPalette)
+}
+
 func TestStylesForTheme(t *testing.T) {
 	tests := []struct {
 		theme    string
