@@ -27,8 +27,6 @@ type sectionOffset struct {
 type DetailPane struct {
 	viewport       viewport.Model
 	renderer       *glamour.TermRenderer
-	width          int
-	height         int
 	theme          string
 	sectionOffsets []sectionOffset
 }
@@ -38,7 +36,7 @@ type DetailPane struct {
 // by Chroma, causing distracting red backgrounds.
 func customStyle(theme string) ansi.StyleConfig {
 	var style ansi.StyleConfig
-	if theme == "light" {
+	if theme == ThemeLight {
 		style = glamourStyles.LightStyleConfig
 	} else {
 		style = glamourStyles.DarkStyleConfig
@@ -65,8 +63,6 @@ func NewDetailPane(width, height int, theme string) *DetailPane {
 	return &DetailPane{
 		viewport: vp,
 		renderer: renderer,
-		width:    width,
-		height:   height,
 		theme:    theme,
 	}
 }
@@ -74,11 +70,9 @@ func NewDetailPane(width, height int, theme string) *DetailPane {
 // SetSize updates the pane size. It does not re-render current content;
 // call ShowStep or ShowOverview after resizing to refresh the viewport.
 func (d *DetailPane) SetSize(width, height int) {
-	if width == d.width && height == d.height {
+	if width == d.viewport.Width && height == d.viewport.Height {
 		return
 	}
-	d.width = width
-	d.height = height
 	d.viewport.Width = width
 	d.viewport.Height = height
 }
@@ -93,7 +87,6 @@ func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
 	}
 
 	rendered := d.renderMarkdown(md.String())
-	d.setViewportContent(rendered)
 
 	if len(comments) > 0 {
 		var full strings.Builder
@@ -102,7 +95,18 @@ func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
 			full.WriteString(d.renderCommentBox(c, i, len(comments)))
 			full.WriteString("\n")
 		}
-		d.viewport.SetContent(full.String())
+		rendered = full.String()
+	}
+	d.setViewportContent(rendered)
+}
+
+// writePlanHeader writes the plan title and preamble as Markdown to the builder.
+func writePlanHeader(sb *strings.Builder, p *plan.Plan) {
+	if p.Title != "" {
+		fmt.Fprintf(sb, "# %s\n\n", p.Title)
+	}
+	if p.Preamble != "" {
+		sb.WriteString(p.Preamble + "\n")
 	}
 }
 
@@ -110,13 +114,7 @@ func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
 func (d *DetailPane) ShowOverview(p *plan.Plan) {
 	d.sectionOffsets = nil
 	var content strings.Builder
-
-	if p.Title != "" {
-		fmt.Fprintf(&content, "# %s\n\n", p.Title)
-	}
-	if p.Preamble != "" {
-		content.WriteString(p.Preamble + "\n")
-	}
+	writePlanHeader(&content, p)
 
 	d.setViewportContent(d.renderMarkdown(content.String()))
 }
@@ -124,13 +122,7 @@ func (d *DetailPane) ShowOverview(p *plan.Plan) {
 // ShowAll renders the entire plan in a single view.
 func (d *DetailPane) ShowAll(p *plan.Plan, getComments func(string) []*plan.ReviewComment) {
 	var md strings.Builder
-
-	if p.Title != "" {
-		fmt.Fprintf(&md, "# %s\n\n", p.Title)
-	}
-	if p.Preamble != "" {
-		md.WriteString(p.Preamble + "\n")
-	}
+	writePlanHeader(&md, p)
 
 	var stepOrder []string
 	var walkBuild func([]*plan.Step)
@@ -149,19 +141,18 @@ func (d *DetailPane) ShowAll(p *plan.Plan, getComments func(string) []*plan.Revi
 	walkBuild(p.Steps)
 
 	rendered := d.renderMarkdown(md.String())
-	d.setViewportContent(rendered)
 	d.buildSectionOffsets(rendered)
 
 	if d.hasAnyComments(stepOrder, getComments) {
 		rendered = d.insertCommentBoxes(rendered, stepOrder, getComments)
-		d.viewport.SetContent(rendered)
 		d.buildSectionOffsets(rendered)
 	}
+	d.setViewportContent(rendered)
 }
 
 // renderMarkdown renders Markdown to a styled string without setting viewport content.
 func (d *DetailPane) renderMarkdown(md string) string {
-	wrapWidth := d.width - glamourHorizontalOverhead
+	wrapWidth := d.viewport.Width - glamourHorizontalOverhead
 	md = renderMermaidBlocks(md)
 	md = wrapProse(md, wrapWidth)
 	if d.renderer != nil {
@@ -347,7 +338,7 @@ func (d *DetailPane) ScrollToStepID(stepID string) {
 }
 
 func (d *DetailPane) commentBorderColor() string {
-	if d.theme == "light" {
+	if d.theme == ThemeLight {
 		return "33"
 	}
 	return "62"
@@ -366,7 +357,7 @@ func (d *DetailPane) renderCommentBox(comment *plan.ReviewComment, index, total 
 		content += "\n\n" + comment.Body
 	}
 
-	boxWidth := d.width - glamourHorizontalOverhead
+	boxWidth := d.viewport.Width - glamourHorizontalOverhead
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(d.commentBorderColor())).

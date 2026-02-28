@@ -13,11 +13,11 @@ func TestNewDetailPane(t *testing.T) {
 	if dp == nil {
 		t.Fatal("NewDetailPane returned nil")
 	}
-	if dp.width != 80 {
-		t.Errorf("width = %d, want 80", dp.width)
+	if dp.viewport.Width != 80 {
+		t.Errorf("width = %d, want 80", dp.viewport.Width)
 	}
-	if dp.height != 24 {
-		t.Errorf("height = %d, want 24", dp.height)
+	if dp.viewport.Height != 24 {
+		t.Errorf("height = %d, want 24", dp.viewport.Height)
 	}
 }
 
@@ -87,17 +87,17 @@ func TestDetailPaneSetSize(t *testing.T) {
 
 	// Same size should be no-op
 	dp.SetSize(80, 24)
-	if dp.width != 80 || dp.height != 24 {
+	if dp.viewport.Width != 80 || dp.viewport.Height != 24 {
 		t.Error("same size should not change")
 	}
 
 	// Different size
 	dp.SetSize(100, 30)
-	if dp.width != 100 {
-		t.Errorf("width = %d, want 100", dp.width)
+	if dp.viewport.Width != 100 {
+		t.Errorf("width = %d, want 100", dp.viewport.Width)
 	}
-	if dp.height != 30 {
-		t.Errorf("height = %d, want 30", dp.height)
+	if dp.viewport.Height != 30 {
+		t.Errorf("height = %d, want 30", dp.viewport.Height)
 	}
 }
 

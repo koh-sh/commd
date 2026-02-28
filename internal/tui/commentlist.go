@@ -12,7 +12,6 @@ type CommentList struct {
 	stepID   string
 	comments []*plan.ReviewComment
 	cursor   int
-	active   bool
 }
 
 // NewCommentList creates a new CommentList.
@@ -24,7 +23,6 @@ func NewCommentList() *CommentList {
 func (cl *CommentList) Open(stepID string, comments []*plan.ReviewComment) {
 	cl.stepID = stepID
 	cl.comments = comments
-	cl.active = true
 	if cl.cursor >= len(comments) {
 		cl.cursor = len(comments) - 1
 	}
@@ -35,7 +33,6 @@ func (cl *CommentList) Open(stepID string, comments []*plan.ReviewComment) {
 
 // Close closes the comment list.
 func (cl *CommentList) Close() {
-	cl.active = false
 	cl.comments = nil
 	cl.cursor = 0
 }

@@ -264,9 +264,9 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keymap.Comment):
 		if step := a.stepList.Selected(); step != nil {
 			a.editCommentIdx = -1
-			a.comment.Open(step.ID, nil)
+			cmd := a.comment.Open(step.ID, nil)
 			a.mode = ModeComment
-			return a, a.comment.textarea.Focus()
+			return a, cmd
 		}
 
 	case key.Matches(msg, a.keymap.CommentList):
@@ -284,9 +284,9 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, a.keymap.Search):
-		a.search.Open()
+		cmd := a.search.Open()
 		a.mode = ModeSearch
-		return a, a.search.input.Focus()
+		return a, cmd
 	}
 
 	return a, nil
@@ -374,9 +374,9 @@ func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		comments := a.stepList.GetComments(stepID)
 		if idx >= 0 && idx < len(comments) {
 			a.editCommentIdx = idx
-			a.comment.Open(stepID, comments[idx])
+			cmd := a.comment.Open(stepID, comments[idx])
 			a.mode = ModeComment
-			return a, a.comment.textarea.Focus()
+			return a, cmd
 		}
 	case key.Matches(msg, a.keymap.Delete):
 		// Delete selected comment
@@ -570,8 +570,11 @@ func (a *App) titleBarHeight() int {
 }
 
 func (a *App) contentHeight() int {
-	h := max(a.height-a.titleBarHeight()-3, 1)
-	return h
+	return a.contentHeightWith(a.titleBarHeight())
+}
+
+func (a *App) contentHeightWith(tbHeight int) int {
+	return max(a.height-tbHeight-3, 1)
 }
 
 func (a *App) resizeLeftPane(delta int) {
@@ -625,7 +628,13 @@ func (a *App) View() string {
 		return a.renderConfirm()
 	}
 
-	ch := a.contentHeight()
+	// Title bar (full width, above panes) — computed once
+	titleBar := a.renderTitleBar()
+	tbHeight := 0
+	if titleBar != "" {
+		tbHeight = lipgloss.Height(titleBar)
+	}
+	ch := a.contentHeightWith(tbHeight)
 	lw := a.leftWidth()
 	rw := a.rightWidth()
 	singlePane := a.width < 80
@@ -640,9 +649,6 @@ func (a *App) View() string {
 		Width(lw).
 		Height(ch).
 		Render(leftContent)
-
-	// Title bar (full width, above panes)
-	titleBar := a.renderTitleBar()
 
 	if singlePane {
 		var pane string

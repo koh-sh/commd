@@ -2,6 +2,12 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+// Theme constants.
+const (
+	ThemeDark  = "dark"
+	ThemeLight = "light"
+)
+
 // Styles holds all the lipgloss styles for the TUI.
 type Styles struct {
 	ActiveBorder   lipgloss.Style
@@ -97,7 +103,7 @@ func buildStyles(p colorPalette) Styles {
 
 // stylesForTheme returns styles for the given theme.
 func stylesForTheme(theme string) Styles {
-	if theme == "light" {
+	if theme == ThemeLight {
 		return buildStyles(lightPalette)
 	}
 	return buildStyles(darkPalette)

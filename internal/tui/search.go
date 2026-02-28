@@ -7,8 +7,7 @@ import (
 
 // SearchBar wraps a textinput for step searching.
 type SearchBar struct {
-	input  textinput.Model
-	active bool
+	input textinput.Model
 }
 
 // NewSearchBar creates a new SearchBar.
@@ -23,21 +22,14 @@ func NewSearchBar() *SearchBar {
 }
 
 // Open activates the search bar.
-func (s *SearchBar) Open() {
-	s.active = true
+func (s *SearchBar) Open() tea.Cmd {
 	s.input.SetValue("")
-	s.input.Focus()
+	return s.input.Focus()
 }
 
 // Close deactivates the search bar.
 func (s *SearchBar) Close() {
-	s.active = false
 	s.input.Blur()
-}
-
-// IsActive returns whether the search bar is active.
-func (s *SearchBar) IsActive() bool {
-	return s.active
 }
 
 // Query returns the current search query.

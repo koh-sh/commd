@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // transcriptMessage represents a single line in the transcript JSONL.
@@ -51,7 +50,6 @@ func findPlanFilesInTranscript(transcriptPath, plansDir string, all bool) ([]str
 		return nil, err
 	}
 
-	plansDirNorm := filepath.Clean(plansDir) + string(filepath.Separator)
 	var found []string
 	seen := make(map[string]bool)
 
@@ -62,7 +60,7 @@ func findPlanFilesInTranscript(transcriptPath, plansDir string, all bool) ([]str
 			continue
 		}
 
-		paths := extractPlanPaths(line, plansDirNorm)
+		paths := extractPlanPaths(line, plansDir)
 		for _, p := range paths {
 			if !seen[p] {
 				seen[p] = true
@@ -78,7 +76,7 @@ func findPlanFilesInTranscript(transcriptPath, plansDir string, all bool) ([]str
 }
 
 // extractPlanPaths extracts plan file paths from a single transcript JSONL line.
-func extractPlanPaths(line, plansDirPrefix string) []string {
+func extractPlanPaths(line, plansDir string) []string {
 	var msg transcriptMessage
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
 		return nil
@@ -104,7 +102,7 @@ func extractPlanPaths(line, plansDirPrefix string) []string {
 		}
 
 		cleanPath := filepath.Clean(input.FilePath)
-		if strings.HasPrefix(cleanPath, plansDirPrefix) {
+		if IsUnderDir(cleanPath, plansDir) {
 			paths = append(paths, cleanPath)
 		}
 	}

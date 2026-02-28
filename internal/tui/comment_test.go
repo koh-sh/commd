@@ -9,22 +9,12 @@ import (
 func TestCommentEditorOpenClose(t *testing.T) {
 	ce := NewCommentEditor()
 
-	if ce.IsActive() {
-		t.Error("should not be active initially")
-	}
-
 	ce.Open("S1", nil)
-	if !ce.IsActive() {
-		t.Error("should be active after Open")
-	}
 	if ce.StepID() != "S1" {
 		t.Errorf("stepID = %s, want S1", ce.StepID())
 	}
 
 	ce.Close()
-	if ce.IsActive() {
-		t.Error("should not be active after Close")
-	}
 }
 
 func TestCommentEditorOpenExisting(t *testing.T) {

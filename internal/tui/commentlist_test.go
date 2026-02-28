@@ -16,9 +16,6 @@ func TestCommentListOpenClose(t *testing.T) {
 	}
 
 	cl.Open("S1", comments)
-	if !cl.active {
-		t.Error("should be active after Open")
-	}
 	if cl.StepID() != "S1" {
 		t.Errorf("stepID = %s, want S1", cl.StepID())
 	}
@@ -27,9 +24,6 @@ func TestCommentListOpenClose(t *testing.T) {
 	}
 
 	cl.Close()
-	if cl.active {
-		t.Error("should not be active after Close")
-	}
 	if cl.comments != nil {
 		t.Error("comments should be nil after Close")
 	}

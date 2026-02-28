@@ -12,7 +12,6 @@ import (
 type CommentEditor struct {
 	textarea   textarea.Model
 	stepID     string
-	active     bool
 	labelIndex int // index into plan.ActionLabels
 }
 
@@ -30,9 +29,8 @@ func NewCommentEditor() *CommentEditor {
 }
 
 // Open opens the comment editor for a step, optionally pre-filling with existing comment.
-func (c *CommentEditor) Open(stepID string, existing *plan.ReviewComment) {
+func (c *CommentEditor) Open(stepID string, existing *plan.ReviewComment) tea.Cmd {
 	c.stepID = stepID
-	c.active = true
 
 	if existing != nil {
 		c.labelIndex = c.labelIndexFor(existing.Action)
@@ -42,7 +40,7 @@ func (c *CommentEditor) Open(stepID string, existing *plan.ReviewComment) {
 		c.textarea.SetValue("")
 	}
 
-	c.textarea.Focus()
+	return c.textarea.Focus()
 }
 
 // labelIndexFor returns the index of the given action in ActionLabels.
@@ -57,13 +55,7 @@ func (c *CommentEditor) labelIndexFor(action plan.ActionType) int {
 
 // Close closes the comment editor.
 func (c *CommentEditor) Close() {
-	c.active = false
 	c.textarea.Blur()
-}
-
-// IsActive returns whether the editor is active.
-func (c *CommentEditor) IsActive() bool {
-	return c.active
 }
 
 // StepID returns the step ID being edited.
