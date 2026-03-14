@@ -144,6 +144,7 @@ Set `PLAN_REVIEW_SKIP=1` to temporarily disable the hook.
 |-----|--------|
 | `Tab` | Cycle comment label (forward) |
 | `Shift+Tab` | Cycle comment label (reverse) |
+| `Ctrl+D` | Cycle decoration (none, non-blocking, blocking, if-minor) |
 | `Ctrl+S` | Save comment |
 | `Esc` | Cancel |
 
@@ -183,13 +184,15 @@ The review output generated on submit uses [Conventional Comments](https://conve
 Please review and address the following comments on: /path/to/plan.md
 
 ## S1.1: JWT verification
-[suggestion] Switch to HS256. Load the key from an environment variable.
+[suggestion (non-blocking)] Switch to HS256. Load the key from an environment variable.
 
 ## S2: Update routing
-[issue] Not needed; the existing implementation covers this.
+[issue (blocking)] Not needed; the existing implementation covers this.
 
 ## S3: Add tests
 [question] Is the coverage target 80% or 90%?
 ```
 
 Labels: `suggestion`, `issue`, `question` (default), `nitpick`, `todo`, `thought`, `note`, `praise`, `chore`
+
+Decorations: `non-blocking`, `blocking`, `if-minor` — cycle with `Ctrl+D` in comment mode

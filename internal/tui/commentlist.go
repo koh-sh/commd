@@ -74,7 +74,7 @@ func (cl *CommentList) Render(width, height int, styles Styles) string {
 			prefix = "> "
 		}
 
-		header := fmt.Sprintf("%s#%d [%s]", prefix, i+1, c.Action)
+		header := fmt.Sprintf("%s#%d [%s]", prefix, i+1, c.FormatLabel())
 		if i == cl.cursor {
 			sb.WriteString(styles.SelectedStep.Render(header))
 		} else {

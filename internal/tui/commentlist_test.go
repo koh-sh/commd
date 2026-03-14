@@ -94,6 +94,24 @@ func TestCommentListOpenEmptyComments(t *testing.T) {
 	}
 }
 
+func TestCommentListRenderWithDecoration(t *testing.T) {
+	cl := NewCommentList()
+	comments := []*plan.ReviewComment{
+		{StepID: "S1", Action: plan.ActionSuggestion, Decoration: plan.DecorationNonBlocking, Body: "decorated comment"},
+	}
+	cl.Open("S1", comments)
+
+	styles := defaultStyles()
+	output := cl.Render(80, 20, styles)
+
+	if !strings.Contains(output, "non-blocking") {
+		t.Error("render should contain decoration")
+	}
+	if !strings.Contains(output, "decorated comment") {
+		t.Error("render should contain comment body")
+	}
+}
+
 func TestCommentListRender(t *testing.T) {
 	cl := NewCommentList()
 	comments := []*plan.ReviewComment{

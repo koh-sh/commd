@@ -710,6 +710,7 @@ func TestViewedStateStaleHash(t *testing.T) {
 	s1 := p.FindStep("S1")
 	if s1 == nil {
 		t.Fatal("S1 not found in plan")
+		return
 	}
 	state.MarkViewed(s1)
 

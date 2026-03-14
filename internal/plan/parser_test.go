@@ -509,6 +509,7 @@ func TestFindStep(t *testing.T) {
 	step := plan.FindStep("S1.2")
 	if step == nil {
 		t.Fatal("FindStep(S1.2) returned nil")
+		return
 	}
 	if step.Title != "1.2 Middleware Registration" {
 		t.Errorf("FindStep(S1.2).Title = %q, want %q", step.Title, "1.2 Middleware Registration")

@@ -88,6 +88,40 @@ func TestFormatReview(t *testing.T) {
 			},
 		},
 		{
+			name: "comment with decoration",
+			plan: &Plan{
+				Steps: []*Step{
+					{ID: "S1", Title: "Step One", Level: 2},
+				},
+			},
+			result: &ReviewResult{
+				Comments: []ReviewComment{
+					{StepID: "S1", Action: ActionSuggestion, Decoration: DecorationNonBlocking, Body: "Use a cache."},
+				},
+			},
+			filePath: "plan.md",
+			wantContains: []string{
+				"[suggestion (non-blocking)] Use a cache.",
+			},
+		},
+		{
+			name: "comment without decoration (zero value)",
+			plan: &Plan{
+				Steps: []*Step{
+					{ID: "S1", Title: "Step One", Level: 2},
+				},
+			},
+			result: &ReviewResult{
+				Comments: []ReviewComment{
+					{StepID: "S1", Action: ActionSuggestion, Body: "plain comment"},
+				},
+			},
+			filePath: "plan.md",
+			wantContains: []string{
+				"[suggestion] plain comment",
+			},
+		},
+		{
 			name: "empty filePath uses fallback text",
 			plan: &Plan{
 				Steps: []*Step{

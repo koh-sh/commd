@@ -48,6 +48,7 @@ func TestLoadViewedStateFileNotFound(t *testing.T) {
 	state := LoadViewedState("/nonexistent/path.json")
 	if state == nil {
 		t.Fatal("should return non-nil state")
+		return
 	}
 	if len(state.Steps) != 0 {
 		t.Error("should return empty steps map")
@@ -63,6 +64,7 @@ func TestLoadViewedStateInvalidJSON(t *testing.T) {
 	state := LoadViewedState(tmp)
 	if state == nil {
 		t.Fatal("should return non-nil state")
+		return
 	}
 	if len(state.Steps) != 0 {
 		t.Error("should return empty steps map for invalid JSON")

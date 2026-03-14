@@ -12,6 +12,7 @@ func TestNewDetailPane(t *testing.T) {
 	dp := NewDetailPane(80, 24, "dark")
 	if dp == nil {
 		t.Fatal("NewDetailPane returned nil")
+		return
 	}
 	if dp.viewport.Width != 80 {
 		t.Errorf("width = %d, want 80", dp.viewport.Width)
@@ -553,6 +554,24 @@ func TestScrollToStepID(t *testing.T) {
 			t.Errorf("YOffset = %d, want 0 for empty stepID", dp.viewport.YOffset)
 		}
 	})
+}
+
+func TestRenderCommentBoxWithDecoration(t *testing.T) {
+	dp := NewDetailPane(80, 40, "dark")
+	comment := &plan.ReviewComment{
+		StepID:     "S1",
+		Action:     plan.ActionSuggestion,
+		Decoration: plan.DecorationNonBlocking,
+		Body:       "Decorated comment",
+	}
+
+	box := dp.renderCommentBox(comment, 0, 1)
+	if !strings.Contains(box, "suggestion (non-blocking)") {
+		t.Error("box should contain formatted label with decoration")
+	}
+	if !strings.Contains(box, "Decorated comment") {
+		t.Error("box should contain comment body")
+	}
 }
 
 func TestInsertCommentBoxes(t *testing.T) {

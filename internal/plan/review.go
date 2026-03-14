@@ -49,7 +49,7 @@ func FormatReview(result *ReviewResult, p *Plan, filePath string) string {
 		g := groups[id]
 		fmt.Fprintf(&sb, "\n## %s\n", g.title)
 		for _, c := range g.comments {
-			fmt.Fprintf(&sb, "[%s] %s\n", c.Action, c.Body)
+			fmt.Fprintf(&sb, "[%s] %s\n", c.FormatLabel(), c.Body)
 		}
 	}
 

@@ -323,6 +323,10 @@ func (a *App) handleCommentMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.returnFromComment()
 		return a, nil
 
+	case msg.Type == tea.KeyCtrlD:
+		a.comment.CycleDecoration()
+		return a, nil
+
 	case msg.Type == tea.KeyShiftTab:
 		a.comment.CycleLabelReverse()
 		return a, nil
@@ -693,7 +697,7 @@ func (a *App) renderRightContent(width, height int) string {
 		a.detail.SetSize(width, detailHeight)
 		detailView := a.detail.View()
 
-		separator := a.styles.CommentBorder.Width(width - 2).Render("Comment [" + string(a.comment.Label()) + "]")
+		separator := a.styles.CommentBorder.Width(width - 2).Render("Comment [" + a.comment.FormatLabel() + "]")
 		commentView := a.comment.View()
 
 		return detailView + "\n" + separator + "\n" + commentView
@@ -713,7 +717,8 @@ func (a *App) renderStatusBar() string {
 	if a.mode == ModeComment {
 		return a.styles.StatusBar.Render(
 			a.statusEntry("tab/S-tab", "label:") + " " +
-				a.styles.Title.Render(string(a.comment.Label())) + "  " +
+				a.styles.Title.Render(a.comment.FormatLabel()) + "  " +
+				a.statusEntry("ctrl+d", "deco") + "  " +
 				a.statusEntry("ctrl+s", "save") + "  " +
 				a.statusEntry("esc", "cancel"),
 		)
@@ -814,6 +819,7 @@ func (a *App) renderHelp() string {
   Comment Editor:
     Tab             Cycle label (forward)
     Shift+Tab       Cycle label (reverse)
+    Ctrl+D          Cycle decoration
     Ctrl+S          Save comment
     Esc             Cancel editing
 

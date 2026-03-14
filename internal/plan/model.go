@@ -1,5 +1,7 @@
 package plan
 
+import "fmt"
+
 // Plan is the parsed structure of an entire plan file.
 type Plan struct {
 	Title    string  // H1 heading text (or filename if no H1)
@@ -43,9 +45,24 @@ func (p *Plan) FindStep(id string) *Step {
 
 // ReviewComment is a review comment on a single step.
 type ReviewComment struct {
-	StepID string     // Target step ID
-	Action ActionType // Comment action type
-	Body   string     // Comment body text
+	StepID     string     // Target step ID
+	Action     ActionType // Comment action type
+	Decoration Decoration // Comment decoration (e.g. non-blocking, blocking)
+	Body       string     // Comment body text
+}
+
+// FormatLabel returns the formatted label string for display.
+// With decoration: "action (decoration)", without: "action".
+func (c *ReviewComment) FormatLabel() string {
+	return FormatActionLabel(c.Action, c.Decoration)
+}
+
+// FormatActionLabel formats an action and decoration pair for display.
+func FormatActionLabel(action ActionType, deco Decoration) string {
+	if deco == DecorationNone {
+		return string(action)
+	}
+	return fmt.Sprintf("%s (%s)", action, deco)
 }
 
 // ActionType is the type of review action, based on Conventional Comments labels.
@@ -78,6 +95,24 @@ var ActionLabels = []ActionType{
 
 // DefaultAction is the default action type for new comments.
 const DefaultAction = ActionQuestion
+
+// Decoration is the decoration modifier for a Conventional Comment.
+type Decoration string
+
+const (
+	DecorationNone        Decoration = ""
+	DecorationNonBlocking Decoration = "non-blocking"
+	DecorationBlocking    Decoration = "blocking"
+	DecorationIfMinor     Decoration = "if-minor"
+)
+
+// DecorationLabels is the ordered list of decoration labels for cycling.
+var DecorationLabels = []Decoration{
+	DecorationNone,
+	DecorationNonBlocking,
+	DecorationBlocking,
+	DecorationIfMinor,
+}
 
 // ReviewResult holds the entire review output.
 type ReviewResult struct {

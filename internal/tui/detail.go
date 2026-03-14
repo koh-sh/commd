@@ -347,9 +347,9 @@ func (d *DetailPane) commentBorderColor() string {
 func (d *DetailPane) renderCommentBox(comment *plan.ReviewComment, index, total int) string {
 	var header string
 	if total == 1 {
-		header = fmt.Sprintf("Review Comment [%s]", comment.Action)
+		header = fmt.Sprintf("Review Comment [%s]", comment.FormatLabel())
 	} else {
-		header = fmt.Sprintf("Review Comment #%d [%s]", index+1, comment.Action)
+		header = fmt.Sprintf("Review Comment #%d [%s]", index+1, comment.FormatLabel())
 	}
 
 	content := header

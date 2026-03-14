@@ -151,6 +151,7 @@ func TestStepListScrollsWithCursor(t *testing.T) {
 	selected := a.stepList.Selected()
 	if selected == nil {
 		t.Fatal("Expected a selected step")
+		return
 	}
 	if !strings.Contains(view, selected.ID) {
 		t.Errorf("Selected step %s not visible in rendered view after scrolling", selected.ID)
@@ -203,6 +204,7 @@ func TestShiftGGoesToBottom(t *testing.T) {
 	selected := a.stepList.Selected()
 	if selected == nil {
 		t.Fatal("Expected a selected step after G")
+		return
 	}
 	if selected.ID != "S10" {
 		t.Errorf("After G, expected cursor at S10, got %s", selected.ID)
@@ -636,6 +638,24 @@ func TestCommentModeTab(t *testing.T) {
 	}
 }
 
+func TestCommentModeCtrlDCyclesDecoration(t *testing.T) {
+	a := initApp(t, makeLargePlan(3, 0))
+
+	a.Update(keyMsg("j")) // S1
+	a.Update(keyMsg("c"))
+
+	if a.comment.DecorationLabel() != plan.DecorationNone {
+		t.Errorf("initial decoration = %s, want none", a.comment.DecorationLabel())
+	}
+	a.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	if a.comment.DecorationLabel() != plan.DecorationNonBlocking {
+		t.Errorf("decoration after Ctrl+D = %s, want non-blocking", a.comment.DecorationLabel())
+	}
+	if a.mode != ModeComment {
+		t.Errorf("mode = %d, want ModeComment after Ctrl+D", a.mode)
+	}
+}
+
 func TestCommentListModeEsc(t *testing.T) {
 	a := initApp(t, makeLargePlan(3, 0))
 	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
@@ -1001,6 +1021,7 @@ func TestFullViewGScrollsToLastStep(t *testing.T) {
 	selected := a.stepList.Selected()
 	if selected == nil {
 		t.Fatal("expected a selected step")
+		return
 	}
 	if selected.ID != "S10" {
 		t.Errorf("G should select last step, got %s", selected.ID)
@@ -1095,6 +1116,7 @@ func TestFullViewScrollSyncsCursor(t *testing.T) {
 	selected := a.stepList.Selected()
 	if selected == nil {
 		t.Fatal("expected a selected step after G")
+		return
 	}
 	// YOffset points to the top of the visible window, so the synced step
 	// is the one at the top of the last visible page (near end, not necessarily the very last)
@@ -1758,6 +1780,7 @@ func TestAppViewedState(t *testing.T) {
 		vs := app.ViewedState()
 		if vs == nil {
 			t.Fatal("ViewedState should not be nil")
+			return
 		}
 		if len(vs.Steps) != 0 {
 			t.Error("should start with empty steps")
