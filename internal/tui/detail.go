@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/glamour/ansi"
 	glamourStyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -19,11 +19,11 @@ import (
 const glamourHorizontalOverhead = 8
 
 type sectionOffset struct {
-	line   int
-	stepID string
+	line      int
+	sectionID string
 }
 
-// DetailPane manages the right pane that shows step details.
+// DetailPane manages the right pane that shows section details.
 type DetailPane struct {
 	viewport       viewport.Model
 	renderer       *glamour.TermRenderer
@@ -68,7 +68,7 @@ func NewDetailPane(width, height int, theme string) *DetailPane {
 }
 
 // SetSize updates the pane size. It does not re-render current content;
-// call ShowStep or ShowOverview after resizing to refresh the viewport.
+// call ShowSection or ShowOverview after resizing to refresh the viewport.
 func (d *DetailPane) SetSize(width, height int) {
 	if width == d.viewport.Width && height == d.viewport.Height {
 		return
@@ -77,13 +77,13 @@ func (d *DetailPane) SetSize(width, height int) {
 	d.viewport.Height = height
 }
 
-// ShowStep renders and displays a step's content.
-func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
+// ShowSection renders and displays a section's content.
+func (d *DetailPane) ShowSection(section *markdown.Section, comments []*markdown.ReviewComment) {
 	d.sectionOffsets = nil
 	var md strings.Builder
-	fmt.Fprintf(&md, "## %s: %s\n\n", step.ID, step.Title)
-	if step.Body != "" {
-		md.WriteString(step.Body + "\n")
+	fmt.Fprintf(&md, "## %s: %s\n\n", section.ID, section.Title)
+	if section.Body != "" {
+		md.WriteString(section.Body + "\n")
 	}
 
 	rendered := d.renderMarkdown(md.String())
@@ -100,8 +100,8 @@ func (d *DetailPane) ShowStep(step *plan.Step, comments []*plan.ReviewComment) {
 	d.setViewportContent(rendered)
 }
 
-// writePlanHeader writes the plan title and preamble as Markdown to the builder.
-func writePlanHeader(sb *strings.Builder, p *plan.Plan) {
+// writeDocHeader writes the document title and preamble as Markdown to the builder.
+func writeDocHeader(sb *strings.Builder, p *markdown.Document) {
 	if p.Title != "" {
 		fmt.Fprintf(sb, "# %s\n\n", p.Title)
 	}
@@ -110,41 +110,41 @@ func writePlanHeader(sb *strings.Builder, p *plan.Plan) {
 	}
 }
 
-// ShowOverview renders and displays the plan overview (preamble).
-func (d *DetailPane) ShowOverview(p *plan.Plan) {
+// ShowOverview renders and displays the document overview (preamble).
+func (d *DetailPane) ShowOverview(p *markdown.Document) {
 	d.sectionOffsets = nil
 	var content strings.Builder
-	writePlanHeader(&content, p)
+	writeDocHeader(&content, p)
 
 	d.setViewportContent(d.renderMarkdown(content.String()))
 }
 
-// ShowAll renders the entire plan in a single view.
-func (d *DetailPane) ShowAll(p *plan.Plan, getComments func(string) []*plan.ReviewComment) {
+// ShowAll renders the entire document in a single view.
+func (d *DetailPane) ShowAll(p *markdown.Document, getComments func(string) []*markdown.ReviewComment) {
 	var md strings.Builder
-	writePlanHeader(&md, p)
+	writeDocHeader(&md, p)
 
-	var stepOrder []string
-	var walkBuild func([]*plan.Step)
-	walkBuild = func(steps []*plan.Step) {
-		for _, step := range steps {
+	var sectionOrder []string
+	var walkBuild func([]*markdown.Section)
+	walkBuild = func(sections []*markdown.Section) {
+		for _, section := range sections {
 			md.WriteString("\n")
-			heading := strings.Repeat("#", step.Level)
-			fmt.Fprintf(&md, "%s %s: %s\n\n", heading, step.ID, step.Title)
-			if step.Body != "" {
-				md.WriteString(step.Body + "\n")
+			heading := strings.Repeat("#", section.Level)
+			fmt.Fprintf(&md, "%s %s: %s\n\n", heading, section.ID, section.Title)
+			if section.Body != "" {
+				md.WriteString(section.Body + "\n")
 			}
-			stepOrder = append(stepOrder, step.ID)
-			walkBuild(step.Children)
+			sectionOrder = append(sectionOrder, section.ID)
+			walkBuild(section.Children)
 		}
 	}
-	walkBuild(p.Steps)
+	walkBuild(p.Sections)
 
 	rendered := d.renderMarkdown(md.String())
 	d.buildSectionOffsets(rendered)
 
-	if d.hasAnyComments(stepOrder, getComments) {
-		rendered = d.insertCommentBoxes(rendered, stepOrder, getComments)
+	if d.hasAnyComments(sectionOrder, getComments) {
+		rendered = d.insertCommentBoxes(rendered, sectionOrder, getComments)
 		d.buildSectionOffsets(rendered)
 	}
 	d.setViewportContent(rendered)
@@ -296,26 +296,26 @@ func (d *DetailPane) Viewport() *viewport.Model {
 }
 
 var (
-	ansiRe        = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	stepHeadingRe = regexp.MustCompile(`^(?:#{1,6}\s+)?(S\d+(?:\.\d+)*):\s`)
+	ansiRe           = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	sectionHeadingRe = regexp.MustCompile(`^(?:#{1,6}\s+)?(S\d+(?:\.\d+)*):\s`)
 )
 
 func (d *DetailPane) buildSectionOffsets(rendered string) {
 	d.sectionOffsets = nil
 	for i, line := range strings.Split(rendered, "\n") {
 		stripped := strings.TrimSpace(ansiRe.ReplaceAllString(line, ""))
-		if m := stepHeadingRe.FindStringSubmatch(stripped); m != nil {
-			d.sectionOffsets = append(d.sectionOffsets, sectionOffset{line: i, stepID: m[1]})
+		if m := sectionHeadingRe.FindStringSubmatch(stripped); m != nil {
+			d.sectionOffsets = append(d.sectionOffsets, sectionOffset{line: i, sectionID: m[1]})
 		}
 	}
 }
 
-// StepIDAtOffset returns the step ID visible at the given vertical offset.
-func (d *DetailPane) StepIDAtOffset(yOffset int) string {
+// SectionIDAtOffset returns the section ID visible at the given vertical offset.
+func (d *DetailPane) SectionIDAtOffset(yOffset int) string {
 	result := ""
 	for _, so := range d.sectionOffsets {
 		if so.line <= yOffset {
-			result = so.stepID
+			result = so.sectionID
 		} else {
 			break
 		}
@@ -323,14 +323,14 @@ func (d *DetailPane) StepIDAtOffset(yOffset int) string {
 	return result
 }
 
-// ScrollToStepID scrolls the viewport to the given step's section offset.
-func (d *DetailPane) ScrollToStepID(stepID string) {
-	if stepID == "" {
+// ScrollToSectionID scrolls the viewport to the given section's offset.
+func (d *DetailPane) ScrollToSectionID(sectionID string) {
+	if sectionID == "" {
 		d.viewport.GotoTop()
 		return
 	}
 	for _, so := range d.sectionOffsets {
-		if so.stepID == stepID {
+		if so.sectionID == sectionID {
 			d.viewport.SetYOffset(so.line)
 			return
 		}
@@ -344,7 +344,7 @@ func (d *DetailPane) commentBorderColor() string {
 	return "62"
 }
 
-func (d *DetailPane) renderCommentBox(comment *plan.ReviewComment, index, total int) string {
+func (d *DetailPane) renderCommentBox(comment *markdown.ReviewComment, index, total int) string {
 	var header string
 	if total == 1 {
 		header = fmt.Sprintf("Review Comment [%s]", comment.FormatLabel())
@@ -367,8 +367,8 @@ func (d *DetailPane) renderCommentBox(comment *plan.ReviewComment, index, total 
 	return style.Render(content)
 }
 
-func (d *DetailPane) hasAnyComments(stepOrder []string, getComments func(string) []*plan.ReviewComment) bool {
-	for _, id := range stepOrder {
+func (d *DetailPane) hasAnyComments(sectionOrder []string, getComments func(string) []*markdown.ReviewComment) bool {
+	for _, id := range sectionOrder {
 		if len(getComments(id)) > 0 {
 			return true
 		}
@@ -376,25 +376,25 @@ func (d *DetailPane) hasAnyComments(stepOrder []string, getComments func(string)
 	return false
 }
 
-func (d *DetailPane) insertCommentBoxes(rendered string, stepOrder []string, getComments func(string) []*plan.ReviewComment) string {
+func (d *DetailPane) insertCommentBoxes(rendered string, sectionOrder []string, getComments func(string) []*markdown.ReviewComment) string {
 	lines := strings.Split(rendered, "\n")
 
 	endLines := make(map[string]int)
 	for i, so := range d.sectionOffsets {
 		if i+1 < len(d.sectionOffsets) {
-			endLines[so.stepID] = d.sectionOffsets[i+1].line
+			endLines[so.sectionID] = d.sectionOffsets[i+1].line
 		} else {
-			endLines[so.stepID] = len(lines)
+			endLines[so.sectionID] = len(lines)
 		}
 	}
 
-	for i := len(stepOrder) - 1; i >= 0; i-- {
-		stepID := stepOrder[i]
-		comments := getComments(stepID)
+	for i := len(sectionOrder) - 1; i >= 0; i-- {
+		sectionID := sectionOrder[i]
+		comments := getComments(sectionID)
 		if len(comments) == 0 {
 			continue
 		}
-		insertAt := endLines[stepID]
+		insertAt := endLines[sectionID]
 		var boxes []string
 		for ci, c := range comments {
 			boxStr := d.renderCommentBox(c, ci, len(comments))

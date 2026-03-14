@@ -1,41 +1,41 @@
-package plan
+package markdown
 
 import "fmt"
 
-// Plan is the parsed structure of an entire plan file.
-type Plan struct {
-	Title    string  // H1 heading text (or filename if no H1)
-	Preamble string  // Text before the first heading
-	Steps    []*Step // Top-level steps
+// Document is the parsed structure of an entire Markdown file.
+type Document struct {
+	Title    string     // H1 heading text (or filename if no H1)
+	Preamble string     // Text before the first heading
+	Sections []*Section // Top-level sections
 }
 
-// Step is a single step in a plan, corresponding to one heading.
-type Step struct {
-	ID       string  // Auto-numbered: "S1", "S1.1", "S2", etc.
-	Title    string  // Heading text (without the "## " prefix)
-	Level    int     // Heading level (2=##, 3=###, ...)
-	Body     string  // Markdown text from heading to next heading
-	Children []*Step // Sub-steps (lower-level headings)
-	Parent   *Step   // Parent step (nil for top-level)
+// Section is a single section in a document, corresponding to one heading.
+type Section struct {
+	ID       string     // Auto-numbered: "S1", "S1.1", "S2", etc.
+	Title    string     // Heading text (without the "## " prefix)
+	Level    int        // Heading level (2=##, 3=###, ...)
+	Body     string     // Markdown text from heading to next heading
+	Children []*Section // Sub-sections (lower-level headings)
+	Parent   *Section   // Parent section (nil for top-level)
 }
 
-// AllSteps returns a flat list of all steps in depth-first order.
-func (p *Plan) AllSteps() []*Step {
-	var result []*Step
-	var walk func(steps []*Step)
-	walk = func(steps []*Step) {
-		for _, s := range steps {
+// AllSections returns a flat list of all sections in depth-first order.
+func (d *Document) AllSections() []*Section {
+	var result []*Section
+	var walk func(sections []*Section)
+	walk = func(sections []*Section) {
+		for _, s := range sections {
 			result = append(result, s)
 			walk(s.Children)
 		}
 	}
-	walk(p.Steps)
+	walk(d.Sections)
 	return result
 }
 
-// FindStep returns the step with the given ID, or nil if not found.
-func (p *Plan) FindStep(id string) *Step {
-	for _, s := range p.AllSteps() {
+// FindSection returns the section with the given ID, or nil if not found.
+func (d *Document) FindSection(id string) *Section {
+	for _, s := range d.AllSections() {
 		if s.ID == id {
 			return s
 		}
@@ -43,9 +43,9 @@ func (p *Plan) FindStep(id string) *Step {
 	return nil
 }
 
-// ReviewComment is a review comment on a single step.
+// ReviewComment is a review comment on a single section.
 type ReviewComment struct {
-	StepID     string     // Target step ID
+	SectionID  string     // Target section ID
 	Action     ActionType // Comment action type
 	Decoration Decoration // Comment decoration (e.g. non-blocking, blocking)
 	Body       string     // Comment body text
@@ -117,7 +117,6 @@ var DecorationLabels = []Decoration{
 // ReviewResult holds the entire review output.
 type ReviewResult struct {
 	Comments []ReviewComment
-	Status   Status
 }
 
 // Status is the exit status of a TUI review session.

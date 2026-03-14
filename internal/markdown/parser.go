@@ -1,4 +1,4 @@
-package plan
+package markdown
 
 import (
 	"fmt"
@@ -9,14 +9,14 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// Parse parses a Markdown source into a Plan structure.
-// It uses goldmark to build an AST and walks headings to create steps.
-func Parse(source []byte) (*Plan, error) {
+// Parse parses a Markdown source into a Document structure.
+// It uses goldmark to build an AST and walks headings to create sections.
+func Parse(source []byte) (*Document, error) {
 	md := goldmark.New()
 	reader := text.NewReader(source)
 	doc := md.Parser().Parse(reader)
 
-	plan := &Plan{}
+	document := &Document{}
 
 	type headingInfo struct {
 		level int
@@ -54,16 +54,16 @@ func Parse(source []byte) (*Plan, error) {
 	}
 
 	if len(headings) == 0 {
-		plan.Preamble = strings.TrimSpace(string(source))
-		return plan, nil
+		document.Preamble = strings.TrimSpace(string(source))
+		return document, nil
 	}
 
 	// Extract preamble (text before first heading)
 	if headings[0].start > 0 {
-		plan.Preamble = strings.TrimSpace(string(source[:headings[0].start]))
+		document.Preamble = strings.TrimSpace(string(source[:headings[0].start]))
 	}
 
-	var flatSteps []flatStep
+	var flatSections []flatSection
 
 	for i, h := range headings {
 		bodyStart := h.end
@@ -78,28 +78,28 @@ func Parse(source []byte) (*Plan, error) {
 			body = strings.TrimSpace(string(source[bodyStart:bodyEnd]))
 		}
 
-		if h.level == 1 && plan.Title == "" {
-			plan.Title = h.title
+		if h.level == 1 && document.Title == "" {
+			document.Title = h.title
 			if body != "" {
-				if plan.Preamble != "" {
-					plan.Preamble = plan.Preamble + "\n\n" + body
+				if document.Preamble != "" {
+					document.Preamble = document.Preamble + "\n\n" + body
 				} else {
-					plan.Preamble = body
+					document.Preamble = body
 				}
 			}
 			continue
 		}
 
-		flatSteps = append(flatSteps, flatStep{
+		flatSections = append(flatSections, flatSection{
 			level: h.level,
 			title: h.title,
 			body:  body,
 		})
 	}
 
-	plan.Steps = buildHierarchy(flatSteps)
+	document.Sections = buildHierarchy(flatSections)
 
-	return plan, nil
+	return document, nil
 }
 
 // findHeadingStart finds the byte offset where the heading line starts in source.
@@ -189,17 +189,17 @@ func findLastTextPos(n ast.Node) int {
 	return pos
 }
 
-// buildHierarchy converts a flat list of steps into a tree based on heading levels.
-func buildHierarchy(flatSteps []flatStep) []*Step {
-	if len(flatSteps) == 0 {
+// buildHierarchy converts a flat list of sections into a tree based on heading levels.
+func buildHierarchy(flatSections []flatSection) []*Section {
+	if len(flatSections) == 0 {
 		return nil
 	}
 
-	var topLevel []*Step
-	var parentStack []*Step
+	var topLevel []*Section
+	var parentStack []*Section
 
-	for _, fs := range flatSteps {
-		step := &Step{
+	for _, fs := range flatSections {
+		section := &Section{
 			Level: fs.level,
 			Title: fs.title,
 			Body:  fs.body,
@@ -212,22 +212,22 @@ func buildHierarchy(flatSteps []flatStep) []*Step {
 
 		if len(parentStack) > 0 {
 			parent := parentStack[len(parentStack)-1]
-			step.Parent = parent
-			parent.Children = append(parent.Children, step)
+			section.Parent = parent
+			parent.Children = append(parent.Children, section)
 		} else {
-			topLevel = append(topLevel, step)
+			topLevel = append(topLevel, section)
 		}
 
-		parentStack = append(parentStack, step)
+		parentStack = append(parentStack, section)
 	}
 
 	assignIDs(topLevel, "")
 	return topLevel
 }
 
-// assignIDs assigns hierarchical IDs to steps (S1, S1.1, S1.2, S2, ...).
-func assignIDs(steps []*Step, prefix string) {
-	for i, s := range steps {
+// assignIDs assigns hierarchical IDs to sections (S1, S1.1, S1.2, S2, ...).
+func assignIDs(sections []*Section, prefix string) {
+	for i, s := range sections {
 		if prefix == "" {
 			s.ID = fmt.Sprintf("S%d", i+1)
 		} else {
@@ -259,7 +259,7 @@ func extractNodeText(n ast.Node, source []byte, sb *strings.Builder) {
 	}
 }
 
-type flatStep struct {
+type flatSection struct {
 	level int
 	title string
 	body  string

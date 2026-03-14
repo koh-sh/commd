@@ -7,19 +7,19 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 // AppMode represents the current application mode.
 type AppMode int
 
 const (
-	ModeNormal      AppMode = iota // Step list navigation
+	ModeNormal      AppMode = iota // Section list navigation
 	ModeComment                    // Comment input
 	ModeCommentList                // Comment list management
 	ModeConfirm                    // Confirmation dialog
 	ModeHelp                       // Help overlay
-	ModeSearch                     // Step search
+	ModeSearch                     // Section search
 )
 
 // Focus represents which pane has focus.
@@ -35,14 +35,14 @@ const scrollToEnd = 1 << 30
 
 // AppResult is the result returned when the TUI exits.
 type AppResult struct {
-	Review *plan.ReviewResult
-	Status plan.Status
+	Review *markdown.ReviewResult
+	Status markdown.Status
 }
 
 // App is the main Bubble Tea model for the TUI.
 type App struct {
-	plan        *plan.Plan
-	stepList    *StepList
+	doc         *markdown.Document
+	sectionList *SectionList
 	detail      *DetailPane
 	comment     *CommentEditor
 	commentList *CommentList
@@ -67,19 +67,19 @@ type App struct {
 // AppOptions configures the TUI appearance.
 type AppOptions struct {
 	Theme       string // "dark" or "light"
-	FilePath    string // plan file path (displayed in title bar)
+	FilePath    string // file path (displayed in title bar)
 	TrackViewed bool   // persist viewed state to sidecar file
 }
 
 // NewApp creates a new App model.
-func NewApp(p *plan.Plan, opts AppOptions) *App {
-	var state *plan.ViewedState
+func NewApp(p *markdown.Document, opts AppOptions) *App {
+	var state *markdown.ViewedState
 	if opts.TrackViewed && opts.FilePath != "" {
-		state = plan.LoadViewedState(plan.StatePath(opts.FilePath))
+		state = markdown.LoadViewedState(markdown.StatePath(opts.FilePath))
 	}
 	return &App{
-		plan:           p,
-		stepList:       NewStepList(p, state),
+		doc:            p,
+		sectionList:    NewSectionList(p, state),
 		comment:        NewCommentEditor(),
 		commentList:    NewCommentList(),
 		search:         NewSearchBar(),
@@ -89,7 +89,7 @@ func NewApp(p *plan.Plan, opts AppOptions) *App {
 		opts:           opts,
 		editCommentIdx: -1,
 		result: AppResult{
-			Status: plan.StatusCancelled,
+			Status: markdown.StatusCancelled,
 		},
 	}
 }
@@ -100,8 +100,8 @@ func (a *App) Result() AppResult {
 }
 
 // ViewedState returns the current viewed state for persistence.
-func (a *App) ViewedState() *plan.ViewedState {
-	return a.stepList.ViewedState()
+func (a *App) ViewedState() *markdown.ViewedState {
+	return a.sectionList.ViewedState()
 }
 
 // Init implements tea.Model.
@@ -161,7 +161,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.pendingG = false
 		if msg.String() == "g" {
 			if a.focus == FocusLeft {
-				a.stepList.CursorTop()
+				a.sectionList.CursorTop()
 				a.refreshAfterCursorMove()
 			} else {
 				a.detail.Viewport().GotoTop()
@@ -169,7 +169,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		}
-		// Not 'g' after pending g — fall through to normal handling
+		// Not 'g' after pending g -- fall through to normal handling
 	}
 
 	// Check for 'g' (start of gg chord) and 'G' (go to bottom)
@@ -179,7 +179,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "G":
 		if a.focus == FocusLeft {
-			a.stepList.CursorBottom()
+			a.sectionList.CursorBottom()
 			a.refreshAfterCursorMove()
 		} else {
 			a.detail.Viewport().GotoBottom()
@@ -190,11 +190,11 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, a.keymap.Quit):
-		if a.stepList.HasComments() {
+		if a.sectionList.HasComments() {
 			a.mode = ModeConfirm
 			return a, nil
 		}
-		a.result.Status = plan.StatusCancelled
+		a.result.Status = markdown.StatusCancelled
 		return a, tea.Quit
 
 	case key.Matches(msg, a.keymap.Help):
@@ -251,36 +251,36 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
-		a.stepList.CursorUp()
+		a.sectionList.CursorUp()
 		a.refreshAfterCursorMove()
 
 	case key.Matches(msg, a.keymap.Down):
-		a.stepList.CursorDown()
+		a.sectionList.CursorDown()
 		a.refreshAfterCursorMove()
 
 	case key.Matches(msg, a.keymap.Toggle):
-		a.stepList.ToggleExpand()
+		a.sectionList.ToggleExpand()
 
 	case key.Matches(msg, a.keymap.Comment):
-		if step := a.stepList.Selected(); step != nil {
+		if section := a.sectionList.Selected(); section != nil {
 			a.editCommentIdx = -1
-			cmd := a.comment.Open(step.ID, nil)
+			cmd := a.comment.Open(section.ID, nil)
 			a.mode = ModeComment
 			return a, cmd
 		}
 
 	case key.Matches(msg, a.keymap.CommentList):
-		if step := a.stepList.Selected(); step != nil {
-			comments := a.stepList.GetComments(step.ID)
+		if section := a.sectionList.Selected(); section != nil {
+			comments := a.sectionList.GetComments(section.ID)
 			if len(comments) > 0 {
-				a.commentList.Open(step.ID, comments)
+				a.commentList.Open(section.ID, comments)
 				a.mode = ModeCommentList
 			}
 		}
 
 	case key.Matches(msg, a.keymap.Viewed):
-		if step := a.stepList.Selected(); step != nil {
-			a.stepList.ToggleViewed(step.ID)
+		if section := a.sectionList.Selected(); section != nil {
+			a.sectionList.ToggleViewed(section.ID)
 		}
 
 	case key.Matches(msg, a.keymap.Search):
@@ -310,9 +310,9 @@ func (a *App) handleCommentMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		result := a.comment.Result()
 		if result != nil {
 			if a.editCommentIdx >= 0 {
-				a.stepList.UpdateComment(a.comment.StepID(), a.editCommentIdx, result)
+				a.sectionList.UpdateComment(a.comment.SectionID(), a.editCommentIdx, result)
 			} else {
-				a.stepList.AddComment(a.comment.StepID(), result)
+				a.sectionList.AddComment(a.comment.SectionID(), result)
 			}
 		}
 		a.returnFromComment()
@@ -344,8 +344,8 @@ func (a *App) handleCommentMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) returnFromComment() {
 	a.comment.Close()
 	if a.editCommentIdx >= 0 {
-		comments := a.stepList.GetComments(a.comment.StepID())
-		a.commentList.Open(a.comment.StepID(), comments)
+		comments := a.sectionList.GetComments(a.comment.SectionID())
+		a.commentList.Open(a.comment.SectionID(), comments)
 		a.mode = ModeCommentList
 	} else {
 		a.mode = ModeNormal
@@ -373,26 +373,26 @@ func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Edit):
 		// Edit selected comment
-		stepID := a.commentList.StepID()
+		sectionID := a.commentList.SectionID()
 		idx := a.commentList.Cursor()
-		comments := a.stepList.GetComments(stepID)
+		comments := a.sectionList.GetComments(sectionID)
 		if idx >= 0 && idx < len(comments) {
 			a.editCommentIdx = idx
-			cmd := a.comment.Open(stepID, comments[idx])
+			cmd := a.comment.Open(sectionID, comments[idx])
 			a.mode = ModeComment
 			return a, cmd
 		}
 	case key.Matches(msg, a.keymap.Delete):
 		// Delete selected comment
-		stepID := a.commentList.StepID()
+		sectionID := a.commentList.SectionID()
 		idx := a.commentList.Cursor()
-		a.stepList.DeleteComment(stepID, idx)
-		comments := a.stepList.GetComments(stepID)
+		a.sectionList.DeleteComment(sectionID, idx)
+		comments := a.sectionList.GetComments(sectionID)
 		if len(comments) == 0 {
 			a.commentList.Close()
 			a.mode = ModeNormal
 		} else {
-			a.commentList.Open(stepID, comments)
+			a.commentList.Open(sectionID, comments)
 		}
 		a.refreshDetail()
 		return a, nil
@@ -404,7 +404,7 @@ func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleConfirmMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
-		a.result.Status = plan.StatusCancelled
+		a.result.Status = markdown.StatusCancelled
 		return a, tea.Quit
 	case "n", "N":
 		a.mode = ModeNormal
@@ -415,7 +415,7 @@ func (a *App) handleConfirmMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.mode = ModeNormal
 		return a, nil
 	case tea.KeyCtrlC:
-		a.result.Status = plan.StatusCancelled
+		a.result.Status = markdown.StatusCancelled
 		return a, tea.Quit
 	}
 	return a, nil
@@ -447,7 +447,7 @@ func (a *App) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		// Cancel search, restore full list
 		a.search.Close()
-		a.stepList.ClearFilter()
+		a.sectionList.ClearFilter()
 		a.mode = ModeNormal
 		a.refreshDetail()
 		return a, nil
@@ -456,11 +456,11 @@ func (a *App) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle navigation within search results
 	switch {
 	case key.Matches(msg, a.keymap.Up):
-		a.stepList.CursorUp()
+		a.sectionList.CursorUp()
 		a.refreshAfterCursorMove()
 		return a, nil
 	case key.Matches(msg, a.keymap.Down):
-		a.stepList.CursorDown()
+		a.sectionList.CursorDown()
 		a.refreshAfterCursorMove()
 		return a, nil
 	}
@@ -468,18 +468,18 @@ func (a *App) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Update search input
 	cmd := a.search.Update(msg)
 	// Apply filter with updated query
-	a.stepList.FilterByQuery(a.search.Query())
+	a.sectionList.FilterByQuery(a.search.Query())
 	a.refreshDetail()
 	return a, cmd
 }
 
 func (a *App) submitReview() (tea.Model, tea.Cmd) {
-	review := a.stepList.BuildReviewResult()
+	review := a.sectionList.BuildReviewResult()
 
 	if len(review.Comments) == 0 {
-		a.result.Status = plan.StatusApproved
+		a.result.Status = markdown.StatusApproved
 	} else {
-		a.result.Status = plan.StatusSubmitted
+		a.result.Status = markdown.StatusSubmitted
 	}
 	a.result.Review = review
 
@@ -490,15 +490,15 @@ func (a *App) syncCursorToScroll() {
 	if !a.fullView || a.detail == nil {
 		return
 	}
-	stepID := a.detail.StepIDAtOffset(a.detail.Viewport().YOffset)
-	if stepID == "" {
+	sectionID := a.detail.SectionIDAtOffset(a.detail.Viewport().YOffset)
+	if sectionID == "" {
 		return
 	}
-	a.stepList.SelectByStepID(stepID)
+	a.sectionList.SelectBySectionID(sectionID)
 }
 
 // refreshAfterCursorMove updates the detail pane after cursor movement.
-// In full view, scrolls to the selected step; otherwise, refreshes the detail content.
+// In full view, scrolls to the selected section; otherwise, refreshes the detail content.
 func (a *App) refreshAfterCursorMove() {
 	if a.fullView {
 		a.scrollDetailToSelected()
@@ -511,12 +511,12 @@ func (a *App) scrollDetailToSelected() {
 	if a.detail == nil {
 		return
 	}
-	if a.stepList.IsOverviewSelected() {
-		a.detail.ScrollToStepID("")
+	if a.sectionList.IsOverviewSelected() {
+		a.detail.ScrollToSectionID("")
 		return
 	}
-	if step := a.stepList.Selected(); step != nil {
-		a.detail.ScrollToStepID(step.ID)
+	if section := a.sectionList.Selected(); section != nil {
+		a.detail.ScrollToSectionID(section.ID)
 	}
 }
 
@@ -526,18 +526,18 @@ func (a *App) refreshDetail() {
 	}
 
 	if a.fullView {
-		a.detail.ShowAll(a.plan, a.stepList.GetComments)
+		a.detail.ShowAll(a.doc, a.sectionList.GetComments)
 		return
 	}
 
-	if a.stepList.IsOverviewSelected() {
-		a.detail.ShowOverview(a.plan)
+	if a.sectionList.IsOverviewSelected() {
+		a.detail.ShowOverview(a.doc)
 		return
 	}
 
-	if step := a.stepList.Selected(); step != nil {
-		comments := a.stepList.GetComments(step.ID)
-		a.detail.ShowStep(step, comments)
+	if section := a.sectionList.Selected(); section != nil {
+		comments := a.sectionList.GetComments(section.ID)
+		a.detail.ShowSection(section, comments)
 	}
 }
 
@@ -548,8 +548,8 @@ func (a *App) renderTitleBar() string {
 
 	innerWidth := a.width - 2
 	var parts []string
-	if a.plan.Title != "" {
-		parts = append(parts, a.plan.Title)
+	if a.doc.Title != "" {
+		parts = append(parts, a.doc.Title)
 	}
 	if a.opts.FilePath != "" {
 		parts = append(parts, "("+a.opts.FilePath+")")
@@ -632,7 +632,7 @@ func (a *App) View() string {
 		return a.renderConfirm()
 	}
 
-	// Title bar (full width, above panes) — computed once
+	// Title bar (full width, above panes) -- computed once
 	titleBar := a.renderTitleBar()
 	tbHeight := 0
 	if titleBar != "" {
@@ -644,7 +644,7 @@ func (a *App) View() string {
 	singlePane := a.width < 80
 
 	// Left pane: clip content BEFORE applying border
-	leftContent := clipLines(a.stepList.Render(lw, ch, a.styles), ch)
+	leftContent := clipLines(a.sectionList.Render(lw, ch, a.styles), ch)
 	leftBorder := a.styles.InactiveBorder
 	if a.focus == FocusLeft {
 		leftBorder = a.styles.ActiveBorder
@@ -742,8 +742,8 @@ func (a *App) renderStatusBar() string {
 		viewMode = "section"
 	}
 
-	progress := fmt.Sprintf("[%d/%d viewed]", a.stepList.ViewedCount(), a.stepList.TotalStepCount())
-	if commentCount := a.stepList.TotalCommentCount(); commentCount > 0 {
+	progress := fmt.Sprintf("[%d/%d viewed]", a.sectionList.ViewedCount(), a.sectionList.TotalSectionCount())
+	if commentCount := a.sectionList.TotalCommentCount(); commentCount > 0 {
 		progress += fmt.Sprintf(" [%d comments]", commentCount)
 	}
 
@@ -810,10 +810,10 @@ func (a *App) renderHelp() string {
     Tab             Switch between left/right pane
 
   Review:
-    c               Add comment on selected step
+    c               Add comment on selected section
     C               Manage comments (edit/delete)
     v               Toggle viewed mark
-    /               Search steps
+    /               Search sections
     s               Submit review
 
   Comment Editor:
@@ -828,7 +828,7 @@ func (a *App) renderHelp() string {
     q, Ctrl+C       Quit
 
   Press Esc or ? or q to close this help.
-`, a.styles.Title.Render("ccplan review - Help"))
+`, a.styles.Title.Render("commd - Help"))
 
 	return clipLines(help, a.height)
 }

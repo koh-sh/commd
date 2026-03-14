@@ -3,15 +3,15 @@ package tui
 import (
 	"testing"
 
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 func TestCommentEditorOpenClose(t *testing.T) {
 	ce := NewCommentEditor()
 
 	ce.Open("S1", nil)
-	if ce.StepID() != "S1" {
-		t.Errorf("stepID = %s, want S1", ce.StepID())
+	if ce.SectionID() != "S1" {
+		t.Errorf("sectionID = %s, want S1", ce.SectionID())
 	}
 
 	ce.Close()
@@ -20,14 +20,14 @@ func TestCommentEditorOpenClose(t *testing.T) {
 func TestCommentEditorOpenExisting(t *testing.T) {
 	ce := NewCommentEditor()
 
-	existing := &plan.ReviewComment{
-		StepID: "S1",
-		Action: plan.ActionIssue,
-		Body:   "existing comment",
+	existing := &markdown.ReviewComment{
+		SectionID: "S1",
+		Action:    markdown.ActionIssue,
+		Body:      "existing comment",
 	}
 	ce.Open("S1", existing)
 
-	if ce.Label() != plan.ActionIssue {
+	if ce.Label() != markdown.ActionIssue {
 		t.Errorf("label = %s, want issue", ce.Label())
 	}
 }
@@ -36,7 +36,7 @@ func TestCommentEditorOpenNew(t *testing.T) {
 	ce := NewCommentEditor()
 	ce.Open("S1", nil)
 
-	if ce.Label() != plan.ActionQuestion {
+	if ce.Label() != markdown.ActionQuestion {
 		t.Errorf("default label = %s, want question", ce.Label())
 	}
 }
@@ -45,18 +45,18 @@ func TestCommentEditorCycleLabel(t *testing.T) {
 	ce := NewCommentEditor()
 	ce.Open("S1", nil)
 
-	labels := make([]plan.ActionType, 0)
-	for range len(plan.ActionLabels) {
+	labels := make([]markdown.ActionType, 0)
+	for range len(markdown.ActionLabels) {
 		labels = append(labels, ce.Label())
 		ce.CycleLabel()
 	}
 	// Should have cycled through all labels
-	if len(labels) != len(plan.ActionLabels) {
-		t.Errorf("cycled %d labels, want %d", len(labels), len(plan.ActionLabels))
+	if len(labels) != len(markdown.ActionLabels) {
+		t.Errorf("cycled %d labels, want %d", len(labels), len(markdown.ActionLabels))
 	}
 	// After full cycle, should be back to default
-	if ce.Label() != plan.DefaultAction {
-		t.Errorf("after full cycle, label = %s, want %s", ce.Label(), plan.DefaultAction)
+	if ce.Label() != markdown.DefaultAction {
+		t.Errorf("after full cycle, label = %s, want %s", ce.Label(), markdown.DefaultAction)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestCommentEditorCycleLabelReverse(t *testing.T) {
 	}
 
 	// Full reverse cycle should return to start
-	for range len(plan.ActionLabels) {
+	for range len(markdown.ActionLabels) {
 		ce.CycleLabelReverse()
 	}
 	if ce.Label() != initial {
@@ -85,13 +85,13 @@ func TestCommentEditorLabelIndexFor(t *testing.T) {
 	ce := NewCommentEditor()
 
 	tests := []struct {
-		action plan.ActionType
+		action markdown.ActionType
 		want   int
 	}{
-		{plan.ActionSuggestion, 0},
-		{plan.ActionIssue, 1},
-		{plan.ActionQuestion, 2},
-		{plan.ActionType("unknown"), 0},
+		{markdown.ActionSuggestion, 0},
+		{markdown.ActionIssue, 1},
+		{markdown.ActionQuestion, 2},
+		{markdown.ActionType("unknown"), 0},
 	}
 
 	for _, tt := range tests {
@@ -113,16 +113,16 @@ func TestCommentEditorResult(t *testing.T) {
 			t.Fatal("result should not be nil")
 			return
 		}
-		if result.StepID != "S1" {
-			t.Errorf("stepID = %s, want S1", result.StepID)
+		if result.SectionID != "S1" {
+			t.Errorf("sectionID = %s, want S1", result.SectionID)
 		}
 		if result.Body != "test comment" {
 			t.Errorf("body = %s, want 'test comment'", result.Body)
 		}
-		if result.Action != plan.ActionQuestion {
+		if result.Action != markdown.ActionQuestion {
 			t.Errorf("action = %s, want question", result.Action)
 		}
-		if result.Decoration != plan.DecorationNone {
+		if result.Decoration != markdown.DecorationNone {
 			t.Errorf("decoration = %s, want empty", result.Decoration)
 		}
 	})
@@ -153,20 +153,20 @@ func TestCommentEditorCycleDecoration(t *testing.T) {
 	ce.Open("S1", nil)
 
 	// Default should be DecorationNone
-	if ce.DecorationLabel() != plan.DecorationNone {
+	if ce.DecorationLabel() != markdown.DecorationNone {
 		t.Errorf("default decoration = %s, want empty", ce.DecorationLabel())
 	}
 
-	decos := make([]plan.Decoration, 0)
-	for range len(plan.DecorationLabels) {
+	decos := make([]markdown.Decoration, 0)
+	for range len(markdown.DecorationLabels) {
 		decos = append(decos, ce.DecorationLabel())
 		ce.CycleDecoration()
 	}
-	if len(decos) != len(plan.DecorationLabels) {
-		t.Errorf("cycled %d decorations, want %d", len(decos), len(plan.DecorationLabels))
+	if len(decos) != len(markdown.DecorationLabels) {
+		t.Errorf("cycled %d decorations, want %d", len(decos), len(markdown.DecorationLabels))
 	}
 	// After full cycle, should be back to DecorationNone
-	if ce.DecorationLabel() != plan.DecorationNone {
+	if ce.DecorationLabel() != markdown.DecorationNone {
 		t.Errorf("after full cycle, decoration = %s, want empty", ce.DecorationLabel())
 	}
 }
@@ -175,14 +175,14 @@ func TestCommentEditorDecorationIndexFor(t *testing.T) {
 	ce := NewCommentEditor()
 
 	tests := []struct {
-		deco plan.Decoration
+		deco markdown.Decoration
 		want int
 	}{
-		{plan.DecorationNone, 0},
-		{plan.DecorationNonBlocking, 1},
-		{plan.DecorationBlocking, 2},
-		{plan.DecorationIfMinor, 3},
-		{plan.Decoration("unknown"), 0},
+		{markdown.DecorationNone, 0},
+		{markdown.DecorationNonBlocking, 1},
+		{markdown.DecorationBlocking, 2},
+		{markdown.DecorationIfMinor, 3},
+		{markdown.Decoration("unknown"), 0},
 	}
 
 	for _, tt := range tests {
@@ -196,20 +196,20 @@ func TestCommentEditorDecorationIndexFor(t *testing.T) {
 func TestCommentEditorFormatLabel(t *testing.T) {
 	tests := []struct {
 		name   string
-		action plan.ActionType
-		deco   plan.Decoration
+		action markdown.ActionType
+		deco   markdown.Decoration
 		want   string
 	}{
-		{"no decoration", plan.ActionSuggestion, plan.DecorationNone, "suggestion"},
-		{"with non-blocking", plan.ActionIssue, plan.DecorationNonBlocking, "issue (non-blocking)"},
-		{"with blocking", plan.ActionSuggestion, plan.DecorationBlocking, "suggestion (blocking)"},
+		{"no decoration", markdown.ActionSuggestion, markdown.DecorationNone, "suggestion"},
+		{"with non-blocking", markdown.ActionIssue, markdown.DecorationNonBlocking, "issue (non-blocking)"},
+		{"with blocking", markdown.ActionSuggestion, markdown.DecorationBlocking, "suggestion (blocking)"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ce := NewCommentEditor()
-			existing := &plan.ReviewComment{
-				StepID:     "S1",
+			existing := &markdown.ReviewComment{
+				SectionID:  "S1",
 				Action:     tt.action,
 				Decoration: tt.deco,
 				Body:       "body",
@@ -226,18 +226,18 @@ func TestCommentEditorFormatLabel(t *testing.T) {
 func TestCommentEditorOpenExistingWithDecoration(t *testing.T) {
 	ce := NewCommentEditor()
 
-	existing := &plan.ReviewComment{
-		StepID:     "S1",
-		Action:     plan.ActionIssue,
-		Decoration: plan.DecorationBlocking,
+	existing := &markdown.ReviewComment{
+		SectionID:  "S1",
+		Action:     markdown.ActionIssue,
+		Decoration: markdown.DecorationBlocking,
 		Body:       "blocking comment",
 	}
 	ce.Open("S1", existing)
 
-	if ce.Label() != plan.ActionIssue {
+	if ce.Label() != markdown.ActionIssue {
 		t.Errorf("label = %s, want issue", ce.Label())
 	}
-	if ce.DecorationLabel() != plan.DecorationBlocking {
+	if ce.DecorationLabel() != markdown.DecorationBlocking {
 		t.Errorf("decoration = %s, want blocking", ce.DecorationLabel())
 	}
 }
@@ -253,7 +253,7 @@ func TestCommentEditorResultWithDecoration(t *testing.T) {
 		t.Fatal("result should not be nil")
 		return
 	}
-	if result.Decoration != plan.DecorationNonBlocking {
+	if result.Decoration != markdown.DecorationNonBlocking {
 		t.Errorf("decoration = %s, want non-blocking", result.Decoration)
 	}
 }

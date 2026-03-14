@@ -1,20 +1,20 @@
-package hook
+package cchook
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
 
-	"github.com/koh-sh/ccplan/internal/locate"
+	"github.com/koh-sh/commd/internal/cclocate"
 )
 
 // permissionModePlan is the Claude Code permission mode that triggers plan review.
 const permissionModePlan = "plan"
 
 // Input represents the JSON input from a Claude Code PostToolUse hook.
-// It embeds locate.HookInput for the common fields (session_id, transcript_path, cwd).
+// It embeds cclocate.HookInput for the common fields (session_id, transcript_path, cwd).
 type Input struct {
-	locate.HookInput
+	cclocate.HookInput
 	HookEventName  string     `json:"hook_event_name"`
 	PermissionMode string     `json:"permission_mode"`
 	ToolName       string     `json:"tool_name"`

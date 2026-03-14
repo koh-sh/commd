@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
-// CommentList manages the comment list view for a step.
+// CommentList manages the comment list view for a section.
 type CommentList struct {
-	stepID   string
-	comments []*plan.ReviewComment
-	cursor   int
+	sectionID string
+	comments  []*markdown.ReviewComment
+	cursor    int
 }
 
 // NewCommentList creates a new CommentList.
@@ -19,9 +19,9 @@ func NewCommentList() *CommentList {
 	return &CommentList{}
 }
 
-// Open opens the comment list for a step.
-func (cl *CommentList) Open(stepID string, comments []*plan.ReviewComment) {
-	cl.stepID = stepID
+// Open opens the comment list for a section.
+func (cl *CommentList) Open(sectionID string, comments []*markdown.ReviewComment) {
+	cl.sectionID = sectionID
 	cl.comments = comments
 	if cl.cursor >= len(comments) {
 		cl.cursor = len(comments) - 1
@@ -37,9 +37,9 @@ func (cl *CommentList) Close() {
 	cl.cursor = 0
 }
 
-// StepID returns the step ID.
-func (cl *CommentList) StepID() string {
-	return cl.stepID
+// SectionID returns the section ID.
+func (cl *CommentList) SectionID() string {
+	return cl.sectionID
 }
 
 // Cursor returns the current cursor position.
@@ -65,7 +65,7 @@ func (cl *CommentList) CursorDown() {
 func (cl *CommentList) Render(width, height int, styles Styles) string {
 	var sb strings.Builder
 
-	sb.WriteString(styles.Title.Render(fmt.Sprintf("Comments on %s", cl.stepID)))
+	sb.WriteString(styles.Title.Render(fmt.Sprintf("Comments on %s", cl.sectionID)))
 	sb.WriteString("\n\n")
 
 	for i, c := range cl.comments {
@@ -76,9 +76,9 @@ func (cl *CommentList) Render(width, height int, styles Styles) string {
 
 		header := fmt.Sprintf("%s#%d [%s]", prefix, i+1, c.FormatLabel())
 		if i == cl.cursor {
-			sb.WriteString(styles.SelectedStep.Render(header))
+			sb.WriteString(styles.SelectedSection.Render(header))
 		} else {
-			sb.WriteString(styles.NormalStep.Render(header))
+			sb.WriteString(styles.NormalSection.Render(header))
 		}
 		sb.WriteString("\n")
 
@@ -86,7 +86,7 @@ func (cl *CommentList) Render(width, height int, styles Styles) string {
 		if c.Body != "" {
 			bodyLine := strings.SplitN(c.Body, "\n", 2)[0]
 			bodyLine = truncate(bodyLine, width-6)
-			sb.WriteString(styles.NormalStep.Render("    " + bodyLine))
+			sb.WriteString(styles.NormalSection.Render("    " + bodyLine))
 			sb.WriteString("\n")
 		}
 

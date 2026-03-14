@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ccplan is a Go CLI tool for reviewing Claude Code-generated plans in an interactive TUI. It parses Markdown plan files, displays them in a 2-pane interface, and supports inline commenting with feedback integration via Claude Code hooks.
+commd is a Go CLI tool for reviewing Markdown files in an interactive TUI. It parses Markdown files, displays them in a 2-pane interface, and supports inline commenting with feedback integration via Claude Code hooks.
 
 ## Absolute Rule
 
@@ -24,8 +24,8 @@ make lint                               # Run golangci-lint with --fix
 make fmt                                # Format with gofumpt
 make fix                                # Run go fix (modernize)
 make tidy                               # Run go mod tidy -v
-go test -v ./internal/plan              # Run tests for a specific package
-go test -run TestParsePreamble ./internal/plan  # Run a single test
+go test -v ./internal/markdown           # Run tests for a specific package
+go test -run TestParsePreamble ./internal/markdown  # Run a single test
 ```
 
 Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintlint, predeclared, unconvert; formatters: gci, gofumpt).
@@ -34,21 +34,21 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Entry Point & CLI
 
-`main.go` → `cmd/cli.go`: Kong struct-based CLI with 4 subcommands (review, locate, hook, version).
+`main.go` → `cmd/cli.go`: Kong struct-based CLI with 4 subcommands (review, cclocate, cchook, version).
 
 ### Package Layout
 
-- **`internal/plan/`** — Core domain. Markdown parsing via goldmark AST (not regex, to avoid `#` in code blocks being misinterpreted as headings). Data models (`Plan`, `Step`, `ReviewComment`), review output formatting.
-- **`internal/tui/`** — Bubble Tea TUI. 2-pane layout: `StepList` (left) + `DetailPane` (right). Mode-based state machine: `ModeNormal` → `ModeComment` → `ModeCommentList` → `ModeConfirm` → `ModeHelp` → `ModeSearch`.
-- **`internal/locate/`** — Plan file discovery from Claude Code transcript JSONL files. `plansDirectory` resolution chain: `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json` → `~/.claude/plans/`.
-- **`internal/hook/`** — PostToolUse hook orchestration. Parses stdin JSON from Claude Code, validates `permission_mode == "plan"`, spawns review in a pane, returns exit code 0 (continue) or 2 (feedback).
+- **`internal/markdown/`** — Core domain. Markdown parsing via goldmark AST (not regex, to avoid `#` in code blocks being misinterpreted as headings). Data models (`Document`, `Section`, `ReviewComment`), review output formatting.
+- **`internal/tui/`** — Bubble Tea TUI. 2-pane layout: `SectionList` (left) + `DetailPane` (right). Mode-based state machine: `ModeNormal` → `ModeComment` → `ModeCommentList` → `ModeConfirm` → `ModeHelp` → `ModeSearch`.
+- **`internal/cclocate/`** — Plan file discovery from Claude Code transcript JSONL files. `plansDirectory` resolution chain: `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json` → `~/.claude/plans/`.
+- **`internal/cchook/`** — PostToolUse hook orchestration. Parses stdin JSON from Claude Code, validates `permission_mode == "plan"`, spawns review in a pane, returns exit code 0 (continue) or 2 (feedback).
 - **`internal/pane/`** — Terminal multiplexer abstraction. `PaneSpawner` interface with WezTerm and Direct (fallback) implementations. tmux is stub only (`ByName("tmux")` returns DirectSpawner). `AutoDetect()` tries WezTerm → Direct. WezTerm spawner uses pixel dimensions for split direction (right 50% or bottom 80%).
 
 ### Key Data Flow
 
-**Review**: `cmd/review.go` → `plan.Parse(markdown)` → `tui.NewApp(plan)` → Bubble Tea loop → `plan.FormatReview(comments)` → clipboard/file/stdout
+**Review**: `cmd/review.go` → `markdown.Parse(source)` → `tui.NewApp(doc)` → Bubble Tea loop → `markdown.FormatReview(result.Review, doc, filePath)` → clipboard/file/stdout
 
-**Hook**: Claude Code (PostToolUse: Write|Edit) → stdin JSON → `hook.Run()` → `pane.SpawnAndWait(ccplan review ...)` → temp file IPC → exit 0 or 2
+**Hook**: Claude Code (PostToolUse: Write|Edit) → stdin JSON → `cchook.Run()` → `pane.SpawnAndWait(commd review ...)` → temp file IPC → exit 0 or 2
 
 ## Development Rules
 
@@ -82,13 +82,13 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 - **goldmark AST walk** for Markdown parsing instead of regex to correctly handle `#` inside code fences
 - **Mermaid → ASCII rendering** via `mermaid-ascii` library; fenced `\`\`\`mermaid` blocks are converted to ASCII art in the detail pane, with fallback to raw source on error
-- **Content-hash based viewed tracking** (`state.go`): steps are tracked by title → SHA-256 hash of title+body; if content changes, the viewed mark auto-clears
+- **Content-hash based viewed tracking** (`state.go`): sections are tracked by title → SHA-256 hash of title+body; if content changes, the viewed mark auto-clears
 - **PostToolUse (Write|Edit) hook** instead of Stop hook, because Stop doesn't fire during plan mode
 - **Temp files for IPC** between hook process and review subprocess (which runs in a separate pane)
-- **Hook always exits 0 on error** — never breaks the Claude Code workflow; uses `PLAN_REVIEW_SKIP=1` env var to disable
+- **Hook always exits 0 on error** — never breaks the Claude Code workflow; uses `CC_PLAN_REVIEW_SKIP=1` env var to disable
 
 ## Testing Patterns
 
-- Golden file tests using `testdata/` directories (e.g., `internal/plan/testdata/basic.md`, `code-block-hash.md`)
+- Golden file tests using `testdata/` directories (e.g., `internal/markdown/testdata/basic.md`, `code-block-hash.md`)
 - Test helper `readTestdata(t, name)` for loading fixtures
 - TUI tests validate render bounds, scroll behavior, and cursor position

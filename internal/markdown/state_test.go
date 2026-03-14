@@ -1,4 +1,4 @@
-package plan
+package markdown
 
 import (
 	"os"
@@ -23,18 +23,18 @@ func TestStatePath(t *testing.T) {
 }
 
 func TestContentHash(t *testing.T) {
-	s1 := &Step{Title: "Step 1", Body: "body text"}
-	s2 := &Step{Title: "Step 1", Body: "body text"}
-	s3 := &Step{Title: "Step 1", Body: "different body"}
+	s1 := &Section{Title: "Step 1", Body: "body text"}
+	s2 := &Section{Title: "Step 1", Body: "body text"}
+	s3 := &Section{Title: "Step 1", Body: "different body"}
 
 	// Same content produces same hash
 	if contentHash(s1) != contentHash(s2) {
-		t.Error("identical steps should have same hash")
+		t.Error("identical sections should have same hash")
 	}
 
 	// Different content produces different hash
 	if contentHash(s1) == contentHash(s3) {
-		t.Error("different steps should have different hash")
+		t.Error("different sections should have different hash")
 	}
 
 	// Hash is 16 hex chars (8 bytes)
@@ -50,8 +50,8 @@ func TestLoadViewedStateFileNotFound(t *testing.T) {
 		t.Fatal("should return non-nil state")
 		return
 	}
-	if len(state.Steps) != 0 {
-		t.Error("should return empty steps map")
+	if len(state.Sections) != 0 {
+		t.Error("should return empty sections map")
 	}
 }
 
@@ -66,8 +66,8 @@ func TestLoadViewedStateInvalidJSON(t *testing.T) {
 		t.Fatal("should return non-nil state")
 		return
 	}
-	if len(state.Steps) != 0 {
-		t.Error("should return empty steps map for invalid JSON")
+	if len(state.Sections) != 0 {
+		t.Error("should return empty sections map for invalid JSON")
 	}
 }
 
@@ -75,71 +75,71 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "state.json")
 
 	original := NewViewedState()
-	original.Steps["Step 1"] = "abc123def456abcd"
-	original.Steps["Step 2"] = "1234567890abcdef"
+	original.Sections["Step 1"] = "abc123def456abcd"
+	original.Sections["Step 2"] = "1234567890abcdef"
 
 	if err := SaveViewedState(tmp, original); err != nil {
 		t.Fatalf("SaveViewedState: %v", err)
 	}
 
 	loaded := LoadViewedState(tmp)
-	if len(loaded.Steps) != 2 {
-		t.Fatalf("loaded steps count = %d, want 2", len(loaded.Steps))
+	if len(loaded.Sections) != 2 {
+		t.Fatalf("loaded sections count = %d, want 2", len(loaded.Sections))
 	}
-	if loaded.Steps["Step 1"] != original.Steps["Step 1"] {
+	if loaded.Sections["Step 1"] != original.Sections["Step 1"] {
 		t.Error("Step 1 hash mismatch")
 	}
-	if loaded.Steps["Step 2"] != original.Steps["Step 2"] {
+	if loaded.Sections["Step 2"] != original.Sections["Step 2"] {
 		t.Error("Step 2 hash mismatch")
 	}
 }
 
-func TestIsStepViewed(t *testing.T) {
-	s := &Step{Title: "Step 1", Body: "body"}
+func TestIsSectionViewed(t *testing.T) {
+	s := &Section{Title: "Step 1", Body: "body"}
 	state := NewViewedState()
 
 	// Not tracked yet
-	if state.IsStepViewed(s) {
+	if state.IsSectionViewed(s) {
 		t.Error("should not be viewed initially")
 	}
 
 	// Mark viewed
 	state.MarkViewed(s)
-	if !state.IsStepViewed(s) {
+	if !state.IsSectionViewed(s) {
 		t.Error("should be viewed after MarkViewed")
 	}
 
 	// Change body (stale hash)
 	s.Body = "changed body"
-	if state.IsStepViewed(s) {
+	if state.IsSectionViewed(s) {
 		t.Error("should not be viewed after content change")
 	}
 }
 
 func TestMarkAndUnmarkViewed(t *testing.T) {
-	s := &Step{Title: "Step 1", Body: "body"}
+	s := &Section{Title: "Step 1", Body: "body"}
 	state := NewViewedState()
 
 	state.MarkViewed(s)
-	if _, ok := state.Steps["Step 1"]; !ok {
+	if _, ok := state.Sections["Step 1"]; !ok {
 		t.Error("MarkViewed should add entry")
 	}
 
 	state.UnmarkViewed(s)
-	if _, ok := state.Steps["Step 1"]; ok {
+	if _, ok := state.Sections["Step 1"]; ok {
 		t.Error("UnmarkViewed should remove entry")
 	}
 }
 
-func TestLoadViewedStateNullSteps(t *testing.T) {
+func TestLoadViewedStateNullSections(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "null.json")
 	if err := os.WriteFile(tmp, []byte(`{}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	state := LoadViewedState(tmp)
-	if state.Steps == nil {
-		t.Error("Steps map should be initialized even for empty JSON object")
+	if state.Sections == nil {
+		t.Error("Sections map should be initialized even for empty JSON object")
 	}
 }
 

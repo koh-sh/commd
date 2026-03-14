@@ -7,8 +7,8 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/koh-sh/ccplan/internal/plan"
-	"github.com/koh-sh/ccplan/internal/tui"
+	"github.com/koh-sh/commd/internal/markdown"
+	"github.com/koh-sh/commd/internal/tui"
 )
 
 // writeReviewOutput writes the review output using the specified method.
@@ -48,22 +48,22 @@ func writeReviewOutput(output, mode, outputPath string) error {
 
 // Run executes the review subcommand.
 func (r *ReviewCmd) Run() error {
-	// Read plan file
-	source, err := os.ReadFile(r.PlanFile)
+	// Read file
+	source, err := os.ReadFile(r.File)
 	if err != nil {
-		return fmt.Errorf("reading plan file: %w", err)
+		return fmt.Errorf("reading file: %w", err)
 	}
 
-	// Parse plan
-	p, err := plan.Parse(source)
+	// Parse document
+	p, err := markdown.Parse(source)
 	if err != nil {
-		return fmt.Errorf("parsing plan file: %w", err)
+		return fmt.Errorf("parsing file: %w", err)
 	}
 
 	// Create and run TUI
 	app := tui.NewApp(p, tui.AppOptions{
 		Theme:       r.Theme,
-		FilePath:    r.PlanFile,
+		FilePath:    r.File,
 		TrackViewed: r.TrackViewed,
 	})
 	opts := append([]tea.ProgramOption{tea.WithAltScreen()}, r.teaOpts...)
@@ -81,9 +81,9 @@ func (r *ReviewCmd) Run() error {
 	// Save viewed state if tracking is enabled
 	if r.TrackViewed {
 		if vs := app.ViewedState(); vs != nil {
-			statePath := plan.StatePath(r.PlanFile)
-			if err := plan.SaveViewedState(statePath, vs); err != nil {
-				fmt.Fprintf(os.Stderr, "ccplan: warning: failed to save viewed state: %v\n", err)
+			statePath := markdown.StatePath(r.File)
+			if err := markdown.SaveViewedState(statePath, vs); err != nil {
+				fmt.Fprintf(os.Stderr, "commd: warning: failed to save viewed state: %v\n", err)
 			}
 		}
 	}
@@ -91,8 +91,8 @@ func (r *ReviewCmd) Run() error {
 	result := app.Result()
 
 	// Output review if submitted
-	if result.Status == plan.StatusSubmitted && result.Review != nil {
-		output := plan.FormatReview(result.Review, p, r.PlanFile)
+	if result.Status == markdown.StatusSubmitted && result.Review != nil {
+		output := markdown.FormatReview(result.Review, p, r.File)
 		if output == "" {
 			return nil
 		}
@@ -100,8 +100,8 @@ func (r *ReviewCmd) Run() error {
 		if err := writeReviewOutput(output, r.Output, r.OutputPath); err != nil {
 			return err
 		}
-	} else if result.Status == plan.StatusApproved {
-		fmt.Fprintln(os.Stderr, "Plan approved.")
+	} else if result.Status == markdown.StatusApproved {
+		fmt.Fprintln(os.Stderr, "Approved.")
 	}
 
 	return nil

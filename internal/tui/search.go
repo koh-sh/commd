@@ -5,7 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// SearchBar wraps a textinput for step searching.
+// SearchBar wraps a textinput for section searching.
 type SearchBar struct {
 	input textinput.Model
 }

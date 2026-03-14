@@ -33,10 +33,10 @@ func TestStylesForTheme(t *testing.T) {
 			// Verify dark and light produce different colors
 			dark := stylesForTheme("dark")
 			light := stylesForTheme("light")
-			darkFg := dark.SelectedStep.GetForeground()
-			lightFg := light.SelectedStep.GetForeground()
+			darkFg := dark.SelectedSection.GetForeground()
+			lightFg := light.SelectedSection.GetForeground()
 			if darkFg == lightFg {
-				t.Error("dark and light themes should produce different SelectedStep foreground colors")
+				t.Error("dark and light themes should produce different SelectedSection foreground colors")
 			}
 		})
 	}

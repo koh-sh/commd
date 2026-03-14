@@ -1,4 +1,4 @@
-package plan
+package markdown
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 func TestFormatReview(t *testing.T) {
 	tests := []struct {
 		name         string
-		plan         *Plan
+		doc          *Document
 		result       *ReviewResult
 		filePath     string
 		wantEmpty    bool
@@ -16,18 +16,18 @@ func TestFormatReview(t *testing.T) {
 		wantCounts   map[string]int
 	}{
 		{
-			name: "basic two steps",
-			plan: &Plan{
+			name: "basic two sections",
+			doc: &Document{
 				Title: "Test Plan",
-				Steps: []*Step{
+				Sections: []*Section{
 					{ID: "S1", Title: "First Step", Level: 2},
 					{ID: "S2", Title: "Second Step", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Body: "Change the algorithm."},
-					{StepID: "S2", Action: ActionSuggestion, Body: "Not needed."},
+					{SectionID: "S1", Action: ActionSuggestion, Body: "Change the algorithm."},
+					{SectionID: "S2", Action: ActionSuggestion, Body: "Not needed."},
 				},
 			},
 			filePath: "/path/to/plan.md",
@@ -40,20 +40,20 @@ func TestFormatReview(t *testing.T) {
 		},
 		{
 			name:      "empty comments returns empty string",
-			plan:      &Plan{Title: "Test"},
+			doc:       &Document{Title: "Test"},
 			result:    &ReviewResult{},
 			wantEmpty: true,
 		},
 		{
-			name: "single step with body",
-			plan: &Plan{
-				Steps: []*Step{
+			name: "single section with body",
+			doc: &Document{
+				Sections: []*Section{
 					{ID: "S1", Title: "Step One", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Body: "Looks good but needs refactoring."},
+					{SectionID: "S1", Action: ActionSuggestion, Body: "Looks good but needs refactoring."},
 				},
 			},
 			filePath: "test.md",
@@ -62,18 +62,18 @@ func TestFormatReview(t *testing.T) {
 			},
 		},
 		{
-			name: "grouped comments under same step",
-			plan: &Plan{
-				Steps: []*Step{
+			name: "grouped comments under same section",
+			doc: &Document{
+				Sections: []*Section{
 					{ID: "S1", Title: "JWT verification", Level: 2},
 					{ID: "S3", Title: "Add tests", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Body: "Switch to HS256."},
-					{StepID: "S1", Action: ActionIssue, Body: "Not needed."},
-					{StepID: "S3", Action: ActionQuestion, Body: "Coverage target?"},
+					{SectionID: "S1", Action: ActionSuggestion, Body: "Switch to HS256."},
+					{SectionID: "S1", Action: ActionIssue, Body: "Not needed."},
+					{SectionID: "S3", Action: ActionQuestion, Body: "Coverage target?"},
 				},
 			},
 			filePath: "/path/to/plan.md",
@@ -89,14 +89,14 @@ func TestFormatReview(t *testing.T) {
 		},
 		{
 			name: "comment with decoration",
-			plan: &Plan{
-				Steps: []*Step{
+			doc: &Document{
+				Sections: []*Section{
 					{ID: "S1", Title: "Step One", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Decoration: DecorationNonBlocking, Body: "Use a cache."},
+					{SectionID: "S1", Action: ActionSuggestion, Decoration: DecorationNonBlocking, Body: "Use a cache."},
 				},
 			},
 			filePath: "plan.md",
@@ -106,14 +106,14 @@ func TestFormatReview(t *testing.T) {
 		},
 		{
 			name: "comment without decoration (zero value)",
-			plan: &Plan{
-				Steps: []*Step{
+			doc: &Document{
+				Sections: []*Section{
 					{ID: "S1", Title: "Step One", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Body: "plain comment"},
+					{SectionID: "S1", Action: ActionSuggestion, Body: "plain comment"},
 				},
 			},
 			filePath: "plan.md",
@@ -123,14 +123,14 @@ func TestFormatReview(t *testing.T) {
 		},
 		{
 			name: "empty filePath uses fallback text",
-			plan: &Plan{
-				Steps: []*Step{
+			doc: &Document{
+				Sections: []*Section{
 					{ID: "S1", Title: "Step One", Level: 2},
 				},
 			},
 			result: &ReviewResult{
 				Comments: []ReviewComment{
-					{StepID: "S1", Action: ActionSuggestion, Body: "comment"},
+					{SectionID: "S1", Action: ActionSuggestion, Body: "comment"},
 				},
 			},
 			filePath: "",
@@ -142,7 +142,7 @@ func TestFormatReview(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := FormatReview(tt.result, tt.plan, tt.filePath)
+			output := FormatReview(tt.result, tt.doc, tt.filePath)
 
 			if tt.wantEmpty {
 				if output != "" {

@@ -13,12 +13,12 @@ type Styles struct {
 	ActiveBorder   lipgloss.Style
 	InactiveBorder lipgloss.Style
 
-	// Step list
-	Title        lipgloss.Style
-	SelectedStep lipgloss.Style
-	NormalStep   lipgloss.Style
-	StepBadge    lipgloss.Style
-	ViewedBadge  lipgloss.Style
+	// Section list
+	Title           lipgloss.Style
+	SelectedSection lipgloss.Style
+	NormalSection   lipgloss.Style
+	SectionBadge    lipgloss.Style
+	ViewedBadge     lipgloss.Style
 
 	// Status bar
 	StatusBar lipgloss.Style
@@ -30,43 +30,43 @@ type Styles struct {
 
 // colorPalette defines the color values for a theme.
 type colorPalette struct {
-	activeBorder   string
-	inactiveBorder string
-	title          string
-	selectedStep   string
-	normalStep     string
-	stepBadge      string
-	viewedBadge    string
-	statusBar      string
-	statusKey      string
-	commentBorder  string
+	activeBorder    string
+	inactiveBorder  string
+	title           string
+	selectedSection string
+	normalSection   string
+	sectionBadge    string
+	viewedBadge     string
+	statusBar       string
+	statusKey       string
+	commentBorder   string
 }
 
 var (
 	darkPalette = colorPalette{
-		activeBorder:   "62",
-		inactiveBorder: "240",
-		title:          "170",
-		selectedStep:   "212",
-		normalStep:     "252",
-		stepBadge:      "170",
-		viewedBadge:    "82",
-		statusBar:      "240",
-		statusKey:      "62",
-		commentBorder:  "62",
+		activeBorder:    "62",
+		inactiveBorder:  "240",
+		title:           "170",
+		selectedSection: "212",
+		normalSection:   "252",
+		sectionBadge:    "170",
+		viewedBadge:     "82",
+		statusBar:       "240",
+		statusKey:       "62",
+		commentBorder:   "62",
 	}
 
 	lightPalette = colorPalette{
-		activeBorder:   "33",
-		inactiveBorder: "250",
-		title:          "130",
-		selectedStep:   "33",
-		normalStep:     "236",
-		stepBadge:      "130",
-		viewedBadge:    "28",
-		statusBar:      "245",
-		statusKey:      "33",
-		commentBorder:  "33",
+		activeBorder:    "33",
+		inactiveBorder:  "250",
+		title:           "130",
+		selectedSection: "33",
+		normalSection:   "236",
+		sectionBadge:    "130",
+		viewedBadge:     "28",
+		statusBar:       "245",
+		statusKey:       "33",
+		commentBorder:   "33",
 	}
 )
 
@@ -81,13 +81,13 @@ func buildStyles(p colorPalette) Styles {
 		Title: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color(p.title)),
-		SelectedStep: lipgloss.NewStyle().
+		SelectedSection: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color(p.selectedStep)),
-		NormalStep: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(p.normalStep)),
-		StepBadge: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(p.stepBadge)),
+			Foreground(lipgloss.Color(p.selectedSection)),
+		NormalSection: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.normalSection)),
+		SectionBadge: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.sectionBadge)),
 		ViewedBadge: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(p.viewedBadge)),
 		StatusBar: lipgloss.NewStyle().

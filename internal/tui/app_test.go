@@ -7,33 +7,33 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
-// makeLargePlan creates a plan with many steps to exceed any terminal height.
-func makeLargePlan(topLevel, childrenPer int) *plan.Plan {
-	p := &plan.Plan{
+// makeLargeDoc creates a document with many sections to exceed any terminal height.
+func makeLargeDoc(topLevel, childrenPer int) *markdown.Document {
+	p := &markdown.Document{
 		Title:    "Large Test Plan",
 		Preamble: "This is a preamble with enough text to test overflow.",
 	}
 	for i := 1; i <= topLevel; i++ {
-		step := &plan.Step{
+		section := &markdown.Section{
 			ID:    fmt.Sprintf("S%d", i),
 			Title: fmt.Sprintf("Top Level Step %d", i),
 			Level: 2,
 			Body:  fmt.Sprintf("Body for step %d with some content.", i),
 		}
 		for j := 1; j <= childrenPer; j++ {
-			child := &plan.Step{
+			child := &markdown.Section{
 				ID:     fmt.Sprintf("S%d.%d", i, j),
 				Title:  fmt.Sprintf("Sub Step %d.%d", i, j),
 				Level:  3,
 				Body:   fmt.Sprintf("Body for sub-step %d.%d.", i, j),
-				Parent: step,
+				Parent: section,
 			}
-			step.Children = append(step.Children, child)
+			section.Children = append(section.Children, child)
 		}
-		p.Steps = append(p.Steps, step)
+		p.Sections = append(p.Sections, section)
 	}
 	return p
 }
@@ -46,8 +46,8 @@ func countLines(s string) int {
 }
 
 func TestViewFitsTerminalHeight(t *testing.T) {
-	// 50 top-level steps with 3 children each = 200 items, way more than any terminal
-	p := makeLargePlan(50, 3)
+	// 50 top-level sections with 3 children each = 200 items, way more than any terminal
+	p := makeLargeDoc(50, 3)
 
 	sizes := []struct {
 		name   string
@@ -83,7 +83,7 @@ func TestViewFitsTerminalHeight(t *testing.T) {
 }
 
 func TestViewFitsInCommentMode(t *testing.T) {
-	p := makeLargePlan(20, 3)
+	p := makeLargeDoc(20, 3)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -92,8 +92,8 @@ func TestViewFitsInCommentMode(t *testing.T) {
 		t.Fatalf("model type = %T, want *App", model)
 	}
 
-	// Move to a step and enter comment mode
-	a.stepList.CursorDown() // move to first step
+	// Move to a section and enter comment mode
+	a.sectionList.CursorDown() // move to first section
 	a.comment.Open("S1", nil)
 	a.mode = ModeComment
 
@@ -106,7 +106,7 @@ func TestViewFitsInCommentMode(t *testing.T) {
 }
 
 func TestViewFitsInConfirmMode(t *testing.T) {
-	p := makeLargePlan(20, 3)
+	p := makeLargeDoc(20, 3)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -125,8 +125,8 @@ func TestViewFitsInConfirmMode(t *testing.T) {
 	}
 }
 
-func TestStepListScrollsWithCursor(t *testing.T) {
-	p := makeLargePlan(30, 0) // 30 top-level steps, no children
+func TestSectionListScrollsWithCursor(t *testing.T) {
+	p := makeLargeDoc(30, 0) // 30 top-level sections, no children
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
@@ -137,7 +137,7 @@ func TestStepListScrollsWithCursor(t *testing.T) {
 
 	// Move cursor down past the visible area
 	for range 25 {
-		a.stepList.CursorDown()
+		a.sectionList.CursorDown()
 	}
 
 	view := a.View()
@@ -147,19 +147,19 @@ func TestStepListScrollsWithCursor(t *testing.T) {
 		t.Errorf("View() has %d lines after scrolling, exceeds terminal height 20", lines)
 	}
 
-	// The selected step should be visible in the rendered output
-	selected := a.stepList.Selected()
+	// The selected section should be visible in the rendered output
+	selected := a.sectionList.Selected()
 	if selected == nil {
-		t.Fatal("Expected a selected step")
+		t.Fatal("Expected a selected section")
 		return
 	}
 	if !strings.Contains(view, selected.ID) {
-		t.Errorf("Selected step %s not visible in rendered view after scrolling", selected.ID)
+		t.Errorf("Selected section %s not visible in rendered view after scrolling", selected.ID)
 	}
 }
 
 func TestGGGoesToTop(t *testing.T) {
-	p := makeLargePlan(10, 0)
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -168,11 +168,11 @@ func TestGGGoesToTop(t *testing.T) {
 		t.Fatalf("model type = %T, want *App", model)
 	}
 
-	// Move cursor down several steps
+	// Move cursor down several sections
 	for range 5 {
-		a.stepList.CursorDown()
+		a.sectionList.CursorDown()
 	}
-	if a.stepList.Selected().ID == "S1" {
+	if a.sectionList.Selected().ID == "S1" {
 		t.Fatal("Cursor should not be at S1 before gg")
 	}
 
@@ -181,15 +181,15 @@ func TestGGGoesToTop(t *testing.T) {
 	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 
 	// Cursor should be at top (Overview if preamble exists, otherwise S1)
-	if a.stepList.IsOverviewSelected() {
+	if a.sectionList.IsOverviewSelected() {
 		// OK: overview is at top
-	} else if a.stepList.Selected() != nil && a.stepList.Selected().ID != "S1" {
-		t.Errorf("After gg, expected cursor at top, got %s", a.stepList.Selected().ID)
+	} else if a.sectionList.Selected() != nil && a.sectionList.Selected().ID != "S1" {
+		t.Errorf("After gg, expected cursor at top, got %s", a.sectionList.Selected().ID)
 	}
 }
 
 func TestShiftGGoesToBottom(t *testing.T) {
-	p := makeLargePlan(10, 0)
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -201,9 +201,9 @@ func TestShiftGGoesToBottom(t *testing.T) {
 	// Send 'G' (Shift+G)
 	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 
-	selected := a.stepList.Selected()
+	selected := a.sectionList.Selected()
 	if selected == nil {
-		t.Fatal("Expected a selected step after G")
+		t.Fatal("Expected a selected section after G")
 		return
 	}
 	if selected.ID != "S10" {
@@ -212,7 +212,7 @@ func TestShiftGGoesToBottom(t *testing.T) {
 }
 
 func TestPendingGResetOnOtherKey(t *testing.T) {
-	p := makeLargePlan(10, 0)
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -226,12 +226,12 @@ func TestPendingGResetOnOtherKey(t *testing.T) {
 	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 
 	// Should have moved down by one (j)
-	if a.stepList.IsOverviewSelected() {
+	if a.sectionList.IsOverviewSelected() {
 		// Overview is index 0, j should move to S1
-	} else if a.stepList.Selected() != nil {
+	} else if a.sectionList.Selected() != nil {
 		// The j key should have been processed normally after pendingG reset
 		// Just verify we didn't jump to top or bottom
-		id := a.stepList.Selected().ID
+		id := a.sectionList.Selected().ID
 		if id != "S1" && id != "S2" {
 			t.Errorf("After g+j, expected cursor near top, got %s", id)
 		}
@@ -269,7 +269,7 @@ func lipglossWidth(s string) int {
 }
 
 func TestViewFitsInHelpMode(t *testing.T) {
-	p := makeLargePlan(5, 2)
+	p := makeLargeDoc(5, 2)
 	app := NewApp(p, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -289,7 +289,7 @@ func TestViewFitsInHelpMode(t *testing.T) {
 }
 
 // initApp creates an App with a standard window size for testing.
-func initApp(t *testing.T, p *plan.Plan) *App {
+func initApp(t *testing.T, p *markdown.Document) *App {
 	t.Helper()
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -305,28 +305,28 @@ func keyMsg(s string) tea.KeyMsg {
 }
 
 func TestInit(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	if app.Init() != nil {
 		t.Error("Init() should return nil")
 	}
 }
 
 func TestResult(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	result := app.Result()
-	if result.Status != plan.StatusCancelled {
+	if result.Status != markdown.StatusCancelled {
 		t.Errorf("initial status = %s, want cancelled", result.Status)
 	}
 }
 
 func TestQuitNoComments(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	_, cmd := a.Update(keyMsg("q"))
 	if a.mode != ModeNormal {
 		t.Error("should stay in normal mode")
 	}
-	if a.result.Status != plan.StatusCancelled {
+	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
 	if cmd == nil {
@@ -335,8 +335,8 @@ func TestQuitNoComments(t *testing.T) {
 }
 
 func TestQuitWithComments(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 
 	a.Update(keyMsg("q"))
 	if a.mode != ModeConfirm {
@@ -345,7 +345,7 @@ func TestQuitWithComments(t *testing.T) {
 }
 
 func TestHelpModeToggle(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("?"))
 	if a.mode != ModeHelp {
@@ -360,7 +360,7 @@ func TestHelpModeToggle(t *testing.T) {
 }
 
 func TestHelpModeQ(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeHelp
 
 	a.Update(keyMsg("q"))
@@ -370,7 +370,7 @@ func TestHelpModeQ(t *testing.T) {
 }
 
 func TestHelpModeQuestion(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeHelp
 
 	a.Update(keyMsg("?"))
@@ -380,7 +380,7 @@ func TestHelpModeQuestion(t *testing.T) {
 }
 
 func TestTabSwitchFocus(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	if a.focus != FocusLeft {
 		t.Fatal("initial focus should be left")
@@ -398,10 +398,10 @@ func TestTabSwitchFocus(t *testing.T) {
 }
 
 func TestSubmitNoComments(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	_, cmd := a.Update(keyMsg("s"))
-	if a.result.Status != plan.StatusApproved {
+	if a.result.Status != markdown.StatusApproved {
 		t.Errorf("status = %s, want approved", a.result.Status)
 	}
 	if cmd == nil {
@@ -410,11 +410,11 @@ func TestSubmitNoComments(t *testing.T) {
 }
 
 func TestSubmitWithComments(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "feedback"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "feedback"})
 
 	_, cmd := a.Update(keyMsg("s"))
-	if a.result.Status != plan.StatusSubmitted {
+	if a.result.Status != markdown.StatusSubmitted {
 		t.Errorf("status = %s, want submitted", a.result.Status)
 	}
 	if a.result.Review == nil {
@@ -426,37 +426,37 @@ func TestSubmitWithComments(t *testing.T) {
 }
 
 func TestLeftPaneUpDown(t *testing.T) {
-	a := initApp(t, makeLargePlan(5, 0))
+	a := initApp(t, makeLargeDoc(5, 0))
 
 	// Move down from overview to S1
 	a.Update(keyMsg("j"))
-	if a.stepList.Selected() == nil || a.stepList.Selected().ID != "S1" {
+	if a.sectionList.Selected() == nil || a.sectionList.Selected().ID != "S1" {
 		t.Error("j should move to S1")
 	}
 
 	// Move down again
 	a.Update(keyMsg("j"))
-	if a.stepList.Selected().ID != "S2" {
+	if a.sectionList.Selected().ID != "S2" {
 		t.Error("j should move to S2")
 	}
 
 	// Move up
 	a.Update(keyMsg("k"))
-	if a.stepList.Selected().ID != "S1" {
+	if a.sectionList.Selected().ID != "S1" {
 		t.Error("k should move back to S1")
 	}
 }
 
 func TestLeftPaneToggle(t *testing.T) {
-	p := makeLargePlan(3, 2)
+	p := makeLargeDoc(3, 2)
 	a := initApp(t, p)
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	// S1 should be collapsed
-	for _, item := range a.stepList.items {
-		if item.Step != nil && item.Step.ID == "S1" && item.Expanded {
+	for _, item := range a.sectionList.items {
+		if item.Section != nil && item.Section.ID == "S1" && item.Expanded {
 			t.Error("S1 should be collapsed after enter")
 		}
 	}
@@ -464,9 +464,9 @@ func TestLeftPaneToggle(t *testing.T) {
 
 func TestLeftPaneHorizontalScroll(t *testing.T) {
 	// Use a code block with a wide line so wrapProse does not wrap it.
-	p := &plan.Plan{Title: "Wide Plan"}
+	p := &markdown.Document{Title: "Wide Plan"}
 	wideLine := "```\n" + strings.Repeat("x", 300) + "\n```"
-	p.Steps = append(p.Steps, &plan.Step{
+	p.Sections = append(p.Sections, &markdown.Section{
 		ID: "S1", Title: "Wide Step", Level: 2, Body: wideLine,
 	})
 	a := initApp(t, p)
@@ -487,20 +487,20 @@ func TestLeftPaneHorizontalScroll(t *testing.T) {
 }
 
 func TestLeftPaneComment(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
 	if a.mode != ModeComment {
 		t.Errorf("mode = %d, want ModeComment", a.mode)
 	}
-	if a.comment.StepID() != "S1" {
-		t.Errorf("comment stepID = %s, want S1", a.comment.StepID())
+	if a.comment.SectionID() != "S1" {
+		t.Errorf("comment sectionID = %s, want S1", a.comment.SectionID())
 	}
 }
 
 func TestLeftPaneCommentOnOverview(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	// On overview, c should do nothing
 	a.Update(keyMsg("c"))
@@ -510,7 +510,7 @@ func TestLeftPaneCommentOnOverview(t *testing.T) {
 }
 
 func TestLeftPaneCommentList(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 
@@ -521,7 +521,7 @@ func TestLeftPaneCommentList(t *testing.T) {
 	}
 
 	// Add comment, then C should work
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 	a.Update(keyMsg("C"))
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList", a.mode)
@@ -529,18 +529,18 @@ func TestLeftPaneCommentList(t *testing.T) {
 }
 
 func TestLeftPaneViewed(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("v"))
 
-	if !a.stepList.IsViewed("S1") {
+	if !a.sectionList.IsViewed("S1") {
 		t.Error("S1 should be viewed after v")
 	}
 }
 
 func TestLeftPaneSearch(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/"))
 	if a.mode != ModeSearch {
@@ -549,7 +549,7 @@ func TestLeftPaneSearch(t *testing.T) {
 }
 
 func TestCommentModeCtrlS(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
@@ -562,7 +562,7 @@ func TestCommentModeCtrlS(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Ctrl+S", a.mode)
 	}
-	comments := a.stepList.GetComments("S1")
+	comments := a.sectionList.GetComments("S1")
 	if len(comments) != 1 {
 		t.Fatalf("comments count = %d, want 1", len(comments))
 	}
@@ -572,8 +572,8 @@ func TestCommentModeCtrlS(t *testing.T) {
 }
 
 func TestCommentModeCtrlSEdit(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{StepID: "S1", Action: plan.ActionSuggestion, Body: "original"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "original"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C")) // comment list
@@ -589,14 +589,14 @@ func TestCommentModeCtrlSEdit(t *testing.T) {
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList after edit save", a.mode)
 	}
-	comments := a.stepList.GetComments("S1")
+	comments := a.sectionList.GetComments("S1")
 	if len(comments) != 1 || comments[0].Body != "edited" {
 		t.Errorf("comment not updated properly")
 	}
 }
 
 func TestCommentModeEsc(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
@@ -606,14 +606,14 @@ func TestCommentModeEsc(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
 	}
-	if len(a.stepList.GetComments("S1")) != 0 {
+	if len(a.sectionList.GetComments("S1")) != 0 {
 		t.Error("cancelled comment should not be saved")
 	}
 }
 
 func TestCommentModeEscFromEdit(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{StepID: "S1", Body: "original"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "original"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C")) // comment list
@@ -626,7 +626,7 @@ func TestCommentModeEscFromEdit(t *testing.T) {
 }
 
 func TestCommentModeTab(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
@@ -639,16 +639,16 @@ func TestCommentModeTab(t *testing.T) {
 }
 
 func TestCommentModeCtrlDCyclesDecoration(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
 
-	if a.comment.DecorationLabel() != plan.DecorationNone {
+	if a.comment.DecorationLabel() != markdown.DecorationNone {
 		t.Errorf("initial decoration = %s, want none", a.comment.DecorationLabel())
 	}
 	a.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
-	if a.comment.DecorationLabel() != plan.DecorationNonBlocking {
+	if a.comment.DecorationLabel() != markdown.DecorationNonBlocking {
 		t.Errorf("decoration after Ctrl+D = %s, want non-blocking", a.comment.DecorationLabel())
 	}
 	if a.mode != ModeComment {
@@ -657,8 +657,8 @@ func TestCommentModeCtrlDCyclesDecoration(t *testing.T) {
 }
 
 func TestCommentListModeEsc(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -670,9 +670,9 @@ func TestCommentListModeEsc(t *testing.T) {
 }
 
 func TestCommentListModeNav(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "first"})
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "second"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "first"})
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "second"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -693,8 +693,8 @@ func TestCommentListModeNav(t *testing.T) {
 }
 
 func TestCommentListModeDelete(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "only"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "only"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -704,15 +704,15 @@ func TestCommentListModeDelete(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after deleting last comment", a.mode)
 	}
-	if len(a.stepList.GetComments("S1")) != 0 {
+	if len(a.sectionList.GetComments("S1")) != 0 {
 		t.Error("comment should be deleted")
 	}
 }
 
 func TestCommentListModeDeleteWithRemaining(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "first"})
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "second"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "first"})
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "second"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -722,18 +722,18 @@ func TestCommentListModeDeleteWithRemaining(t *testing.T) {
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList", a.mode)
 	}
-	if len(a.stepList.GetComments("S1")) != 1 {
+	if len(a.sectionList.GetComments("S1")) != 1 {
 		t.Error("should have 1 remaining comment")
 	}
 }
 
 func TestConfirmModeYes(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 	a.mode = ModeConfirm
 
 	_, cmd := a.Update(keyMsg("y"))
-	if a.result.Status != plan.StatusCancelled {
+	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
 	if cmd == nil {
@@ -742,7 +742,7 @@ func TestConfirmModeYes(t *testing.T) {
 }
 
 func TestConfirmModeNo(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	a.Update(keyMsg("n"))
@@ -752,7 +752,7 @@ func TestConfirmModeNo(t *testing.T) {
 }
 
 func TestConfirmModeEsc(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -762,7 +762,7 @@ func TestConfirmModeEsc(t *testing.T) {
 }
 
 func TestSearchModeEnter(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/"))
 	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -773,7 +773,7 @@ func TestSearchModeEnter(t *testing.T) {
 }
 
 func TestSearchModeEsc(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/"))
 	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -782,7 +782,7 @@ func TestSearchModeEsc(t *testing.T) {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
 	}
 	// All items should be visible
-	for _, item := range a.stepList.items {
+	for _, item := range a.sectionList.items {
 		if !item.Visible {
 			t.Error("all items should be visible after search cancel")
 		}
@@ -790,7 +790,7 @@ func TestSearchModeEsc(t *testing.T) {
 }
 
 func TestRightPaneScroll(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(tea.KeyMsg{Type: tea.KeyTab}) // switch to right pane
 	if a.focus != FocusRight {
@@ -812,9 +812,9 @@ func TestRightPaneScroll(t *testing.T) {
 }
 
 func TestRightPaneHorizontalScroll(t *testing.T) {
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title: "Test",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{
 				ID:    "S1",
 				Title: "Long Code",
@@ -825,7 +825,7 @@ func TestRightPaneHorizontalScroll(t *testing.T) {
 	}
 	a := initApp(t, p)
 
-	// Select step S1 in left pane, then switch to right pane
+	// Select section S1 in left pane, then switch to right pane
 	a.Update(keyMsg("j")) // move to S1
 	a.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if a.focus != FocusRight {
@@ -864,9 +864,9 @@ func TestRightPaneHorizontalScroll(t *testing.T) {
 }
 
 func TestRightPaneHorizontalScrollJump(t *testing.T) {
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title: "Test",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{
 				ID:    "S1",
 				Title: "Long Code",
@@ -877,7 +877,7 @@ func TestRightPaneHorizontalScrollJump(t *testing.T) {
 	}
 	a := initApp(t, p)
 
-	// Select step S1 in left pane, then switch to right pane
+	// Select section S1 in left pane, then switch to right pane
 	a.Update(keyMsg("j")) // move to S1
 	a.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if a.focus != FocusRight {
@@ -900,7 +900,7 @@ func TestRightPaneHorizontalScrollJump(t *testing.T) {
 }
 
 func TestViewNotReady(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	view := app.View()
 	if view != "Loading..." {
 		t.Errorf("view before ready = %q, want 'Loading...'", view)
@@ -908,7 +908,7 @@ func TestViewNotReady(t *testing.T) {
 }
 
 func TestFullViewToggle(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	if a.fullView {
 		t.Fatal("fullView should be false initially")
@@ -926,7 +926,7 @@ func TestFullViewToggle(t *testing.T) {
 }
 
 func TestFullViewFromRightPane(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(tea.KeyMsg{Type: tea.KeyTab}) // switch to right pane
 	if a.focus != FocusRight {
@@ -940,7 +940,7 @@ func TestFullViewFromRightPane(t *testing.T) {
 }
 
 func TestFullViewCursorScrollsDetail(t *testing.T) {
-	p := makeLargePlan(10, 0)
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
@@ -958,16 +958,16 @@ func TestFullViewCursorScrollsDetail(t *testing.T) {
 		a.Update(keyMsg("j"))
 	}
 
-	selected := a.stepList.Selected()
+	selected := a.sectionList.Selected()
 	if selected == nil {
-		t.Fatal("expected a selected step")
+		t.Fatal("expected a selected section")
 	}
 
-	// YOffset should match the selected step's section offset
+	// YOffset should match the selected section's offset
 	yOffset := a.detail.Viewport().YOffset
 	var expectedOffset int
 	for _, so := range a.detail.sectionOffsets {
-		if so.stepID == selected.ID {
+		if so.sectionID == selected.ID {
 			expectedOffset = so.line
 			break
 		}
@@ -978,7 +978,7 @@ func TestFullViewCursorScrollsDetail(t *testing.T) {
 }
 
 func TestFullViewGGScrollsToTop(t *testing.T) {
-	p := makeLargePlan(10, 0)
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
@@ -1004,8 +1004,8 @@ func TestFullViewGGScrollsToTop(t *testing.T) {
 	}
 }
 
-func TestFullViewGScrollsToLastStep(t *testing.T) {
-	p := makeLargePlan(10, 0)
+func TestFullViewGScrollsToLastSection(t *testing.T) {
+	p := makeLargeDoc(10, 0)
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
@@ -1018,24 +1018,24 @@ func TestFullViewGScrollsToLastStep(t *testing.T) {
 	// G (left pane focused)
 	a.Update(keyMsg("G"))
 
-	selected := a.stepList.Selected()
+	selected := a.sectionList.Selected()
 	if selected == nil {
-		t.Fatal("expected a selected step")
+		t.Fatal("expected a selected section")
 		return
 	}
 	if selected.ID != "S10" {
-		t.Errorf("G should select last step, got %s", selected.ID)
+		t.Errorf("G should select last section, got %s", selected.ID)
 	}
 
 	// YOffset should be scrolled down (viewport may clamp to max scroll)
 	yOffset := a.detail.Viewport().YOffset
 	if yOffset == 0 {
-		t.Error("YOffset should be > 0 after G to last step")
+		t.Error("YOffset should be > 0 after G to last section")
 	}
 }
 
 func TestFullViewCommentStillWorks(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("f"))
 	a.Update(keyMsg("j")) // S1
@@ -1046,7 +1046,7 @@ func TestFullViewCommentStillWorks(t *testing.T) {
 }
 
 func TestFullViewCommentRefreshesView(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("f"))
 	a.Update(keyMsg("j")) // S1
@@ -1066,7 +1066,7 @@ func TestFullViewCommentRefreshesView(t *testing.T) {
 }
 
 func TestFullViewStatusBar(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	// Default (section view): pressing f will switch to full
 	sb := a.renderStatusBar()
@@ -1083,8 +1083,8 @@ func TestFullViewStatusBar(t *testing.T) {
 }
 
 func TestFullViewScrollSyncsCursor(t *testing.T) {
-	// Use many steps so content exceeds viewport height
-	p := makeLargePlan(20, 0)
+	// Use many sections so content exceeds viewport height
+	p := makeLargeDoc(20, 0)
 	app := NewApp(p, AppOptions{})
 	// Use small height so scrolling is meaningful
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
@@ -1112,21 +1112,21 @@ func TestFullViewScrollSyncsCursor(t *testing.T) {
 	// Go to bottom with G
 	a.Update(keyMsg("G"))
 
-	// Cursor should have moved to a step near the bottom (not overview/top)
-	selected := a.stepList.Selected()
+	// Cursor should have moved to a section near the bottom (not overview/top)
+	selected := a.sectionList.Selected()
 	if selected == nil {
-		t.Fatal("expected a selected step after G")
+		t.Fatal("expected a selected section after G")
 		return
 	}
-	// YOffset points to the top of the visible window, so the synced step
+	// YOffset points to the top of the visible window, so the synced section
 	// is the one at the top of the last visible page (near end, not necessarily the very last)
 	if selected.ID != "S19" && selected.ID != "S20" {
-		t.Errorf("after G in full view right pane, cursor should sync near last step, got %s", selected.ID)
+		t.Errorf("after G in full view right pane, cursor should sync near last section, got %s", selected.ID)
 	}
 }
 
 func TestFullViewScrollSyncsCursorGG(t *testing.T) {
-	p := makeLargePlan(20, 0)
+	p := makeLargeDoc(20, 0)
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
@@ -1142,7 +1142,7 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 	// Go to bottom first, then gg to go back to top
 	a.Update(keyMsg("G"))
 	// Verify we moved away from top
-	selected := a.stepList.Selected()
+	selected := a.sectionList.Selected()
 	if selected != nil && selected.ID == "S1" {
 		t.Fatal("after G, should not be at S1")
 	}
@@ -1150,8 +1150,8 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 	a.Update(keyMsg("g"))
 	a.Update(keyMsg("g"))
 
-	// After gg, YOffset is 0, which is before any step heading
-	// so stepID is "" and cursor stays where it was — but that's fine
+	// After gg, YOffset is 0, which is before any section heading
+	// so sectionID is "" and cursor stays where it was -- but that's fine
 	// since overview is at the top. The key point is no crash and
 	// cursor is near the top.
 	if a.detail.Viewport().YOffset != 0 {
@@ -1160,7 +1160,7 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 }
 
 func TestSinglePaneMode(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 
 	// Width < 80 triggers single pane mode
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
@@ -1176,7 +1176,7 @@ func TestSinglePaneMode(t *testing.T) {
 }
 
 func TestRenderStatusBarModes(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	// Normal mode
 	sb := a.renderStatusBar()
@@ -1188,12 +1188,12 @@ func TestRenderStatusBarModes(t *testing.T) {
 	}
 
 	// Normal mode with comments - verify comment count display
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 	sb = a.renderStatusBar()
 	if !strings.Contains(sb, "comments") {
 		t.Error("normal mode status bar should show comment count when comments exist")
 	}
-	a.stepList.DeleteComment("S1", 0)
+	a.sectionList.DeleteComment("S1", 0)
 
 	// Comment mode
 	a.mode = ModeComment
@@ -1220,7 +1220,7 @@ func TestRenderStatusBarModes(t *testing.T) {
 
 func TestRenderTitleBar(t *testing.T) {
 	t.Run("with title and filepath", func(t *testing.T) {
-		a := initApp(t, makeLargePlan(3, 0))
+		a := initApp(t, makeLargeDoc(3, 0))
 		a.opts.FilePath = "test.md"
 		tb := a.renderTitleBar()
 		if !strings.Contains(tb, "test.md") {
@@ -1229,7 +1229,7 @@ func TestRenderTitleBar(t *testing.T) {
 	})
 
 	t.Run("no title no filepath", func(t *testing.T) {
-		p := &plan.Plan{Steps: []*plan.Step{{ID: "S1", Title: "Step", Level: 2}}}
+		p := &markdown.Document{Sections: []*markdown.Section{{ID: "S1", Title: "Step", Level: 2}}}
 		a := initApp(t, p)
 		tb := a.renderTitleBar()
 		if tb != "" {
@@ -1238,7 +1238,7 @@ func TestRenderTitleBar(t *testing.T) {
 	})
 
 	t.Run("zero width", func(t *testing.T) {
-		app := NewApp(makeLargePlan(3, 0), AppOptions{})
+		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 		tb := app.renderTitleBar()
 		if tb != "" {
 			t.Error("title bar should be empty when width is 0")
@@ -1247,11 +1247,11 @@ func TestRenderTitleBar(t *testing.T) {
 }
 
 func TestCtrlCInConfirm(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	if a.result.Status != plan.StatusCancelled {
+	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
 	if cmd == nil {
@@ -1260,7 +1260,7 @@ func TestCtrlCInConfirm(t *testing.T) {
 }
 
 func TestGGInRightPane(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.focus = FocusRight
 
 	// gg in right pane should call GotoTop on viewport
@@ -1272,7 +1272,7 @@ func TestGGInRightPane(t *testing.T) {
 }
 
 func TestGInRightPane(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.focus = FocusRight
 
 	// G in right pane should call GotoBottom on viewport
@@ -1287,7 +1287,7 @@ func TestGInRightPane(t *testing.T) {
 }
 
 func TestRenderRightContentModes(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	// Normal mode
 	content := a.renderRightContent(80, 20)
@@ -1296,7 +1296,7 @@ func TestRenderRightContentModes(t *testing.T) {
 	}
 
 	// Comment mode
-	a.stepList.CursorDown()
+	a.sectionList.CursorDown()
 	a.comment.Open("S1", nil)
 	a.mode = ModeComment
 	content = a.renderRightContent(80, 20)
@@ -1306,8 +1306,8 @@ func TestRenderRightContentModes(t *testing.T) {
 
 	// Comment list mode
 	a.mode = ModeCommentList
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
-	a.commentList.Open("S1", a.stepList.GetComments("S1"))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+	a.commentList.Open("S1", a.sectionList.GetComments("S1"))
 	content = a.renderRightContent(80, 20)
 	if content == "" {
 		t.Error("right content in comment list mode should not be empty")
@@ -1315,7 +1315,7 @@ func TestRenderRightContentModes(t *testing.T) {
 }
 
 func TestSearchModeNavigation(t *testing.T) {
-	a := initApp(t, makeLargePlan(5, 0))
+	a := initApp(t, makeLargeDoc(5, 0))
 
 	a.Update(keyMsg("/"))
 	if a.mode != ModeSearch {
@@ -1332,7 +1332,7 @@ func TestSearchModeNavigation(t *testing.T) {
 }
 
 func TestSearchModeTextInput(t *testing.T) {
-	a := initApp(t, makeLargePlan(5, 0))
+	a := initApp(t, makeLargeDoc(5, 0))
 
 	a.Update(keyMsg("/"))
 
@@ -1340,12 +1340,12 @@ func TestSearchModeTextInput(t *testing.T) {
 	// and the FilterByQuery call
 	a.search.input.SetValue("Step 3")
 	// Manually trigger the filter as SetValue doesn't go through Update
-	a.stepList.FilterByQuery(a.search.Query())
+	a.sectionList.FilterByQuery(a.search.Query())
 
 	// Verify filter was applied
 	found := false
-	for _, item := range a.stepList.items {
-		if item.Step != nil && item.Step.ID == "S3" && item.Visible {
+	for _, item := range a.sectionList.items {
+		if item.Section != nil && item.Section.ID == "S3" && item.Visible {
 			found = true
 		}
 	}
@@ -1358,7 +1358,7 @@ func TestSearchModeTextInput(t *testing.T) {
 type testMsg struct{}
 
 func TestUpdateNonKeyMsgInCommentMode(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c")) // enter comment mode
@@ -1371,7 +1371,7 @@ func TestUpdateNonKeyMsgInCommentMode(t *testing.T) {
 }
 
 func TestUpdateNonKeyMsgInSearchMode(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/")) // enter search mode
 
@@ -1383,7 +1383,7 @@ func TestUpdateNonKeyMsgInSearchMode(t *testing.T) {
 }
 
 func TestUpdateNonKeyMsgInNormalMode(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	// Send a non-key, non-window message in normal mode
 	model, cmd := a.Update(testMsg{})
@@ -1396,7 +1396,7 @@ func TestUpdateNonKeyMsgInNormalMode(t *testing.T) {
 }
 
 func TestSinglePaneFocusRight(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
@@ -1412,7 +1412,7 @@ func TestSinglePaneFocusRight(t *testing.T) {
 }
 
 func TestHelpModeEnter(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeHelp
 
 	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -1422,11 +1422,11 @@ func TestHelpModeEnter(t *testing.T) {
 }
 
 func TestConfirmModeCapitalY(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	_, cmd := a.Update(keyMsg("Y"))
-	if a.result.Status != plan.StatusCancelled {
+	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
 	if cmd == nil {
@@ -1435,7 +1435,7 @@ func TestConfirmModeCapitalY(t *testing.T) {
 }
 
 func TestConfirmModeCapitalN(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	a.Update(keyMsg("N"))
@@ -1445,7 +1445,7 @@ func TestConfirmModeCapitalN(t *testing.T) {
 }
 
 func TestContentHeight(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	h := a.contentHeight()
 	if h < 1 {
 		t.Errorf("contentHeight = %d, should be >= 1", h)
@@ -1453,7 +1453,7 @@ func TestContentHeight(t *testing.T) {
 }
 
 func TestLeftRightWidth(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	lw := a.leftWidth()
 	rw := a.rightWidth()
@@ -1471,7 +1471,7 @@ func TestLeftRightWidth(t *testing.T) {
 
 func TestPaneResize(t *testing.T) {
 	t.Run("grow and shrink", func(t *testing.T) {
-		a := initApp(t, makeLargePlan(3, 0))
+		a := initApp(t, makeLargeDoc(3, 0))
 		initialRatio := a.leftRatio
 		initialLW := a.leftWidth()
 
@@ -1490,7 +1490,7 @@ func TestPaneResize(t *testing.T) {
 	})
 
 	t.Run("upper bound", func(t *testing.T) {
-		a := initApp(t, makeLargePlan(3, 0))
+		a := initApp(t, makeLargeDoc(3, 0))
 		a.leftRatio = 50
 		a.Update(keyMsg(">"))
 		if a.leftRatio != 50 {
@@ -1499,7 +1499,7 @@ func TestPaneResize(t *testing.T) {
 	})
 
 	t.Run("lower bound", func(t *testing.T) {
-		a := initApp(t, makeLargePlan(3, 0))
+		a := initApp(t, makeLargeDoc(3, 0))
 		a.leftRatio = 10
 		a.Update(keyMsg("<"))
 		if a.leftRatio != 10 {
@@ -1508,7 +1508,7 @@ func TestPaneResize(t *testing.T) {
 	})
 
 	t.Run("disabled in single pane", func(t *testing.T) {
-		app := NewApp(makeLargePlan(3, 0), AppOptions{})
+		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 		model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 		a, ok := model.(*App)
 		if !ok {
@@ -1527,7 +1527,7 @@ func TestPaneResize(t *testing.T) {
 }
 
 func TestHandleKeyUnknownMode(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = AppMode(99) // unknown mode
 
 	model, _ := a.Update(keyMsg("j"))
@@ -1538,7 +1538,7 @@ func TestHandleKeyUnknownMode(t *testing.T) {
 
 func TestUpdateLayoutFirstTime(t *testing.T) {
 	// Test the path where detail is nil (first updateLayout call)
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	app.width = 120
 	app.height = 30
 	app.detail = nil
@@ -1549,7 +1549,7 @@ func TestUpdateLayoutFirstTime(t *testing.T) {
 }
 
 func TestRefreshDetailNilDetail(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	app.detail = nil
 	app.refreshDetail()
 	if app.detail != nil {
@@ -1559,7 +1559,7 @@ func TestRefreshDetailNilDetail(t *testing.T) {
 
 func TestSinglePaneTitleBar(t *testing.T) {
 	// Single pane with title bar and focus right
-	app := NewApp(makeLargePlan(3, 0), AppOptions{FilePath: "test.md"})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{FilePath: "test.md"})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
 	if !ok {
@@ -1581,7 +1581,7 @@ func TestSinglePaneTitleBar(t *testing.T) {
 }
 
 func TestCommentModeCtrlSEmptyBody(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c"))
@@ -1592,13 +1592,13 @@ func TestCommentModeCtrlSEmptyBody(t *testing.T) {
 		t.Errorf("mode = %d, want ModeNormal", a.mode)
 	}
 	// Empty comment should not be saved
-	if len(a.stepList.GetComments("S1")) != 0 {
+	if len(a.sectionList.GetComments("S1")) != 0 {
 		t.Error("empty comment should not be saved")
 	}
 }
 
 func TestCommentModeRegularKey(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("c")) // enter comment mode
 
@@ -1610,7 +1610,7 @@ func TestCommentModeRegularKey(t *testing.T) {
 }
 
 func TestConfirmModeUnhandledKey(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
 	a.Update(keyMsg("x"))
@@ -1620,7 +1620,7 @@ func TestConfirmModeUnhandledKey(t *testing.T) {
 }
 
 func TestHelpModeUnhandledKey(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeHelp
 
 	a.Update(keyMsg("x"))
@@ -1630,7 +1630,7 @@ func TestHelpModeUnhandledKey(t *testing.T) {
 }
 
 func TestSearchModeRegularKey(t *testing.T) {
-	a := initApp(t, makeLargePlan(5, 0))
+	a := initApp(t, makeLargeDoc(5, 0))
 	a.Update(keyMsg("/"))
 
 	// Regular key should fall through to search.Update + FilterByQuery
@@ -1641,7 +1641,7 @@ func TestSearchModeRegularKey(t *testing.T) {
 }
 
 func TestWindowSizeResize(t *testing.T) {
-	app := NewApp(makeLargePlan(3, 0), AppOptions{})
+	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
 	if !ok {
@@ -1663,8 +1663,8 @@ func TestWindowSizeResize(t *testing.T) {
 }
 
 func TestSinglePaneNoTitleBar(t *testing.T) {
-	// Plan without title, no filepath → empty title bar
-	p := &plan.Plan{Steps: []*plan.Step{{ID: "S1", Title: "Step", Level: 2}}}
+	// Document without title, no filepath -> empty title bar
+	p := &markdown.Document{Sections: []*markdown.Section{{ID: "S1", Title: "Step", Level: 2}}}
 	app := NewApp(p, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
@@ -1679,7 +1679,7 @@ func TestSinglePaneNoTitleBar(t *testing.T) {
 }
 
 func TestDualPaneFocusRight(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
+	a := initApp(t, makeLargeDoc(3, 0))
 	a.focus = FocusRight
 
 	view := a.View()
@@ -1689,8 +1689,8 @@ func TestDualPaneFocusRight(t *testing.T) {
 }
 
 func TestDualPaneNoTitleBar(t *testing.T) {
-	// Plan without title, no filepath → empty title bar in dual pane
-	p := &plan.Plan{Steps: []*plan.Step{{ID: "S1", Title: "Step", Level: 2}}}
+	// Document without title, no filepath -> empty title bar in dual pane
+	p := &markdown.Document{Sections: []*markdown.Section{{ID: "S1", Title: "Step", Level: 2}}}
 	a := initApp(t, p)
 
 	view := a.View()
@@ -1700,8 +1700,8 @@ func TestDualPaneNoTitleBar(t *testing.T) {
 }
 
 func TestCommentListModeUnhandledKey(t *testing.T) {
-	a := initApp(t, makeLargePlan(3, 0))
-	a.stepList.AddComment("S1", &plan.ReviewComment{Body: "test"})
+	a := initApp(t, makeLargeDoc(3, 0))
+	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C")) // comment list mode
@@ -1714,21 +1714,21 @@ func TestCommentListModeUnhandledKey(t *testing.T) {
 }
 
 func TestRenderScrollUp(t *testing.T) {
-	// Create a plan with enough steps to cause scrolling in a small viewport
-	p := makeLargePlan(30, 0) // 30 steps + overview = 31 items
+	// Create a document with enough sections to cause scrolling in a small viewport
+	p := makeLargeDoc(30, 0) // 30 sections + overview = 31 items
 	a := initApp(t, p)
 	a.height = 10 // small viewport
 
 	// Scroll down to the bottom
 	for range 25 {
-		a.stepList.CursorDown()
+		a.sectionList.CursorDown()
 	}
 	// Render to update scrollOffset
-	a.stepList.Render(80, 10, a.styles)
+	a.sectionList.Render(80, 10, a.styles)
 
 	// Jump to top - this should trigger cursorPos < scrollOffset
-	a.stepList.CursorTop()
-	output := a.stepList.Render(80, 10, a.styles)
+	a.sectionList.CursorTop()
+	output := a.sectionList.Render(80, 10, a.styles)
 	if !strings.Contains(output, "Overview") {
 		t.Error("after jump to top, Overview should be visible")
 	}
@@ -1759,21 +1759,21 @@ func TestClipLines(t *testing.T) {
 
 func TestAppViewedState(t *testing.T) {
 	t.Run("without tracking", func(t *testing.T) {
-		app := NewApp(makeLargePlan(3, 0), AppOptions{})
+		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
 		if app.ViewedState() != nil {
 			t.Error("ViewedState should be nil when TrackViewed is false")
 		}
 	})
 
 	t.Run("with tracking no filepath", func(t *testing.T) {
-		app := NewApp(makeLargePlan(3, 0), AppOptions{TrackViewed: true})
+		app := NewApp(makeLargeDoc(3, 0), AppOptions{TrackViewed: true})
 		if app.ViewedState() != nil {
 			t.Error("ViewedState should be nil when FilePath is empty")
 		}
 	})
 
 	t.Run("with tracking and filepath", func(t *testing.T) {
-		app := NewApp(makeLargePlan(3, 0), AppOptions{
+		app := NewApp(makeLargeDoc(3, 0), AppOptions{
 			TrackViewed: true,
 			FilePath:    "/nonexistent/plan.md",
 		})
@@ -1782,8 +1782,8 @@ func TestAppViewedState(t *testing.T) {
 			t.Fatal("ViewedState should not be nil")
 			return
 		}
-		if len(vs.Steps) != 0 {
-			t.Error("should start with empty steps")
+		if len(vs.Sections) != 0 {
+			t.Error("should start with empty sections")
 		}
 	})
 }

@@ -1,4 +1,4 @@
-package locate
+package cclocate
 
 import (
 	"bufio"

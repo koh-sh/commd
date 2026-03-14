@@ -1,4 +1,4 @@
-module github.com/koh-sh/ccplan
+module github.com/koh-sh/commd
 
 go 1.26.0
 

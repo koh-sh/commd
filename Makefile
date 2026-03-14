@@ -2,7 +2,7 @@
 
 COVFILE = coverage.out
 COVHTML = cover.html
-GITHUB_REPOSITORY = koh-sh/ccplan
+GITHUB_REPOSITORY = koh-sh/commd
 
 test:
 	go test ./... -json | tparse -all
@@ -23,7 +23,7 @@ lint:
 	golangci-lint run --fix
 
 build:
-	go build -o ccplan .
+	go build -o commd .
 
 ci: fmt fix lint build cov
 

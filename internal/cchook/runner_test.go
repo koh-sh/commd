@@ -1,4 +1,4 @@
-package hook
+package cchook
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/koh-sh/ccplan/internal/locate"
-	"github.com/koh-sh/ccplan/internal/pane"
+	"github.com/koh-sh/commd/internal/cclocate"
+	"github.com/koh-sh/commd/internal/pane"
 )
 
 // mockSpawner implements pane.PaneSpawner for testing.
@@ -46,7 +46,7 @@ func TestRunSkipsNonPlanMode(t *testing.T) {
 }
 
 func TestRunSkipsPlanReviewSkipEnv(t *testing.T) {
-	t.Setenv("PLAN_REVIEW_SKIP", "1")
+	t.Setenv("CC_PLAN_REVIEW_SKIP", "1")
 	mock := &mockSpawner{available: true, name: "mock"}
 	input := &Input{PermissionMode: "plan"}
 	code, err := Run(input, RunConfig{Spawner: mock})
@@ -57,7 +57,7 @@ func TestRunSkipsPlanReviewSkipEnv(t *testing.T) {
 		t.Errorf("exit code = %d, want 0", code)
 	}
 	if mock.spawnCalled {
-		t.Error("spawner should not be called when PLAN_REVIEW_SKIP=1")
+		t.Error("spawner should not be called when CC_PLAN_REVIEW_SKIP=1")
 	}
 }
 
@@ -108,7 +108,7 @@ func TestRunSkipsNonPlanFile(t *testing.T) {
 
 	mock := &mockSpawner{available: true, name: "mock"}
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: t.TempDir()},
+		HookInput:      cclocate.HookInput{CWD: t.TempDir()},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: tmpFile.Name()},
 	}
@@ -169,7 +169,7 @@ func TestRunSuccessWithReview(t *testing.T) {
 	}
 
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: cwd},
+		HookInput:      cclocate.HookInput{CWD: cwd},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: planFile},
 	}
@@ -199,7 +199,7 @@ func TestRunSuccessNoReview(t *testing.T) {
 	}
 
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: cwd},
+		HookInput:      cclocate.HookInput{CWD: cwd},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: planFile},
 	}
@@ -218,7 +218,7 @@ func TestRunFileNotFound(t *testing.T) {
 
 	mock := &mockSpawner{available: true, name: "mock"}
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: cwd},
+		HookInput:      cclocate.HookInput{CWD: cwd},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: filepath.Join(plansDir, "nonexistent.md")},
 	}
@@ -247,7 +247,7 @@ func TestRunSpawnFailure(t *testing.T) {
 	}
 
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: cwd},
+		HookInput:      cclocate.HookInput{CWD: cwd},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: planFile},
 	}
@@ -281,7 +281,7 @@ func TestRunReviewFileRemoved(t *testing.T) {
 	}
 
 	input := &Input{
-		HookInput:      locate.HookInput{CWD: cwd},
+		HookInput:      cclocate.HookInput{CWD: cwd},
 		PermissionMode: "plan",
 		ToolInput:      &ToolInput{FilePath: planFile},
 	}

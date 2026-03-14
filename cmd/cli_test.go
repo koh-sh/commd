@@ -33,8 +33,8 @@ func TestVersionCmdRun(t *testing.T) {
 	}
 	output := buf.String()
 
-	if output != "ccplan version 1.2.3\n" {
-		t.Errorf("output = %q, want %q", output, "ccplan version 1.2.3\n")
+	if output != "commd version 1.2.3\n" {
+		t.Errorf("output = %q, want %q", output, "commd version 1.2.3\n")
 	}
 }
 
@@ -247,14 +247,14 @@ func TestWriteReviewOutput(t *testing.T) {
 
 func TestReviewCmdRunFileNotFound(t *testing.T) {
 	r := &ReviewCmd{
-		PlanFile: "/nonexistent/path/plan.md",
+		File: "/nonexistent/path/plan.md",
 	}
 	err := r.Run()
 	if err == nil {
 		t.Fatal("expected error for nonexistent plan file")
 	}
-	if !strings.Contains(err.Error(), "reading plan file") {
-		t.Errorf("error = %q, want to contain 'reading plan file'", err.Error())
+	if !strings.Contains(err.Error(), "reading file") {
+		t.Errorf("error = %q, want to contain 'reading file'", err.Error())
 	}
 }
 
@@ -307,9 +307,9 @@ func TestReviewCmdRunNoTerminal(t *testing.T) {
 	pw.Close()
 
 	r := &ReviewCmd{
-		PlanFile: planFile,
-		Output:   "stdout",
-		teaOpts:  []tea.ProgramOption{tea.WithInput(pr)},
+		File:    planFile,
+		Output:  "stdout",
+		teaOpts: []tea.ProgramOption{tea.WithInput(pr)},
 	}
 	err := r.Run()
 	if err != nil {
@@ -345,7 +345,7 @@ func TestHookCmdRunExit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envSkip {
-				t.Setenv("PLAN_REVIEW_SKIP", "1")
+				t.Setenv("CC_PLAN_REVIEW_SKIP", "1")
 			}
 			h := &HookCmd{Spawner: "auto", Theme: "dark"}
 			code := h.runExit(strings.NewReader(tt.input))

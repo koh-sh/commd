@@ -4,20 +4,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 func TestCommentListOpenClose(t *testing.T) {
 	cl := NewCommentList()
 
-	comments := []*plan.ReviewComment{
-		{StepID: "S1", Action: plan.ActionSuggestion, Body: "first"},
-		{StepID: "S1", Action: plan.ActionIssue, Body: "second"},
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "first"},
+		{SectionID: "S1", Action: markdown.ActionIssue, Body: "second"},
 	}
 
 	cl.Open("S1", comments)
-	if cl.StepID() != "S1" {
-		t.Errorf("stepID = %s, want S1", cl.StepID())
+	if cl.SectionID() != "S1" {
+		t.Errorf("sectionID = %s, want S1", cl.SectionID())
 	}
 	if cl.Cursor() != 0 {
 		t.Errorf("cursor = %d, want 0", cl.Cursor())
@@ -37,7 +37,7 @@ func TestCommentListCursorAdjustOnOpen(t *testing.T) {
 
 	// Set cursor beyond range
 	cl.cursor = 5
-	comments := []*plan.ReviewComment{
+	comments := []*markdown.ReviewComment{
 		{Body: "only one"},
 	}
 	cl.Open("S1", comments)
@@ -48,7 +48,7 @@ func TestCommentListCursorAdjustOnOpen(t *testing.T) {
 
 func TestCommentListCursorUpDown(t *testing.T) {
 	cl := NewCommentList()
-	comments := []*plan.ReviewComment{
+	comments := []*markdown.ReviewComment{
 		{Body: "first"},
 		{Body: "second"},
 		{Body: "third"},
@@ -88,7 +88,7 @@ func TestCommentListCursorUpDown(t *testing.T) {
 func TestCommentListOpenEmptyComments(t *testing.T) {
 	cl := NewCommentList()
 	cl.cursor = 3
-	cl.Open("S1", []*plan.ReviewComment{})
+	cl.Open("S1", []*markdown.ReviewComment{})
 	if cl.Cursor() != 0 {
 		t.Errorf("cursor = %d, want 0 for empty comments", cl.Cursor())
 	}
@@ -96,8 +96,8 @@ func TestCommentListOpenEmptyComments(t *testing.T) {
 
 func TestCommentListRenderWithDecoration(t *testing.T) {
 	cl := NewCommentList()
-	comments := []*plan.ReviewComment{
-		{StepID: "S1", Action: plan.ActionSuggestion, Decoration: plan.DecorationNonBlocking, Body: "decorated comment"},
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", Action: markdown.ActionSuggestion, Decoration: markdown.DecorationNonBlocking, Body: "decorated comment"},
 	}
 	cl.Open("S1", comments)
 
@@ -114,9 +114,9 @@ func TestCommentListRenderWithDecoration(t *testing.T) {
 
 func TestCommentListRender(t *testing.T) {
 	cl := NewCommentList()
-	comments := []*plan.ReviewComment{
-		{StepID: "S1", Action: plan.ActionSuggestion, Body: "first comment"},
-		{StepID: "S1", Action: plan.ActionIssue, Body: "second comment"},
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "first comment"},
+		{SectionID: "S1", Action: markdown.ActionIssue, Body: "second comment"},
 	}
 	cl.Open("S1", comments)
 
@@ -124,7 +124,7 @@ func TestCommentListRender(t *testing.T) {
 	output := cl.Render(80, 20, styles)
 
 	if !strings.Contains(output, "S1") {
-		t.Error("render should contain step ID")
+		t.Error("render should contain section ID")
 	}
 	if !strings.Contains(output, ">") {
 		t.Error("render should contain cursor marker")

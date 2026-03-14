@@ -5,15 +5,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 // CommentEditor wraps a textarea for entering review comments.
 type CommentEditor struct {
 	textarea   textarea.Model
-	stepID     string
-	labelIndex int // index into plan.ActionLabels
-	decoIndex  int // index into plan.DecorationLabels
+	sectionID  string
+	labelIndex int // index into markdown.ActionLabels
+	decoIndex  int // index into markdown.DecorationLabels
 }
 
 // NewCommentEditor creates a new CommentEditor.
@@ -29,16 +29,16 @@ func NewCommentEditor() *CommentEditor {
 	}
 }
 
-// Open opens the comment editor for a step, optionally pre-filling with existing comment.
-func (c *CommentEditor) Open(stepID string, existing *plan.ReviewComment) tea.Cmd {
-	c.stepID = stepID
+// Open opens the comment editor for a section, optionally pre-filling with existing comment.
+func (c *CommentEditor) Open(sectionID string, existing *markdown.ReviewComment) tea.Cmd {
+	c.sectionID = sectionID
 
 	if existing != nil {
 		c.labelIndex = c.labelIndexFor(existing.Action)
 		c.decoIndex = c.decorationIndexFor(existing.Decoration)
 		c.textarea.SetValue(existing.Body)
 	} else {
-		c.labelIndex = c.labelIndexFor(plan.DefaultAction)
+		c.labelIndex = c.labelIndexFor(markdown.DefaultAction)
 		c.decoIndex = 0
 		c.textarea.SetValue("")
 	}
@@ -47,8 +47,8 @@ func (c *CommentEditor) Open(stepID string, existing *plan.ReviewComment) tea.Cm
 }
 
 // labelIndexFor returns the index of the given action in ActionLabels.
-func (c *CommentEditor) labelIndexFor(action plan.ActionType) int {
-	return indexInSlice(plan.ActionLabels, action)
+func (c *CommentEditor) labelIndexFor(action markdown.ActionType) int {
+	return indexInSlice(markdown.ActionLabels, action)
 }
 
 // Close closes the comment editor.
@@ -56,47 +56,47 @@ func (c *CommentEditor) Close() {
 	c.textarea.Blur()
 }
 
-// StepID returns the step ID being edited.
-func (c *CommentEditor) StepID() string {
-	return c.stepID
+// SectionID returns the section ID being edited.
+func (c *CommentEditor) SectionID() string {
+	return c.sectionID
 }
 
 // Label returns the current action label.
-func (c *CommentEditor) Label() plan.ActionType {
-	return plan.ActionLabels[c.labelIndex]
+func (c *CommentEditor) Label() markdown.ActionType {
+	return markdown.ActionLabels[c.labelIndex]
 }
 
 // CycleLabel cycles to the next action label.
 func (c *CommentEditor) CycleLabel() {
-	c.labelIndex = (c.labelIndex + 1) % len(plan.ActionLabels)
+	c.labelIndex = (c.labelIndex + 1) % len(markdown.ActionLabels)
 }
 
 // CycleLabelReverse cycles to the previous action label.
 func (c *CommentEditor) CycleLabelReverse() {
-	c.labelIndex = (c.labelIndex - 1 + len(plan.ActionLabels)) % len(plan.ActionLabels)
+	c.labelIndex = (c.labelIndex - 1 + len(markdown.ActionLabels)) % len(markdown.ActionLabels)
 }
 
 // DecorationLabel returns the current decoration.
-func (c *CommentEditor) DecorationLabel() plan.Decoration {
-	return plan.DecorationLabels[c.decoIndex]
+func (c *CommentEditor) DecorationLabel() markdown.Decoration {
+	return markdown.DecorationLabels[c.decoIndex]
 }
 
 // CycleDecoration cycles to the next decoration.
 func (c *CommentEditor) CycleDecoration() {
-	c.decoIndex = (c.decoIndex + 1) % len(plan.DecorationLabels)
+	c.decoIndex = (c.decoIndex + 1) % len(markdown.DecorationLabels)
 }
 
 // FormatLabel returns the combined action and decoration label for display.
 func (c *CommentEditor) FormatLabel() string {
-	return plan.FormatActionLabel(
-		plan.ActionLabels[c.labelIndex],
-		plan.DecorationLabels[c.decoIndex],
+	return markdown.FormatActionLabel(
+		markdown.ActionLabels[c.labelIndex],
+		markdown.DecorationLabels[c.decoIndex],
 	)
 }
 
 // decorationIndexFor returns the index of the given decoration in DecorationLabels.
-func (c *CommentEditor) decorationIndexFor(deco plan.Decoration) int {
-	return indexInSlice(plan.DecorationLabels, deco)
+func (c *CommentEditor) decorationIndexFor(deco markdown.Decoration) int {
+	return indexInSlice(markdown.DecorationLabels, deco)
 }
 
 // indexInSlice returns the index of val in slice, or 0 if not found.
@@ -111,17 +111,17 @@ func indexInSlice[T comparable](slice []T, val T) int {
 
 // Result returns the review comment from the editor content.
 // Returns nil if the body is empty.
-func (c *CommentEditor) Result() *plan.ReviewComment {
+func (c *CommentEditor) Result() *markdown.ReviewComment {
 	body := strings.TrimSpace(c.textarea.Value())
 
 	if body == "" {
 		return nil
 	}
 
-	return &plan.ReviewComment{
-		StepID:     c.stepID,
-		Action:     plan.ActionLabels[c.labelIndex],
-		Decoration: plan.DecorationLabels[c.decoIndex],
+	return &markdown.ReviewComment{
+		SectionID:  c.sectionID,
+		Action:     markdown.ActionLabels[c.labelIndex],
+		Decoration: markdown.DecorationLabels[c.decoIndex],
 		Body:       body,
 	}
 }

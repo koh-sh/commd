@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/koh-sh/ccplan/internal/locate"
+	"github.com/koh-sh/commd/internal/cclocate"
 )
 
 // Run executes the locate subcommand.
 func (l *LocateCmd) Run() error {
-	opts := locate.Options{
+	opts := cclocate.Options{
 		TranscriptPath: l.Transcript,
 		CWD:            l.CWD,
 		All:            l.All,
@@ -17,7 +17,7 @@ func (l *LocateCmd) Run() error {
 
 	// If --stdin, read hook input from stdin
 	if l.Stdin {
-		input, err := locate.ParseHookInput(os.Stdin)
+		input, err := cclocate.ParseHookInput(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("parsing stdin: %w", err)
 		}
@@ -31,13 +31,13 @@ func (l *LocateCmd) Run() error {
 		return fmt.Errorf("--transcript or --stdin is required")
 	}
 
-	paths, err := locate.LocatePlanFile(opts)
+	paths, err := cclocate.LocatePlanFile(opts)
 	if err != nil {
 		return fmt.Errorf("locating plan file: %w", err)
 	}
 
 	if len(paths) == 0 {
-		plansDir := locate.ResolvePlansDir(opts.CWD)
+		plansDir := cclocate.ResolvePlansDir(opts.CWD)
 		return fmt.Errorf("no plan file found (plansDirectory: %s)", plansDir)
 	}
 

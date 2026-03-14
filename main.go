@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/alecthomas/kong"
-	"github.com/koh-sh/ccplan/cmd"
+	"github.com/koh-sh/commd/cmd"
 )
 
 var version = "dev"
@@ -10,8 +10,8 @@ var version = "dev"
 func main() {
 	var cli cmd.CLI
 	ctx := kong.Parse(&cli,
-		kong.Name("ccplan"),
-		kong.Description("Claude Code Plan CLI tool"),
+		kong.Name("commd"),
+		kong.Description("Interactive Markdown reviewer"),
 		kong.UsageOnError(),
 		kong.Vars{"version": version},
 	)

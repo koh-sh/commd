@@ -7,12 +7,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// CLI is the top-level command structure for ccplan.
+// CLI is the top-level command structure for commd.
 type CLI struct {
-	Review  ReviewCmd  `cmd:"" help:"Review a plan file in TUI"`
-	Locate  LocateCmd  `cmd:"" help:"Locate plan file path from transcript"`
-	Hook    HookCmd    `cmd:"" help:"Run as Claude Code PostToolUse hook"`
-	Version VersionCmd `cmd:"" help:"Show version"`
+	Review   ReviewCmd  `cmd:"" help:"Review a Markdown file in TUI"`
+	Cclocate LocateCmd  `cmd:"cclocate" help:"Locate file path from Claude Code transcript"`
+	Cchook   HookCmd    `cmd:"cchook" help:"Run as Claude Code PostToolUse hook"`
+	Version  VersionCmd `cmd:"" help:"Show version"`
 }
 
 // HookCmd is the hook subcommand.
@@ -23,7 +23,7 @@ type HookCmd struct {
 
 // ReviewCmd is the review subcommand.
 type ReviewCmd struct {
-	PlanFile    string `arg:"" help:"Path to the Markdown plan file"`
+	File        string `arg:"" help:"Path to the Markdown file"`
 	Output      string `enum:"clipboard,stdout,file" default:"clipboard" help:"Output method (clipboard|stdout|file)"`
 	OutputPath  string `help:"File path for file output" type:"path"`
 	Theme       string `enum:"dark,light" default:"dark" help:"Color theme (dark|light)"`
@@ -47,6 +47,6 @@ type VersionCmd struct {
 
 // Run executes the version subcommand.
 func (v *VersionCmd) Run(vars kong.Vars) error {
-	fmt.Println("ccplan version " + vars["version"])
+	fmt.Println("commd version " + vars["version"])
 	return nil
 }

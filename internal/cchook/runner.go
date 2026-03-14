@@ -1,12 +1,12 @@
-package hook
+package cchook
 
 import (
 	"context"
 	"fmt"
 	"os"
 
-	"github.com/koh-sh/ccplan/internal/locate"
-	"github.com/koh-sh/ccplan/internal/pane"
+	"github.com/koh-sh/commd/internal/cclocate"
+	"github.com/koh-sh/commd/internal/pane"
 )
 
 // RunConfig holds configuration for the hook runner.
@@ -22,7 +22,7 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	if input.PermissionMode != permissionModePlan {
 		return 0, nil
 	}
-	if os.Getenv("PLAN_REVIEW_SKIP") == "1" {
+	if os.Getenv("CC_PLAN_REVIEW_SKIP") == "1" {
 		return 0, nil
 	}
 
@@ -33,8 +33,8 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	planFile := input.ToolInput.FilePath
 
 	// Check if file is under plans directory
-	plansDir := locate.ResolvePlansDir(input.CWD)
-	if !locate.IsUnderDir(planFile, plansDir) {
+	plansDir := cclocate.ResolvePlansDir(input.CWD)
+	if !cclocate.IsUnderDir(planFile, plansDir) {
 		return 0, nil
 	}
 
@@ -44,19 +44,19 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	}
 
 	// Prepare temp file for IPC with review subprocess
-	reviewFile, err := os.CreateTemp("", "ccplan-review-*.md")
+	reviewFile, err := os.CreateTemp("", "commd-review-*.md")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ccplan: failed to create temp review file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "commd: failed to create temp review file: %v\n", err)
 		return 0, nil
 	}
 	reviewPath := reviewFile.Name()
 	reviewFile.Close()
 	defer os.Remove(reviewPath)
 
-	// Resolve ccplan binary path
+	// Resolve commd binary path
 	executable, err := os.Executable()
 	if err != nil {
-		executable = "ccplan"
+		executable = "commd"
 	}
 
 	// Build review args
@@ -76,7 +76,7 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 	if err != nil {
 		// Fallback to direct if not already direct
 		if spawner.Name() != pane.NameDirect {
-			fmt.Fprintf(os.Stderr, "ccplan: %s spawn failed, falling back to direct: %v\n", spawner.Name(), err)
+			fmt.Fprintf(os.Stderr, "commd: %s spawn failed, falling back to direct: %v\n", spawner.Name(), err)
 			direct := &pane.DirectSpawner{}
 			err = direct.SpawnAndWait(ctx, executable, args)
 		}
@@ -85,7 +85,7 @@ func Run(input *Input, cfg RunConfig) (int, error) {
 		}
 	}
 
-	// Read review result — non-empty means submitted
+	// Read review result -- non-empty means submitted
 	reviewBytes, err := os.ReadFile(reviewPath)
 	if err != nil {
 		return 0, nil

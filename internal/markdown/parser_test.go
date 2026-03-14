@@ -1,4 +1,4 @@
-package plan
+package markdown
 
 import (
 	"os"
@@ -20,33 +20,33 @@ func readTestdata(t *testing.T, name string) []byte {
 
 func TestParseBasic(t *testing.T) {
 	source := readTestdata(t, "basic.md")
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "Plan: Authentication System" {
-		t.Errorf("Title = %q, want %q", plan.Title, "Plan: Authentication System")
+	if doc.Title != "Plan: Authentication System" {
+		t.Errorf("Title = %q, want %q", doc.Title, "Plan: Authentication System")
 	}
 
-	if plan.Preamble != "This plan implements a basic authentication system." {
-		t.Errorf("Preamble = %q, want %q", plan.Preamble, "This plan implements a basic authentication system.")
+	if doc.Preamble != "This plan implements a basic authentication system." {
+		t.Errorf("Preamble = %q, want %q", doc.Preamble, "This plan implements a basic authentication system.")
 	}
 
-	if len(plan.Steps) != 3 {
-		t.Fatalf("len(Steps) = %d, want 3", len(plan.Steps))
+	if len(doc.Sections) != 3 {
+		t.Fatalf("len(Sections) = %d, want 3", len(doc.Sections))
 	}
 
-	// Check top-level step IDs
+	// Check top-level section IDs
 	wantIDs := []string{"S1", "S2", "S3"}
 	for i, want := range wantIDs {
-		if plan.Steps[i].ID != want {
-			t.Errorf("Steps[%d].ID = %q, want %q", i, plan.Steps[i].ID, want)
+		if doc.Sections[i].ID != want {
+			t.Errorf("Sections[%d].ID = %q, want %q", i, doc.Sections[i].ID, want)
 		}
 	}
 
 	// Check S1 children
-	s1 := plan.Steps[0]
+	s1 := doc.Sections[0]
 	if s1.Title != "Step 1: Auth Middleware" {
 		t.Errorf("S1.Title = %q, want %q", s1.Title, "Step 1: Auth Middleware")
 	}
@@ -66,7 +66,7 @@ func TestParseBasic(t *testing.T) {
 	}
 
 	// Check S2 children
-	s2 := plan.Steps[1]
+	s2 := doc.Sections[1]
 	if len(s2.Children) != 2 {
 		t.Fatalf("len(S2.Children) = %d, want 2", len(s2.Children))
 	}
@@ -75,55 +75,55 @@ func TestParseBasic(t *testing.T) {
 	}
 
 	// Check S3 has no children
-	s3 := plan.Steps[2]
+	s3 := doc.Sections[2]
 	if len(s3.Children) != 0 {
 		t.Errorf("len(S3.Children) = %d, want 0", len(s3.Children))
 	}
 
-	// Check AllSteps count: 3 top-level + 2 children of S1 + 2 children of S2 = 7
-	allSteps := plan.AllSteps()
-	if len(allSteps) != 7 {
-		t.Errorf("len(AllSteps) = %d, want 7", len(allSteps))
+	// Check AllSections count: 3 top-level + 2 children of S1 + 2 children of S2 = 7
+	allSections := doc.AllSections()
+	if len(allSections) != 7 {
+		t.Errorf("len(AllSections) = %d, want 7", len(allSections))
 	}
 }
 
 func TestParseNoHeadings(t *testing.T) {
 	source := readTestdata(t, "no-headings.md")
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "" {
-		t.Errorf("Title = %q, want empty", plan.Title)
+	if doc.Title != "" {
+		t.Errorf("Title = %q, want empty", doc.Title)
 	}
 
-	if plan.Preamble == "" {
+	if doc.Preamble == "" {
 		t.Error("Preamble should not be empty")
 	}
 
-	if len(plan.Steps) != 0 {
-		t.Errorf("len(Steps) = %d, want 0", len(plan.Steps))
+	if len(doc.Sections) != 0 {
+		t.Errorf("len(Sections) = %d, want 0", len(doc.Sections))
 	}
 }
 
 func TestParseDeepNesting(t *testing.T) {
 	source := readTestdata(t, "deep-nesting.md")
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "Deep Nesting Plan" {
-		t.Errorf("Title = %q, want %q", plan.Title, "Deep Nesting Plan")
+	if doc.Title != "Deep Nesting Plan" {
+		t.Errorf("Title = %q, want %q", doc.Title, "Deep Nesting Plan")
 	}
 
-	if len(plan.Steps) != 2 {
-		t.Fatalf("len(Steps) = %d, want 2", len(plan.Steps))
+	if len(doc.Sections) != 2 {
+		t.Fatalf("len(Sections) = %d, want 2", len(doc.Sections))
 	}
 
-	// First top-level step should have children
-	s1 := plan.Steps[0]
+	// First top-level section should have children
+	s1 := doc.Sections[0]
 	if s1.ID != "S1" {
 		t.Errorf("S1.ID = %q, want %q", s1.ID, "S1")
 	}
@@ -149,75 +149,75 @@ func TestParseDeepNesting(t *testing.T) {
 		t.Fatalf("len(S1.1.1.Children) = %d, want 1", len(s111.Children))
 	}
 
-	// Check total steps
-	allSteps := plan.AllSteps()
-	if len(allSteps) != 6 {
-		t.Errorf("len(AllSteps) = %d, want 6", len(allSteps))
+	// Check total sections
+	allSections := doc.AllSections()
+	if len(allSections) != 6 {
+		t.Errorf("len(AllSections) = %d, want 6", len(allSections))
 	}
 }
 
 func TestParseCodeBlockHash(t *testing.T) {
 	source := readTestdata(t, "code-block-hash.md")
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "Plan with Code Blocks" {
-		t.Errorf("Title = %q, want %q", plan.Title, "Plan with Code Blocks")
+	if doc.Title != "Plan with Code Blocks" {
+		t.Errorf("Title = %q, want %q", doc.Title, "Plan with Code Blocks")
 	}
 
-	// Should only have 2 steps (code block # should not be parsed as headings)
-	if len(plan.Steps) != 2 {
-		t.Fatalf("len(Steps) = %d, want 2", len(plan.Steps))
+	// Should only have 2 sections (code block # should not be parsed as headings)
+	if len(doc.Sections) != 2 {
+		t.Fatalf("len(Sections) = %d, want 2", len(doc.Sections))
 	}
 
-	if plan.Steps[0].Title != "Step 1: Configuration" {
-		t.Errorf("Steps[0].Title = %q, want %q", plan.Steps[0].Title, "Step 1: Configuration")
+	if doc.Sections[0].Title != "Step 1: Configuration" {
+		t.Errorf("Sections[0].Title = %q, want %q", doc.Sections[0].Title, "Step 1: Configuration")
 	}
-	if plan.Steps[1].Title != "Step 2: Implementation" {
-		t.Errorf("Steps[1].Title = %q, want %q", plan.Steps[1].Title, "Step 2: Implementation")
+	if doc.Sections[1].Title != "Step 2: Implementation" {
+		t.Errorf("Sections[1].Title = %q, want %q", doc.Sections[1].Title, "Step 2: Implementation")
 	}
 
-	// Body of step 2 should contain the code block
-	if plan.Steps[1].Body == "" {
-		t.Error("Steps[1].Body should not be empty")
+	// Body of section 2 should contain the code block
+	if doc.Sections[1].Body == "" {
+		t.Error("Sections[1].Body should not be empty")
 	}
 }
 
-func TestParseSingleStep(t *testing.T) {
-	source := readTestdata(t, "single-step.md")
-	plan, err := Parse(source)
+func TestParseSingleSection(t *testing.T) {
+	source := readTestdata(t, "single-section.md")
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "Simple Plan" {
-		t.Errorf("Title = %q, want %q", plan.Title, "Simple Plan")
+	if doc.Title != "Simple Plan" {
+		t.Errorf("Title = %q, want %q", doc.Title, "Simple Plan")
 	}
 
-	if len(plan.Steps) != 1 {
-		t.Fatalf("len(Steps) = %d, want 1", len(plan.Steps))
+	if len(doc.Sections) != 1 {
+		t.Fatalf("len(Sections) = %d, want 1", len(doc.Sections))
 	}
 
-	if plan.Steps[0].ID != "S1" {
-		t.Errorf("Steps[0].ID = %q, want %q", plan.Steps[0].ID, "S1")
+	if doc.Sections[0].ID != "S1" {
+		t.Errorf("Sections[0].ID = %q, want %q", doc.Sections[0].ID, "S1")
 	}
-	if plan.Steps[0].Title != "The Only Step" {
-		t.Errorf("Steps[0].Title = %q, want %q", plan.Steps[0].Title, "The Only Step")
+	if doc.Sections[0].Title != "The Only Step" {
+		t.Errorf("Sections[0].Title = %q, want %q", doc.Sections[0].Title, "The Only Step")
 	}
 }
 
 func TestParseEmptySource(t *testing.T) {
-	plan, err := Parse([]byte(""))
+	doc, err := Parse([]byte(""))
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
-	if plan.Title != "" {
-		t.Errorf("Title = %q, want empty", plan.Title)
+	if doc.Title != "" {
+		t.Errorf("Title = %q, want empty", doc.Title)
 	}
-	if len(plan.Steps) != 0 {
-		t.Errorf("len(Steps) = %d, want 0", len(plan.Steps))
+	if len(doc.Sections) != 0 {
+		t.Errorf("len(Sections) = %d, want 0", len(doc.Sections))
 	}
 }
 
@@ -234,29 +234,29 @@ This should be a step.
 
 Content here.
 `)
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	if plan.Title != "First Title" {
-		t.Errorf("Title = %q, want %q", plan.Title, "First Title")
+	if doc.Title != "First Title" {
+		t.Errorf("Title = %q, want %q", doc.Title, "First Title")
 	}
 
 	// Second H1 is top-level, H2 is its child
-	if len(plan.Steps) != 1 {
-		t.Fatalf("len(Steps) = %d, want 1", len(plan.Steps))
+	if len(doc.Sections) != 1 {
+		t.Fatalf("len(Sections) = %d, want 1", len(doc.Sections))
 	}
 
-	if plan.Steps[0].Title != "Second Title" {
-		t.Errorf("Steps[0].Title = %q, want %q", plan.Steps[0].Title, "Second Title")
+	if doc.Sections[0].Title != "Second Title" {
+		t.Errorf("Sections[0].Title = %q, want %q", doc.Sections[0].Title, "Second Title")
 	}
 
-	if len(plan.Steps[0].Children) != 1 {
-		t.Fatalf("len(Steps[0].Children) = %d, want 1", len(plan.Steps[0].Children))
+	if len(doc.Sections[0].Children) != 1 {
+		t.Fatalf("len(Sections[0].Children) = %d, want 1", len(doc.Sections[0].Children))
 	}
-	if plan.Steps[0].Children[0].Title != "Sub Step" {
-		t.Errorf("Steps[0].Children[0].Title = %q, want %q", plan.Steps[0].Children[0].Title, "Sub Step")
+	if doc.Sections[0].Children[0].Title != "Sub Step" {
+		t.Errorf("Sections[0].Children[0].Title = %q, want %q", doc.Sections[0].Children[0].Title, "Sub Step")
 	}
 }
 
@@ -271,21 +271,21 @@ Content.
 
 More content.
 `)
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
 	// Both should be top-level since H3 has no H2 parent
-	if len(plan.Steps) != 2 {
-		t.Fatalf("len(Steps) = %d, want 2", len(plan.Steps))
+	if len(doc.Sections) != 2 {
+		t.Fatalf("len(Sections) = %d, want 2", len(doc.Sections))
 	}
 
-	if plan.Steps[0].ID != "S1" {
-		t.Errorf("Steps[0].ID = %q, want %q", plan.Steps[0].ID, "S1")
+	if doc.Sections[0].ID != "S1" {
+		t.Errorf("Sections[0].ID = %q, want %q", doc.Sections[0].ID, "S1")
 	}
-	if plan.Steps[1].ID != "S2" {
-		t.Errorf("Steps[1].ID = %q, want %q", plan.Steps[1].ID, "S2")
+	if doc.Sections[1].ID != "S2" {
+		t.Errorf("Sections[1].ID = %q, want %q", doc.Sections[1].ID, "S2")
 	}
 }
 
@@ -295,12 +295,12 @@ func TestParseHeadingWithInlineCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
-	if len(p.Steps) != 1 {
-		t.Fatalf("steps count = %d, want 1", len(p.Steps))
+	if len(p.Sections) != 1 {
+		t.Fatalf("sections count = %d, want 1", len(p.Sections))
 	}
 	// extractNodeText should recurse into inline code
-	if p.Steps[0].Title != "Step with code in title" {
-		t.Errorf("Title = %q, want %q", p.Steps[0].Title, "Step with code in title")
+	if p.Sections[0].Title != "Step with code in title" {
+		t.Errorf("Title = %q, want %q", p.Sections[0].Title, "Step with code in title")
 	}
 }
 
@@ -310,11 +310,11 @@ func TestParseHeadingWithEmphasis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
-	if len(p.Steps) != 1 {
-		t.Fatalf("steps count = %d, want 1", len(p.Steps))
+	if len(p.Sections) != 1 {
+		t.Fatalf("sections count = %d, want 1", len(p.Sections))
 	}
-	if p.Steps[0].Title != "Step with bold text" {
-		t.Errorf("Title = %q, want %q", p.Steps[0].Title, "Step with bold text")
+	if p.Sections[0].Title != "Step with bold text" {
+		t.Errorf("Title = %q, want %q", p.Sections[0].Title, "Step with bold text")
 	}
 }
 
@@ -346,7 +346,7 @@ func TestParsePreambleWithH1Body(t *testing.T) {
 }
 
 func TestParseOnlyH1(t *testing.T) {
-	// Only H1 heading, no steps → buildHierarchy([]) returns nil
+	// Only H1 heading, no sections -> buildHierarchy([]) returns nil
 	source := []byte("# Title Only\n\nSome description.\n")
 	p, err := Parse(source)
 	if err != nil {
@@ -355,8 +355,8 @@ func TestParseOnlyH1(t *testing.T) {
 	if p.Title != "Title Only" {
 		t.Errorf("Title = %q, want %q", p.Title, "Title Only")
 	}
-	if len(p.Steps) != 0 {
-		t.Errorf("len(Steps) = %d, want 0", len(p.Steps))
+	if len(p.Sections) != 0 {
+		t.Errorf("len(Sections) = %d, want 0", len(p.Sections))
 	}
 }
 
@@ -371,15 +371,15 @@ func TestParseSetextHeadings(t *testing.T) {
 	if p.Title != "Title" {
 		t.Errorf("Title = %q, want %q", p.Title, "Title")
 	}
-	if len(p.Steps) != 1 {
-		t.Fatalf("len(Steps) = %d, want 1", len(p.Steps))
+	if len(p.Sections) != 1 {
+		t.Fatalf("len(Sections) = %d, want 1", len(p.Sections))
 	}
-	if p.Steps[0].Title != "Step One" {
-		t.Errorf("Steps[0].Title = %q, want %q", p.Steps[0].Title, "Step One")
+	if p.Sections[0].Title != "Step One" {
+		t.Errorf("Sections[0].Title = %q, want %q", p.Sections[0].Title, "Step One")
 	}
 	// Body may include setext underline due to heading end position
-	if p.Steps[0].Body == "" {
-		t.Error("Steps[0].Body should not be empty")
+	if p.Sections[0].Body == "" {
+		t.Error("Sections[0].Body should not be empty")
 	}
 }
 
@@ -499,24 +499,24 @@ func TestFindHeadingEndNoLines(t *testing.T) {
 	})
 }
 
-func TestFindStep(t *testing.T) {
+func TestFindSection(t *testing.T) {
 	source := readTestdata(t, "basic.md")
-	plan, err := Parse(source)
+	doc, err := Parse(source)
 	if err != nil {
 		t.Fatalf("Parse() error: %v", err)
 	}
 
-	step := plan.FindStep("S1.2")
-	if step == nil {
-		t.Fatal("FindStep(S1.2) returned nil")
+	section := doc.FindSection("S1.2")
+	if section == nil {
+		t.Fatal("FindSection(S1.2) returned nil")
 		return
 	}
-	if step.Title != "1.2 Middleware Registration" {
-		t.Errorf("FindStep(S1.2).Title = %q, want %q", step.Title, "1.2 Middleware Registration")
+	if section.Title != "1.2 Middleware Registration" {
+		t.Errorf("FindSection(S1.2).Title = %q, want %q", section.Title, "1.2 Middleware Registration")
 	}
 
-	missing := plan.FindStep("S99")
+	missing := doc.FindSection("S99")
 	if missing != nil {
-		t.Error("FindStep(S99) should return nil")
+		t.Error("FindSection(S99) should return nil")
 	}
 }

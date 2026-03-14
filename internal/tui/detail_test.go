@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koh-sh/ccplan/internal/plan"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 func TestNewDetailPane(t *testing.T) {
@@ -22,29 +22,29 @@ func TestNewDetailPane(t *testing.T) {
 	}
 }
 
-func TestDetailPaneShowStep(t *testing.T) {
+func TestDetailPaneShowSection(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	step := &plan.Step{ID: "S1", Title: "Test Step", Body: "Unique test body here"}
+	section := &markdown.Section{ID: "S1", Title: "Test Step", Body: "Unique test body here"}
 
-	dp.ShowStep(step, nil)
+	dp.ShowSection(section, nil)
 	content := dp.View()
 	if !strings.Contains(content, "S1") {
-		t.Error("view should contain step ID")
+		t.Error("view should contain section ID")
 	}
 	// glamour wraps text and inserts ANSI codes; check individual words
 	if !strings.Contains(content, "Unique") {
-		t.Errorf("view should contain step body word, got:\n%s", content)
+		t.Errorf("view should contain section body word, got:\n%s", content)
 	}
 }
 
-func TestDetailPaneShowStepWithComments(t *testing.T) {
+func TestDetailPaneShowSectionWithComments(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	step := &plan.Step{ID: "S1", Title: "Test Step", Body: "Body"}
-	comments := []*plan.ReviewComment{
-		{StepID: "S1", Action: plan.ActionSuggestion, Body: "Review text"},
+	section := &markdown.Section{ID: "S1", Title: "Test Step", Body: "Body"}
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "Review text"},
 	}
 
-	dp.ShowStep(step, comments)
+	dp.ShowSection(section, comments)
 	content := dp.View()
 	if !strings.Contains(content, "Review Comment") {
 		t.Error("view should contain 'Review Comment' box header")
@@ -54,15 +54,15 @@ func TestDetailPaneShowStepWithComments(t *testing.T) {
 	}
 }
 
-func TestDetailPaneShowStepWithMultipleComments(t *testing.T) {
+func TestDetailPaneShowSectionWithMultipleComments(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	step := &plan.Step{ID: "S1", Title: "Test Step", Body: "Body"}
-	comments := []*plan.ReviewComment{
-		{StepID: "S1", Action: plan.ActionSuggestion, Body: "First"},
-		{StepID: "S1", Action: plan.ActionIssue, Body: "Second"},
+	section := &markdown.Section{ID: "S1", Title: "Test Step", Body: "Body"}
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "First"},
+		{SectionID: "S1", Action: markdown.ActionIssue, Body: "Second"},
 	}
 
-	dp.ShowStep(step, comments)
+	dp.ShowSection(section, comments)
 	content := dp.View()
 	if !strings.Contains(content, "#1") {
 		t.Error("view should contain '#1' for numbered comments")
@@ -74,7 +74,7 @@ func TestDetailPaneShowStepWithMultipleComments(t *testing.T) {
 
 func TestDetailPaneShowOverview(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	p := &plan.Plan{Title: "My Plan", Preamble: "Unique overview text"}
+	p := &markdown.Document{Title: "My Plan", Preamble: "Unique overview text"}
 
 	dp.ShowOverview(p)
 	content := dp.View()
@@ -107,9 +107,9 @@ func TestDetailPaneHorizontalScroll(t *testing.T) {
 	dp := NewDetailPane(width, 40, "dark")
 
 	longCode := "```\n" + strings.Repeat("x", 100) + "\n```"
-	step := &plan.Step{ID: "S1", Title: "Test", Body: longCode}
+	section := &markdown.Section{ID: "S1", Title: "Test", Body: longCode}
 
-	dp.ShowStep(step, nil)
+	dp.ShowSection(section, nil)
 
 	// Verify scroll starts at 0%
 	if pct := dp.Viewport().HorizontalScrollPercent(); pct != 0 {
@@ -122,11 +122,11 @@ func TestDetailPaneHorizontalScroll(t *testing.T) {
 		t.Error("after ScrollRight(4) HorizontalScrollPercent should be > 0")
 	}
 
-	// ShowStep resets scroll position
+	// ShowSection resets scroll position
 	dp.Viewport().ScrollRight(10)
-	dp.ShowStep(step, nil)
+	dp.ShowSection(section, nil)
 	if pct := dp.Viewport().HorizontalScrollPercent(); pct != 0 {
-		t.Errorf("after ShowStep HorizontalScrollPercent = %f, want 0", pct)
+		t.Errorf("after ShowSection HorizontalScrollPercent = %f, want 0", pct)
 	}
 }
 
@@ -261,15 +261,15 @@ func TestHardWrapCJK(t *testing.T) {
 
 func TestDetailPaneShowAll(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title:    "My Plan",
 		Preamble: "Unique preamble content",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{ID: "S1", Title: "First Step", Level: 2, Body: "Alpha body text"},
 			{ID: "S2", Title: "Second Step", Level: 2, Body: "Bravo body text"},
 		},
 	}
-	getComments := func(string) []*plan.ReviewComment { return nil }
+	getComments := func(string) []*markdown.ReviewComment { return nil }
 
 	dp.ShowAll(p, getComments)
 	content := dp.View()
@@ -277,31 +277,31 @@ func TestDetailPaneShowAll(t *testing.T) {
 		t.Errorf("view should contain preamble word, got:\n%s", content)
 	}
 	if !strings.Contains(content, "S1") {
-		t.Error("view should contain step S1")
+		t.Error("view should contain section S1")
 	}
 	if !strings.Contains(content, "Alpha") {
-		t.Error("view should contain first step body")
+		t.Error("view should contain first section body")
 	}
 	if !strings.Contains(content, "S2") {
-		t.Error("view should contain step S2")
+		t.Error("view should contain section S2")
 	}
 	if !strings.Contains(content, "Bravo") {
-		t.Error("view should contain second step body")
+		t.Error("view should contain second section body")
 	}
 }
 
 func TestDetailPaneShowAllWithComments(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title: "Plan",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{ID: "S1", Title: "Step One", Level: 2, Body: "Body"},
 		},
 	}
-	getComments := func(stepID string) []*plan.ReviewComment {
-		if stepID == "S1" {
-			return []*plan.ReviewComment{
-				{StepID: "S1", Action: plan.ActionSuggestion, Body: "Review feedback"},
+	getComments := func(sectionID string) []*markdown.ReviewComment {
+		if sectionID == "S1" {
+			return []*markdown.ReviewComment{
+				{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "Review feedback"},
 			}
 		}
 		return nil
@@ -316,46 +316,46 @@ func TestDetailPaneShowAllWithComments(t *testing.T) {
 
 func TestDetailPaneShowAllNoPreamble(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title: "NoPreamblePlan",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{ID: "S1", Title: "Only Step", Level: 2, Body: "Unique nopreamble body"},
 		},
 	}
-	getComments := func(string) []*plan.ReviewComment { return nil }
+	getComments := func(string) []*markdown.ReviewComment { return nil }
 
 	dp.ShowAll(p, getComments)
 	content := dp.View()
 	if !strings.Contains(content, "Unique") {
-		t.Errorf("view should contain step body, got:\n%s", content)
+		t.Errorf("view should contain section body, got:\n%s", content)
 	}
 	if !strings.Contains(content, "S1") {
-		t.Error("view should contain step S1")
+		t.Error("view should contain section S1")
 	}
 }
 
 func TestBuildSectionOffsets(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title:    "Test Plan",
 		Preamble: "Preamble text",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{ID: "S1", Title: "First", Level: 2, Body: "Body 1"},
 			{ID: "S2", Title: "Second", Level: 2, Body: "Body 2"},
 		},
 	}
-	getComments := func(string) []*plan.ReviewComment { return nil }
+	getComments := func(string) []*markdown.ReviewComment { return nil }
 
 	dp.ShowAll(p, getComments)
 
 	if len(dp.sectionOffsets) != 2 {
 		t.Fatalf("sectionOffsets count = %d, want 2", len(dp.sectionOffsets))
 	}
-	if dp.sectionOffsets[0].stepID != "S1" {
-		t.Errorf("first offset stepID = %s, want S1", dp.sectionOffsets[0].stepID)
+	if dp.sectionOffsets[0].sectionID != "S1" {
+		t.Errorf("first offset sectionID = %s, want S1", dp.sectionOffsets[0].sectionID)
 	}
-	if dp.sectionOffsets[1].stepID != "S2" {
-		t.Errorf("second offset stepID = %s, want S2", dp.sectionOffsets[1].stepID)
+	if dp.sectionOffsets[1].sectionID != "S2" {
+		t.Errorf("second offset sectionID = %s, want S2", dp.sectionOffsets[1].sectionID)
 	}
 	if dp.sectionOffsets[0].line >= dp.sectionOffsets[1].line {
 		t.Errorf("S1 line (%d) should be before S2 line (%d)", dp.sectionOffsets[0].line, dp.sectionOffsets[1].line)
@@ -364,34 +364,34 @@ func TestBuildSectionOffsets(t *testing.T) {
 
 func TestBuildSectionOffsetsWithChildren(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	s1 := &plan.Step{ID: "S1", Title: "Parent", Level: 2, Body: "Body"}
-	s1_1 := &plan.Step{ID: "S1.1", Title: "Child", Level: 3, Body: "Child body", Parent: s1}
-	s1.Children = []*plan.Step{s1_1}
-	p := &plan.Plan{
-		Title: "Plan",
-		Steps: []*plan.Step{s1},
+	s1 := &markdown.Section{ID: "S1", Title: "Parent", Level: 2, Body: "Body"}
+	s1_1 := &markdown.Section{ID: "S1.1", Title: "Child", Level: 3, Body: "Child body", Parent: s1}
+	s1.Children = []*markdown.Section{s1_1}
+	p := &markdown.Document{
+		Title:    "Plan",
+		Sections: []*markdown.Section{s1},
 	}
-	getComments := func(string) []*plan.ReviewComment { return nil }
+	getComments := func(string) []*markdown.ReviewComment { return nil }
 
 	dp.ShowAll(p, getComments)
 
 	if len(dp.sectionOffsets) != 2 {
 		t.Fatalf("sectionOffsets count = %d, want 2", len(dp.sectionOffsets))
 	}
-	if dp.sectionOffsets[0].stepID != "S1" {
-		t.Errorf("first offset stepID = %s, want S1", dp.sectionOffsets[0].stepID)
+	if dp.sectionOffsets[0].sectionID != "S1" {
+		t.Errorf("first offset sectionID = %s, want S1", dp.sectionOffsets[0].sectionID)
 	}
-	if dp.sectionOffsets[1].stepID != "S1.1" {
-		t.Errorf("second offset stepID = %s, want S1.1", dp.sectionOffsets[1].stepID)
+	if dp.sectionOffsets[1].sectionID != "S1.1" {
+		t.Errorf("second offset sectionID = %s, want S1.1", dp.sectionOffsets[1].sectionID)
 	}
 }
 
-func TestStepIDAtOffset(t *testing.T) {
+func TestSectionIDAtOffset(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
 	dp.sectionOffsets = []sectionOffset{
-		{line: 5, stepID: "S1"},
-		{line: 20, stepID: "S2"},
-		{line: 40, stepID: "S3"},
+		{line: 5, sectionID: "S1"},
+		{line: 20, sectionID: "S2"},
+		{line: 40, sectionID: "S3"},
 	}
 
 	tests := []struct {
@@ -410,31 +410,31 @@ func TestStepIDAtOffset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := dp.StepIDAtOffset(tt.yOffset)
+			got := dp.SectionIDAtOffset(tt.yOffset)
 			if got != tt.want {
-				t.Errorf("StepIDAtOffset(%d) = %q, want %q", tt.yOffset, got, tt.want)
+				t.Errorf("SectionIDAtOffset(%d) = %q, want %q", tt.yOffset, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestShowStepClearsSectionOffsets(t *testing.T) {
+func TestShowSectionClearsSectionOffsets(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	dp.sectionOffsets = []sectionOffset{{line: 0, stepID: "S1"}}
+	dp.sectionOffsets = []sectionOffset{{line: 0, sectionID: "S1"}}
 
-	step := &plan.Step{ID: "S1", Title: "Test", Body: "Body"}
-	dp.ShowStep(step, nil)
+	section := &markdown.Section{ID: "S1", Title: "Test", Body: "Body"}
+	dp.ShowSection(section, nil)
 
 	if dp.sectionOffsets != nil {
-		t.Error("ShowStep should clear sectionOffsets")
+		t.Error("ShowSection should clear sectionOffsets")
 	}
 }
 
 func TestShowOverviewClearsSectionOffsets(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	dp.sectionOffsets = []sectionOffset{{line: 0, stepID: "S1"}}
+	dp.sectionOffsets = []sectionOffset{{line: 0, sectionID: "S1"}}
 
-	p := &plan.Plan{Title: "Plan", Preamble: "Text"}
+	p := &markdown.Document{Title: "Plan", Preamble: "Text"}
 	dp.ShowOverview(p)
 
 	if dp.sectionOffsets != nil {
@@ -457,10 +457,10 @@ func TestCustomStyle(t *testing.T) {
 
 func TestRenderCommentBox(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	comment := &plan.ReviewComment{
-		StepID: "S1",
-		Action: plan.ActionSuggestion,
-		Body:   "Test comment body",
+	comment := &markdown.ReviewComment{
+		SectionID: "S1",
+		Action:    markdown.ActionSuggestion,
+		Body:      "Test comment body",
 	}
 
 	box := dp.renderCommentBox(comment, 0, 1)
@@ -481,10 +481,10 @@ func TestRenderCommentBox(t *testing.T) {
 
 func TestRenderCommentBoxNumbered(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	comment := &plan.ReviewComment{
-		StepID: "S1",
-		Action: plan.ActionIssue,
-		Body:   "Numbered comment",
+	comment := &markdown.ReviewComment{
+		SectionID: "S1",
+		Action:    markdown.ActionIssue,
+		Body:      "Numbered comment",
 	}
 
 	box := dp.renderCommentBox(comment, 1, 3)
@@ -495,9 +495,9 @@ func TestRenderCommentBoxNumbered(t *testing.T) {
 
 func TestRenderCommentBoxEmptyBody(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	comment := &plan.ReviewComment{
-		StepID: "S1",
-		Action: plan.ActionSuggestion,
+	comment := &markdown.ReviewComment{
+		SectionID: "S1",
+		Action:    markdown.ActionSuggestion,
 	}
 
 	box := dp.renderCommentBox(comment, 0, 1)
@@ -518,7 +518,7 @@ func TestRenderCommentBoxLightTheme(t *testing.T) {
 	}
 }
 
-func TestScrollToStepID(t *testing.T) {
+func TestScrollToSectionID(t *testing.T) {
 	dp := NewDetailPane(80, 10, "dark")
 	// Set enough content so viewport allows scrolling
 	lines := make([]string, 100)
@@ -527,41 +527,41 @@ func TestScrollToStepID(t *testing.T) {
 	}
 	dp.viewport.SetContent(strings.Join(lines, "\n"))
 	dp.sectionOffsets = []sectionOffset{
-		{line: 5, stepID: "S1"},
-		{line: 20, stepID: "S2"},
-		{line: 40, stepID: "S3"},
+		{line: 5, sectionID: "S1"},
+		{line: 20, sectionID: "S2"},
+		{line: 40, sectionID: "S3"},
 	}
 
-	t.Run("known stepID", func(t *testing.T) {
-		dp.ScrollToStepID("S2")
+	t.Run("known sectionID", func(t *testing.T) {
+		dp.ScrollToSectionID("S2")
 		if dp.viewport.YOffset != 20 {
 			t.Errorf("YOffset = %d, want 20", dp.viewport.YOffset)
 		}
 	})
 
-	t.Run("unknown stepID", func(t *testing.T) {
+	t.Run("unknown sectionID", func(t *testing.T) {
 		dp.viewport.SetYOffset(10)
-		dp.ScrollToStepID("S99")
+		dp.ScrollToSectionID("S99")
 		if dp.viewport.YOffset != 10 {
-			t.Errorf("YOffset should not change for unknown stepID, got %d", dp.viewport.YOffset)
+			t.Errorf("YOffset should not change for unknown sectionID, got %d", dp.viewport.YOffset)
 		}
 	})
 
-	t.Run("empty stepID scrolls to top", func(t *testing.T) {
+	t.Run("empty sectionID scrolls to top", func(t *testing.T) {
 		dp.viewport.SetYOffset(10)
-		dp.ScrollToStepID("")
+		dp.ScrollToSectionID("")
 		if dp.viewport.YOffset != 0 {
-			t.Errorf("YOffset = %d, want 0 for empty stepID", dp.viewport.YOffset)
+			t.Errorf("YOffset = %d, want 0 for empty sectionID", dp.viewport.YOffset)
 		}
 	})
 }
 
 func TestRenderCommentBoxWithDecoration(t *testing.T) {
 	dp := NewDetailPane(80, 40, "dark")
-	comment := &plan.ReviewComment{
-		StepID:     "S1",
-		Action:     plan.ActionSuggestion,
-		Decoration: plan.DecorationNonBlocking,
+	comment := &markdown.ReviewComment{
+		SectionID:  "S1",
+		Action:     markdown.ActionSuggestion,
+		Decoration: markdown.DecorationNonBlocking,
 		Body:       "Decorated comment",
 	}
 
@@ -576,17 +576,17 @@ func TestRenderCommentBoxWithDecoration(t *testing.T) {
 
 func TestInsertCommentBoxes(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
-	p := &plan.Plan{
+	p := &markdown.Document{
 		Title: "Plan",
-		Steps: []*plan.Step{
+		Sections: []*markdown.Section{
 			{ID: "S1", Title: "Step One", Level: 2, Body: "Body one"},
 			{ID: "S2", Title: "Step Two", Level: 2, Body: "Body two"},
 		},
 	}
-	getComments := func(stepID string) []*plan.ReviewComment {
-		if stepID == "S1" {
-			return []*plan.ReviewComment{
-				{StepID: "S1", Action: plan.ActionSuggestion, Body: "Comment on S1"},
+	getComments := func(sectionID string) []*markdown.ReviewComment {
+		if sectionID == "S1" {
+			return []*markdown.ReviewComment{
+				{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "Comment on S1"},
 			}
 		}
 		return nil

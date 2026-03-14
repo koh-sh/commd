@@ -1,4 +1,4 @@
-package plan
+package markdown
 
 import (
 	"crypto/sha256"
@@ -7,23 +7,23 @@ import (
 	"os"
 )
 
-// ViewedState tracks which steps have been viewed and their content hashes.
+// ViewedState tracks which sections have been viewed and their content hashes.
 type ViewedState struct {
-	Steps map[string]string `json:"steps"` // title -> content hash
+	Sections map[string]string `json:"sections"` // title -> content hash
 }
 
 // NewViewedState creates an empty ViewedState.
 func NewViewedState() *ViewedState {
-	return &ViewedState{Steps: make(map[string]string)}
+	return &ViewedState{Sections: make(map[string]string)}
 }
 
 // StatePath returns the sidecar file path for persisting viewed state.
-func StatePath(planFile string) string {
-	return planFile + ".reviewed.json"
+func StatePath(filePath string) string {
+	return filePath + ".reviewed.json"
 }
 
-// contentHash computes a truncated SHA-256 hash of a step's title and body.
-func contentHash(s *Step) string {
+// contentHash computes a truncated SHA-256 hash of a section's title and body.
+func contentHash(s *Section) string {
 	h := sha256.Sum256([]byte(s.Title + "\x00" + s.Body))
 	return fmt.Sprintf("%x", h[:8])
 }
@@ -38,8 +38,8 @@ func LoadViewedState(path string) *ViewedState {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return NewViewedState()
 	}
-	if state.Steps == nil {
-		state.Steps = make(map[string]string)
+	if state.Sections == nil {
+		state.Sections = make(map[string]string)
 	}
 	return &state
 }
@@ -56,21 +56,21 @@ func SaveViewedState(path string, state *ViewedState) error {
 	return nil
 }
 
-// IsStepViewed returns true if the step's title is tracked and its content hash matches.
-func (vs *ViewedState) IsStepViewed(s *Step) bool {
-	hash, ok := vs.Steps[s.Title]
+// IsSectionViewed returns true if the section's title is tracked and its content hash matches.
+func (vs *ViewedState) IsSectionViewed(s *Section) bool {
+	hash, ok := vs.Sections[s.Title]
 	if !ok {
 		return false
 	}
 	return hash == contentHash(s)
 }
 
-// MarkViewed records a step as viewed with its current content hash.
-func (vs *ViewedState) MarkViewed(s *Step) {
-	vs.Steps[s.Title] = contentHash(s)
+// MarkViewed records a section as viewed with its current content hash.
+func (vs *ViewedState) MarkViewed(s *Section) {
+	vs.Sections[s.Title] = contentHash(s)
 }
 
-// UnmarkViewed removes a step's viewed status.
-func (vs *ViewedState) UnmarkViewed(s *Step) {
-	delete(vs.Steps, s.Title)
+// UnmarkViewed removes a section's viewed status.
+func (vs *ViewedState) UnmarkViewed(s *Section) {
+	delete(vs.Sections, s.Title)
 }

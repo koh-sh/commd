@@ -1,4 +1,4 @@
-package hook
+package cchook
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koh-sh/ccplan/internal/locate"
+	"github.com/koh-sh/commd/internal/cclocate"
 )
 
 // errReader is a reader that always returns an error.
@@ -49,7 +49,7 @@ func TestParseInput(t *testing.T) {
 				}
 			}`,
 			want: &Input{
-				HookInput: locate.HookInput{
+				HookInput: cclocate.HookInput{
 					SessionID:      "eb5b0174-0555-4601-804e-672d68069c89",
 					TranscriptPath: "/home/user/.claude/projects/test/session.jsonl",
 					CWD:            "/home/user/projects/myapp",
@@ -74,7 +74,7 @@ func TestParseInput(t *testing.T) {
 				}
 			}`,
 			want: &Input{
-				HookInput: locate.HookInput{
+				HookInput: cclocate.HookInput{
 					SessionID:      "test",
 					TranscriptPath: "/tmp/session.jsonl",
 					CWD:            "/tmp",
@@ -97,7 +97,7 @@ func TestParseInput(t *testing.T) {
 				"tool_input": null
 			}`,
 			want: &Input{
-				HookInput: locate.HookInput{
+				HookInput: cclocate.HookInput{
 					SessionID:      "test",
 					TranscriptPath: "/tmp/session.jsonl",
 					CWD:            "/tmp",
@@ -123,7 +123,7 @@ func TestParseInput(t *testing.T) {
 				"tool_use_id": "toolu_01ABC123"
 			}`,
 			want: &Input{
-				HookInput: locate.HookInput{
+				HookInput: cclocate.HookInput{
 					SessionID:      "test",
 					TranscriptPath: "/tmp/session.jsonl",
 					CWD:            "/tmp",
