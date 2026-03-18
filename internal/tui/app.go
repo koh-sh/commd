@@ -22,6 +22,14 @@ const (
 	ModeSearch                     // Section search
 )
 
+// confirmKind identifies the action pending confirmation.
+type confirmKind int
+
+const (
+	confirmQuit   confirmKind = iota // quit without submitting
+	confirmSubmit                    // submit the review
+)
+
 // Focus represents which pane has focus.
 type Focus int
 
@@ -60,8 +68,9 @@ type App struct {
 	opts      AppOptions
 
 	result         AppResult
-	pendingG       bool // gg chord: true when first 'g' was pressed
-	editCommentIdx int  // index of comment being edited in comment list mode (-1 = new)
+	confirmAction  confirmKind // what the confirm dialog is for
+	pendingG       bool        // gg chord: true when first 'g' was pressed
+	editCommentIdx int         // index of comment being edited in comment list mode (-1 = new)
 }
 
 // AppOptions configures the TUI appearance.
@@ -190,12 +199,13 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, a.keymap.Quit):
-		if a.sectionList.HasComments() {
-			a.mode = ModeConfirm
-			return a, nil
+		if msg.Type == tea.KeyCtrlC {
+			a.result.Status = markdown.StatusCancelled
+			return a, tea.Quit
 		}
-		a.result.Status = markdown.StatusCancelled
-		return a, tea.Quit
+		a.confirmAction = confirmQuit
+		a.mode = ModeConfirm
+		return a, nil
 
 	case key.Matches(msg, a.keymap.Help):
 		a.mode = ModeHelp
@@ -210,7 +220,9 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case key.Matches(msg, a.keymap.Submit):
-		return a.submitReview()
+		a.confirmAction = confirmSubmit
+		a.mode = ModeConfirm
+		return a, nil
 
 	case key.Matches(msg, a.keymap.PaneGrow):
 		a.resizeLeftPane(5)
@@ -404,8 +416,13 @@ func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleConfirmMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
-		a.result.Status = markdown.StatusCancelled
-		return a, tea.Quit
+		switch a.confirmAction {
+		case confirmSubmit:
+			return a.submitReview()
+		case confirmQuit:
+			a.result.Status = markdown.StatusCancelled
+			return a, tea.Quit
+		}
 	case "n", "N":
 		a.mode = ModeNormal
 		return a, nil
@@ -764,13 +781,25 @@ func (a *App) renderStatusBar() string {
 
 // renderConfirm renders a full-screen confirmation dialog.
 func (a *App) renderConfirm() string {
+	var message string
+	switch a.confirmAction {
+	case confirmSubmit:
+		message = fmt.Sprintf("Submit review? (%d comments)", a.sectionList.TotalCommentCount())
+	case confirmQuit:
+		if a.sectionList.HasComments() {
+			message = "You have review comments.\n\nQuit without submitting?"
+		} else {
+			message = "Quit review?"
+		}
+	}
+
 	dialog := lipgloss.NewStyle().
 		Width(40).
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("170")).
 		Render(
-			"You have review comments.\n\nQuit without submitting?\n\n" +
+			message + "\n\n" +
 				a.styles.StatusKey.Render("y") + " yes   " +
 				a.styles.StatusKey.Render("n") + " no   " +
 				a.styles.StatusKey.Render("esc") + " cancel",

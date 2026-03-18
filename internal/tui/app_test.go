@@ -319,28 +319,43 @@ func TestResult(t *testing.T) {
 	}
 }
 
-func TestQuitNoComments(t *testing.T) {
+func TestQuitOpensConfirm(t *testing.T) {
+	tests := []struct {
+		name       string
+		addComment bool
+	}{
+		{"no_comments", false},
+		{"with_comments", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			if tt.addComment {
+				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+			}
+			a.Update(keyMsg("q"))
+			if a.mode != ModeConfirm {
+				t.Errorf("mode = %d, want ModeConfirm", a.mode)
+			}
+			if a.confirmAction != confirmQuit {
+				t.Errorf("confirmAction = %d, want confirmQuit", a.confirmAction)
+			}
+		})
+	}
+}
+
+func TestCtrlCQuitsImmediately(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
-	_, cmd := a.Update(keyMsg("q"))
+	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if a.mode != ModeNormal {
-		t.Error("should stay in normal mode")
+		t.Errorf("mode = %d, want ModeNormal (no confirm dialog for Ctrl+C)", a.mode)
 	}
 	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
 	if cmd == nil {
 		t.Error("should return quit command")
-	}
-}
-
-func TestQuitWithComments(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-
-	a.Update(keyMsg("q"))
-	if a.mode != ModeConfirm {
-		t.Errorf("mode = %d, want ModeConfirm", a.mode)
 	}
 }
 
@@ -397,31 +412,28 @@ func TestTabSwitchFocus(t *testing.T) {
 	}
 }
 
-func TestSubmitNoComments(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-
-	_, cmd := a.Update(keyMsg("s"))
-	if a.result.Status != markdown.StatusApproved {
-		t.Errorf("status = %s, want approved", a.result.Status)
+func TestSubmitOpensConfirm(t *testing.T) {
+	tests := []struct {
+		name       string
+		addComment bool
+	}{
+		{"no_comments", false},
+		{"with_comments", true},
 	}
-	if cmd == nil {
-		t.Error("should return quit command")
-	}
-}
-
-func TestSubmitWithComments(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "feedback"})
-
-	_, cmd := a.Update(keyMsg("s"))
-	if a.result.Status != markdown.StatusSubmitted {
-		t.Errorf("status = %s, want submitted", a.result.Status)
-	}
-	if a.result.Review == nil {
-		t.Error("review should not be nil")
-	}
-	if cmd == nil {
-		t.Error("should return quit command")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			if tt.addComment {
+				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "feedback"})
+			}
+			a.Update(keyMsg("s"))
+			if a.mode != ModeConfirm {
+				t.Errorf("mode = %d, want ModeConfirm", a.mode)
+			}
+			if a.confirmAction != confirmSubmit {
+				t.Errorf("confirmAction = %d, want confirmSubmit", a.confirmAction)
+			}
+		})
 	}
 }
 
@@ -727,17 +739,41 @@ func TestCommentListModeDeleteWithRemaining(t *testing.T) {
 	}
 }
 
-func TestConfirmModeYes(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-	a.mode = ModeConfirm
-
-	_, cmd := a.Update(keyMsg("y"))
-	if a.result.Status != markdown.StatusCancelled {
-		t.Errorf("status = %s, want cancelled", a.result.Status)
+func TestConfirmModeAccept(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		action     confirmKind
+		addComment bool
+		wantStatus markdown.Status
+		wantReview bool
+	}{
+		{"quit_y", "y", confirmQuit, true, markdown.StatusCancelled, false},
+		{"quit_Y", "Y", confirmQuit, false, markdown.StatusCancelled, false},
+		{"submit_no_comments_y", "y", confirmSubmit, false, markdown.StatusApproved, false},
+		{"submit_with_comments_y", "y", confirmSubmit, true, markdown.StatusSubmitted, true},
+		{"submit_no_comments_Y", "Y", confirmSubmit, false, markdown.StatusApproved, false},
 	}
-	if cmd == nil {
-		t.Error("should return quit command")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			if tt.addComment {
+				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+			}
+			a.confirmAction = tt.action
+			a.mode = ModeConfirm
+
+			_, cmd := a.Update(keyMsg(tt.key))
+			if a.result.Status != tt.wantStatus {
+				t.Errorf("status = %s, want %s", a.result.Status, tt.wantStatus)
+			}
+			if tt.wantReview && a.result.Review == nil {
+				t.Error("review should not be nil")
+			}
+			if cmd == nil {
+				t.Error("should return quit command")
+			}
+		})
 	}
 }
 
@@ -1418,19 +1454,6 @@ func TestHelpModeEnter(t *testing.T) {
 	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after enter in help", a.mode)
-	}
-}
-
-func TestConfirmModeCapitalY(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.mode = ModeConfirm
-
-	_, cmd := a.Update(keyMsg("Y"))
-	if a.result.Status != markdown.StatusCancelled {
-		t.Errorf("status = %s, want cancelled", a.result.Status)
-	}
-	if cmd == nil {
-		t.Error("should return quit command")
 	}
 }
 
