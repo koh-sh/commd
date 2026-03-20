@@ -1,0 +1,9 @@
+{
+  "name": "commd-e2e",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "tuistory": "latest",
+    "@types/bun": "latest"
+  }
+}

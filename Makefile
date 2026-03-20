@@ -1,4 +1,4 @@
-.PHONY: test fmt cov tidy run lint fix build upgrade-tools
+.PHONY: test fmt cov tidy run lint fix build upgrade-tools e2e install-skills
 
 COVFILE = coverage.out
 COVHTML = cover.html
@@ -30,6 +30,14 @@ ci: fmt fix lint build cov
 # Go Fix (modernize)
 fix:
 	go fix ./...
+
+# E2E tests using tuistory (not included in ci)
+e2e: build
+	cd e2e && bun install && bun test
+
+# Install Claude Code skills
+install-skills:
+	npx skills add https://github.com/remorses/tuistory --skill tuistory
 
 # Upgrade dev tools managed by mise to latest versions
 upgrade-tools:

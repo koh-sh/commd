@@ -1,0 +1,226 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Snapshot initial view 1`] = `
+"
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
+│>   Overview                        ││                                                                                │
+│  ▼ S1 Step 1: Auth Middleware      ││   Plan: Authentication System                                                  │
+│      S1.1 1.1 JWT Verification     ││                                                                                │
+│      S1.2 1.2 Middleware Regis...  ││  This plan implements a basic authentication system.                           │
+│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
+│      S2.1 2.1 Endpoint Addition    ││                                                                                │
+│      S2.2 2.2 Validation           ││                                                                                │
+│    S3 Step 3: Tests                ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
+enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
+`;
+
+exports[`Snapshot help overlay 1`] = `
+"
+commd - Help
+
+  Navigation:
+    j/k, Up/Down   Move cursor up/down
+    gg              Go to top
+    G               Go to bottom
+    Enter           Toggle expand/collapse
+    f               Toggle full/section view
+    r               Toggle raw source/rendered view
+    h/l, Left/Right Scroll detail pane left/right
+    H/L             Scroll detail to start/end
+    Ctrl+D/Ctrl+U   Half page down/up
+    Ctrl+F/Ctrl+B   Full page down/up
+    >/<             Resize left pane
+    Tab             Switch between left/right pane
+
+  Review:
+    c               Add comment on selected section
+    C               Manage comments (edit/delete)
+    v               Toggle viewed mark
+    /               Search sections
+    s               Submit review
+
+  Raw Source View (r to toggle):
+    j/k             Move line cursor
+    c               Add line comment at cursor
+    V               Start visual line selection
+    V + j/k + c     Comment on selected range
+    Esc             Cancel visual selection
+    C               Manage comments for section at cursor
+
+  Comment Editor:
+    Tab             Cycle label (forward)
+    Shift+Tab       Cycle label (reverse)
+    Ctrl+D          Cycle decoration
+    Ctrl+S          Save comment"
+`;
+
+exports[`Snapshot quit confirmation dialog 1`] = `
+"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                       ╭────────────────────────────────────────╮
+                                       │                                        │
+                                       │  Quit review?                          │
+                                       │                                        │
+                                       │  y yes   n no   esc cancel             │
+                                       │                                        │
+                                       ╰────────────────────────────────────────╯"
+`;
+
+exports[`Snapshot search mode 1`] = `
+"
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
+│> ▼ S1 Step 1: Auth Middleware      ││                                                                                │
+│      S1.1 1.1 JWT Verification     ││  ## S1: Step 1: Auth Middleware                                                │
+│      S1.2 1.2 Middleware Regis...  ││                                                                                │
+│  ▼ S2 Step 2: Routing Updates      ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
+│      S2.1 2.1 Endpoint Addition    ││                                                                                │
+│      S2.2 2.2 Validation           ││                                                                                │
+│    S3 Step 3: Tests                ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
+/Step"
+`;
+
+exports[`Snapshot comment editor 1`] = `
+"
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
+│    Overview                        ││                                                                                │
+│> ▼ S1 Step 1: Auth Middleware      ││  ## S1: Step 1: Auth Middleware                                                │
+│      S1.1 1.1 JWT Verification     ││                                                                                │
+│      S1.2 1.2 Middleware Regis...  ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
+│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
+│      S2.1 2.1 Endpoint Addition    ││                                                                                │
+│      S2.2 2.2 Validation           ││                                                                                │
+│    S3 Step 3: Tests                ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││╭──────────────────────────────────────────────────────────────────────────────╮│
+│                                    │││Comment [question]                                                            ││
+│                                    ││╰──────────────────────────────────────────────────────────────────────────────╯│
+│                                    ││┃ Enter review comment... (Ctrl+S to save, Esc to cancel)                       │
+│                                    ││┃                                                                               │
+│                                    ││┃                                                                               │
+│                                    ││┃                                                                               │
+│                                    ││┃                                                                               │
+│                                    ││                                                                                │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
+tab/S-tab label: question  ctrl+d deco  ctrl+s save  esc cancel"
+`;
+
+exports[`Snapshot section collapsed 1`] = `
+"
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
+│    Overview                        ││                                                                                │
+│> ▶ S1 Step 1: Auth Middleware      ││  ## S1: Step 1: Auth Middleware                                                │
+│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
+│      S2.1 2.1 Endpoint Addition    ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
+│      S2.2 2.2 Validation           ││                                                                                │
+│    S3 Step 3: Tests                ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+│                                    ││                                                                                │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
+enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
+`;

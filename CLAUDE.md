@@ -10,23 +10,27 @@ commd is a Go CLI tool for reviewing Markdown files in an interactive TUI. It pa
 
 **`make ci` must always pass.** Before finishing any code change, run `make ci` and confirm all steps succeed. This is non-negotiable — do not leave the codebase in a state where `make ci` fails.
 
-`make ci` runs: `fmt` → `fix` → `lint` → `build` → `cov` (test with coverage). If any step fails, fix it before considering the task complete.
+`make ci` runs: `fmt` → `fix` → `lint` → `build` → `cov` (test with coverage). E2E tests (`make e2e`) are separate and not included in `make ci`. If any step fails, fix it before considering the task complete.
 
 ## Build & Test Commands
 
-Dev tools (golangci-lint, tparse, gofumpt, octocov) are managed by mise (`.mise.toml`). Run `mise install` to set up the toolchain.
+Dev tools (golangci-lint, tparse, gofumpt, octocov, bun) are managed by mise (`.mise.toml`). Run `mise install` to set up the toolchain.
 
 ```bash
 make ci                                 # Run full CI pipeline (MUST pass)
 make build                              # Build binary
 make test                               # Run all tests with tparse
+make e2e                                # Run E2E tests with tuistory (not in ci)
 make lint                               # Run golangci-lint with --fix
 make fmt                                # Format with gofumpt
 make fix                                # Run go fix (modernize)
 make tidy                               # Run go mod tidy -v
+make install-skills                     # Install tuistory Claude Code skill
 go test -v ./internal/markdown           # Run tests for a specific package
 go test -run TestParsePreamble ./internal/markdown  # Run a single test
 ```
+
+`make e2e` builds the binary and runs E2E tests in `e2e/` using bun + tuistory. E2E tests are not included in `make ci` because they require terminal automation and take longer to run.
 
 Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintlint, predeclared, unconvert; formatters: gci, gofumpt).
 
@@ -89,6 +93,18 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ## Testing Patterns
 
+### Go Unit Tests
+
 - Golden file tests using `testdata/` directories (e.g., `internal/markdown/testdata/basic.md`, `code-block-hash.md`)
 - Test helper `readTestdata(t, name)` for loading fixtures
 - TUI tests validate render bounds, scroll behavior, and cursor position
+
+### E2E Tests
+
+E2E tests in `e2e/` use tuistory (terminal UI automation) with bun:test:
+
+- `launchCommd()` helper spawns the built binary in a virtual terminal and waits for Bubble Tea to render
+- Each test runs with a fixed terminal size (120×36 by default)
+- Snapshot tests (`snapshot.test.ts`) capture full screen state for layout regression detection
+- Fixtures reuse `internal/markdown/testdata/basic.md`
+- `addComment()` shared helper for comment creation sequences
