@@ -25,6 +25,11 @@ export async function launchCommd(opts: LaunchOptions): Promise<Session> {
     cwd: PROJECT_ROOT,
     env: {
       TERM: "xterm-256color",
+      // Bubble Tea sends ESC[6n (Device Status Report) and ESC]11;? (background
+      // color query) on startup and waits up to 5s for a response. tuistory's PTY
+      // does not respond to these queries, causing a 5s delay per test. Setting
+      // CI=true makes Bubble Tea skip these queries entirely.
+      CI: "true",
       ...opts.env,
     },
     waitForData: true,
