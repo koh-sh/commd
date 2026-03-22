@@ -1,5 +1,6 @@
 import { launchTerminal, type Session } from "tuistory";
-import { resolve } from "path";
+import { resolve, join } from "path";
+import { unlinkSync, copyFileSync } from "fs";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const COMMD_BIN = resolve(PROJECT_ROOT, "commd");
@@ -93,6 +94,35 @@ export async function launchCommdPR(
   });
 
   return session;
+}
+
+/**
+ * Create a temporary copy of a fixture file for tests that need to modify it
+ * or produce sidecar files (e.g. .reviewed.json).
+ * Returns the relative path (from PROJECT_ROOT) and an async cleanup function.
+ *
+ * cleanup() waits briefly before deleting to avoid a race condition where
+ * session.close() sends SIGTERM and the commd process re-creates the
+ * .reviewed.json sidecar during its graceful shutdown (SaveViewedState).
+ */
+export function createTempFixture(srcRelative: string): {
+  path: string;
+  cleanup: () => Promise<void>;
+} {
+  const src = resolve(PROJECT_ROOT, srcRelative);
+  const name = `.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.md`;
+  const dst = join(resolve(PROJECT_ROOT, "e2e/tests"), name);
+  copyFileSync(src, dst);
+  const relPath = `e2e/tests/${name}`;
+  return {
+    path: relPath,
+    cleanup: async () => {
+      // Wait for commd process to fully exit after session.close() SIGTERM.
+      await Bun.sleep(500);
+      try { unlinkSync(dst); } catch {}
+      try { unlinkSync(dst + ".reviewed.json"); } catch {}
+    },
+  };
 }
 
 /**
