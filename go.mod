@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/google/go-github/v84 v84.0.0
 	github.com/mattn/go-runewidth v0.0.21
-	github.com/yuin/goldmark v1.7.16
+	github.com/yuin/goldmark v1.7.17
 )
 
 require (
