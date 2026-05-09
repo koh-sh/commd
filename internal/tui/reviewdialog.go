@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // ReviewAction represents the user's chosen action in the review dialog.
@@ -58,6 +58,7 @@ func NewReviewDialog(fileSummary []string, hasComments bool) *ReviewDialog {
 	ta.Placeholder = "PR comment (optional)..."
 	ta.ShowLineNumbers = false
 	ta.SetHeight(3)
+	ta.SetVirtualCursor(true)
 
 	d := &ReviewDialog{
 		fileSummary: fileSummary,
@@ -94,7 +95,7 @@ func (d *ReviewDialog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.height = msg.Height
 		d.textarea.SetWidth(min(msg.Width-8, 50))
 		return d, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if d.mode == dialogModeBody {
 			return d.updateBody(msg)
 		}
@@ -103,7 +104,7 @@ func (d *ReviewDialog) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return d, nil
 }
 
-func (d *ReviewDialog) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (d *ReviewDialog) updateSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"))):
 		d.result.Action = ReviewActionExit
@@ -132,7 +133,7 @@ func (d *ReviewDialog) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return d, nil
 }
 
-func (d *ReviewDialog) updateBody(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (d *ReviewDialog) updateBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, key.NewBinding(key.WithKeys("esc"))):
 		d.mode = dialogModeSelect
@@ -150,7 +151,14 @@ func (d *ReviewDialog) updateBody(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model.
-func (d *ReviewDialog) View() string {
+func (d *ReviewDialog) View() tea.View {
+	v := tea.NewView(d.renderView())
+	v.AltScreen = true
+	return v
+}
+
+// renderView returns the rendered string content for the current state.
+func (d *ReviewDialog) renderView() string {
 	if d.quitting {
 		return ""
 	}

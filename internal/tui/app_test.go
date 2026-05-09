@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/koh-sh/commd/internal/markdown"
 )
 
@@ -72,7 +72,7 @@ func TestViewFitsTerminalHeight(t *testing.T) {
 				t.Fatalf("model type = %T, want *App", model)
 			}
 
-			view := a.View()
+			view := a.View().Content
 			lines := countLines(view)
 
 			if lines > sz.height {
@@ -97,7 +97,7 @@ func TestViewFitsInCommentMode(t *testing.T) {
 	a.comment.Open("S1", nil)
 	a.mode = ModeComment
 
-	view := a.View()
+	view := a.View().Content
 	lines := countLines(view)
 
 	if lines > 30 {
@@ -117,7 +117,7 @@ func TestViewFitsInConfirmMode(t *testing.T) {
 
 	a.mode = ModeConfirm
 
-	view := a.View()
+	view := a.View().Content
 	lines := countLines(view)
 
 	if lines > 30 {
@@ -140,7 +140,7 @@ func TestSectionListScrollsWithCursor(t *testing.T) {
 		a.sectionList.CursorDown()
 	}
 
-	view := a.View()
+	view := a.View().Content
 	lines := countLines(view)
 
 	if lines > 20 {
@@ -177,8 +177,8 @@ func TestGGGoesToTop(t *testing.T) {
 	}
 
 	// Send 'g' then 'g' (gg chord)
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	a.Update(keyMsg("g"))
+	a.Update(keyMsg("g"))
 
 	// Cursor should be at top (Overview if preamble exists, otherwise S1)
 	if a.sectionList.IsOverviewSelected() {
@@ -199,7 +199,7 @@ func TestShiftGGoesToBottom(t *testing.T) {
 	}
 
 	// Send 'G' (Shift+G)
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	a.Update(keyMsg("G"))
 
 	selected := a.sectionList.Selected()
 	if selected == nil {
@@ -222,8 +222,8 @@ func TestPendingGResetOnOtherKey(t *testing.T) {
 	}
 
 	// Send 'g' then 'j' (not a gg chord)
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
-	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	a.Update(keyMsg("g"))
+	a.Update(keyMsg("j"))
 
 	// Should have moved down by one (j)
 	if a.sectionList.IsOverviewSelected() {
@@ -280,7 +280,7 @@ func TestViewFitsInHelpMode(t *testing.T) {
 
 	a.mode = ModeHelp
 
-	view := a.View()
+	view := a.View().Content
 	lines := countLines(view)
 
 	if lines > 30 {
@@ -300,8 +300,38 @@ func initApp(t *testing.T, p *markdown.Document) *App {
 	return a
 }
 
-func keyMsg(s string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+func keyMsg(s string) tea.KeyPressMsg {
+	switch s {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEsc}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "shift+tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+	case "space", " ":
+		return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	case "up":
+		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "left":
+		return tea.KeyPressMsg{Code: tea.KeyLeft}
+	case "right":
+		return tea.KeyPressMsg{Code: tea.KeyRight}
+	}
+	if rest, ok := strings.CutPrefix(s, "ctrl+"); ok && len(rest) == 1 {
+		return tea.KeyPressMsg{Code: rune(rest[0]), Mod: tea.ModCtrl}
+	}
+	if len(s) == 1 {
+		return tea.KeyPressMsg{Code: rune(s[0]), Text: s}
+	}
+	r := []rune(s)
+	if len(r) == 1 {
+		return tea.KeyPressMsg{Code: r[0], Text: s}
+	}
+	return tea.KeyPressMsg{}
 }
 
 func TestInit(t *testing.T) {
@@ -347,7 +377,7 @@ func TestQuitOpensConfirm(t *testing.T) {
 func TestCtrlCQuitsImmediately(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
-	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := a.Update(keyMsg("ctrl+c"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal (no confirm dialog for Ctrl+C)", a.mode)
 	}
@@ -368,7 +398,7 @@ func TestHelpModeToggle(t *testing.T) {
 	}
 
 	// Esc exits help
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
 	}
@@ -401,12 +431,12 @@ func TestTabSwitchFocus(t *testing.T) {
 		t.Fatal("initial focus should be left")
 	}
 
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.focus != FocusRight {
 		t.Error("after Tab, focus should be right")
 	}
 
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.focus != FocusLeft {
 		t.Error("after second Tab, focus should be left")
 	}
@@ -464,7 +494,7 @@ func TestLeftPaneToggle(t *testing.T) {
 	a := initApp(t, p)
 
 	a.Update(keyMsg("j")) // S1
-	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	a.Update(keyMsg("enter"))
 
 	// S1 should be collapsed
 	for _, item := range a.sectionList.items {
@@ -573,7 +603,7 @@ func TestCommentModeCtrlS(t *testing.T) {
 	a.comment.textarea.SetValue("my comment")
 
 	// Save
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	a.Update(keyMsg("ctrl+s"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Ctrl+S", a.mode)
 	}
@@ -599,7 +629,7 @@ func TestCommentModeCtrlSEdit(t *testing.T) {
 	}
 
 	a.comment.textarea.SetValue("edited")
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	a.Update(keyMsg("ctrl+s"))
 
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList after edit save", a.mode)
@@ -617,7 +647,7 @@ func TestCommentModeEsc(t *testing.T) {
 	a.Update(keyMsg("c"))
 	a.comment.textarea.SetValue("will cancel")
 
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
 	}
@@ -634,7 +664,7 @@ func TestCommentModeEscFromEdit(t *testing.T) {
 	a.Update(keyMsg("C")) // comment list
 	a.Update(keyMsg("e")) // edit
 
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList after Esc from edit", a.mode)
 	}
@@ -647,7 +677,7 @@ func TestCommentModeTab(t *testing.T) {
 	a.Update(keyMsg("c"))
 
 	initial := a.comment.Label()
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.comment.Label() == initial {
 		t.Error("Tab should cycle label")
 	}
@@ -662,7 +692,7 @@ func TestCommentModeCtrlDCyclesDecoration(t *testing.T) {
 	if a.comment.DecorationLabel() != markdown.DecorationNone {
 		t.Errorf("initial decoration = %s, want none", a.comment.DecorationLabel())
 	}
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	a.Update(keyMsg("ctrl+d"))
 	if a.comment.DecorationLabel() != markdown.DecorationNonBlocking {
 		t.Errorf("decoration after Ctrl+D = %s, want non-blocking", a.comment.DecorationLabel())
 	}
@@ -678,7 +708,7 @@ func TestCommentListModeEsc(t *testing.T) {
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
 
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal", a.mode)
 	}
@@ -794,7 +824,7 @@ func TestConfirmModeEsc(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal", a.mode)
 	}
@@ -804,7 +834,7 @@ func TestSearchModeEnter(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/"))
-	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	a.Update(keyMsg("enter"))
 
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Enter", a.mode)
@@ -815,7 +845,7 @@ func TestSearchModeEsc(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
 	a.Update(keyMsg("/"))
-	a.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	a.Update(keyMsg("esc"))
 
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
@@ -831,20 +861,20 @@ func TestSearchModeEsc(t *testing.T) {
 func TestRightPaneScroll(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
-	a.Update(tea.KeyMsg{Type: tea.KeyTab}) // switch to right pane
+	a.Update(keyMsg("tab")) // switch to right pane
 	if a.focus != FocusRight {
 		t.Fatal("focus should be right after Tab")
 	}
 
-	before := a.detail.viewport.YOffset
+	before := a.detail.viewport.YOffset()
 	a.Update(keyMsg("j"))
-	afterDown := a.detail.viewport.YOffset
+	afterDown := a.detail.viewport.YOffset()
 	if afterDown < before {
 		t.Error("j in right pane should not scroll up")
 	}
 
 	a.Update(keyMsg("k"))
-	afterUp := a.detail.viewport.YOffset
+	afterUp := a.detail.viewport.YOffset()
 	if afterUp > afterDown {
 		t.Error("k in right pane should not scroll down")
 	}
@@ -866,7 +896,7 @@ func TestRightPaneHorizontalScroll(t *testing.T) {
 
 	// Select section S1 in left pane, then switch to right pane
 	a.Update(keyMsg("j")) // move to S1
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.focus != FocusRight {
 		t.Fatal("focus should be right after Tab")
 	}
@@ -886,9 +916,9 @@ func TestRightPaneHorizontalScroll(t *testing.T) {
 	}
 
 	// Check full app View() changes
-	appViewBefore := a.View()
+	appViewBefore := a.View().Content
 	a.Update(keyMsg("l"))
-	appViewAfter := a.View()
+	appViewAfter := a.View().Content
 	if appViewBefore == appViewAfter {
 		t.Error("app.View() should change after horizontal scroll")
 	}
@@ -918,7 +948,7 @@ func TestRightPaneHorizontalScrollJump(t *testing.T) {
 
 	// Select section S1 in left pane, then switch to right pane
 	a.Update(keyMsg("j")) // move to S1
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.focus != FocusRight {
 		t.Fatal("focus should be right after Tab")
 	}
@@ -940,7 +970,7 @@ func TestRightPaneHorizontalScrollJump(t *testing.T) {
 
 func TestViewNotReady(t *testing.T) {
 	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
-	view := app.View()
+	view := app.View().Content
 	if view != "Loading..." {
 		t.Errorf("view before ready = %q, want 'Loading...'", view)
 	}
@@ -967,7 +997,7 @@ func TestFullViewToggle(t *testing.T) {
 func TestFullViewFromRightPane(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 
-	a.Update(tea.KeyMsg{Type: tea.KeyTab}) // switch to right pane
+	a.Update(keyMsg("tab")) // switch to right pane
 	if a.focus != FocusRight {
 		t.Fatal("focus should be right")
 	}
@@ -1003,7 +1033,7 @@ func TestFullViewCursorScrollsDetail(t *testing.T) {
 	}
 
 	// YOffset should match the selected section's offset
-	yOffset := a.detail.Viewport().YOffset
+	yOffset := a.detail.Viewport().YOffset()
 	var expectedOffset int
 	for _, so := range a.detail.sectionOffsets {
 		if so.sectionID == selected.ID {
@@ -1031,15 +1061,15 @@ func TestFullViewGGScrollsToTop(t *testing.T) {
 	for range 5 {
 		a.Update(keyMsg("j"))
 	}
-	if a.detail.Viewport().YOffset == 0 {
+	if a.detail.Viewport().YOffset() == 0 {
 		t.Fatal("YOffset should not be 0 after moving down")
 	}
 
 	// gg (left pane focused)
 	a.Update(keyMsg("g"))
 	a.Update(keyMsg("g"))
-	if a.detail.Viewport().YOffset != 0 {
-		t.Errorf("gg should scroll to top, YOffset=%d", a.detail.Viewport().YOffset)
+	if a.detail.Viewport().YOffset() != 0 {
+		t.Errorf("gg should scroll to top, YOffset=%d", a.detail.Viewport().YOffset())
 	}
 }
 
@@ -1067,7 +1097,7 @@ func TestFullViewGScrollsToLastSection(t *testing.T) {
 	}
 
 	// YOffset should be scrolled down (viewport may clamp to max scroll)
-	yOffset := a.detail.Viewport().YOffset
+	yOffset := a.detail.Viewport().YOffset()
 	if yOffset == 0 {
 		t.Error("YOffset should be > 0 after G to last section")
 	}
@@ -1092,7 +1122,7 @@ func TestFullViewCommentRefreshesView(t *testing.T) {
 	a.Update(keyMsg("c"))
 
 	a.comment.textarea.SetValue("full view comment")
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	a.Update(keyMsg("ctrl+s"))
 
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after save", a.mode)
@@ -1143,7 +1173,7 @@ func TestFullViewScrollSyncsCursor(t *testing.T) {
 	}
 
 	// Switch to right pane
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 	if a.focus != FocusRight {
 		t.Fatal("focus should be right")
 	}
@@ -1176,7 +1206,7 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 	a.Update(keyMsg("f")) // enter full view
 
 	// Switch to right pane
-	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+	a.Update(keyMsg("tab"))
 
 	// Go to bottom first, then gg to go back to top
 	a.Update(keyMsg("G"))
@@ -1193,8 +1223,8 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 	// so sectionID is "" and cursor stays where it was -- but that's fine
 	// since overview is at the top. The key point is no crash and
 	// cursor is near the top.
-	if a.detail.Viewport().YOffset != 0 {
-		t.Errorf("after gg, viewport should be at top, YOffset=%d", a.detail.Viewport().YOffset)
+	if a.detail.Viewport().YOffset() != 0 {
+		t.Errorf("after gg, viewport should be at top, YOffset=%d", a.detail.Viewport().YOffset())
 	}
 }
 
@@ -1208,7 +1238,7 @@ func TestSinglePaneMode(t *testing.T) {
 		t.Fatalf("model type = %T, want *App", model)
 	}
 
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty in single pane mode")
 	}
@@ -1289,7 +1319,7 @@ func TestCtrlCInConfirm(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeConfirm
 
-	_, cmd := a.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, cmd := a.Update(keyMsg("ctrl+c"))
 	if a.result.Status != markdown.StatusCancelled {
 		t.Errorf("status = %s, want cancelled", a.result.Status)
 	}
@@ -1305,8 +1335,8 @@ func TestGGInRightPane(t *testing.T) {
 	// gg in right pane should call GotoTop on viewport
 	a.Update(keyMsg("g"))
 	a.Update(keyMsg("g"))
-	if a.detail.viewport.YOffset != 0 {
-		t.Errorf("gg in right pane should scroll to top, YOffset = %d", a.detail.viewport.YOffset)
+	if a.detail.viewport.YOffset() != 0 {
+		t.Errorf("gg in right pane should scroll to top, YOffset = %d", a.detail.viewport.YOffset())
 	}
 }
 
@@ -1320,8 +1350,8 @@ func TestGInRightPane(t *testing.T) {
 		t.Error("focus should remain on right pane after G")
 	}
 	// YOffset should be at or near the bottom (>= 0 means viewport was updated)
-	if a.detail.viewport.YOffset < 0 {
-		t.Errorf("G in right pane should not result in negative YOffset, got %d", a.detail.viewport.YOffset)
+	if a.detail.viewport.YOffset() < 0 {
+		t.Errorf("G in right pane should not result in negative YOffset, got %d", a.detail.viewport.YOffset())
 	}
 }
 
@@ -1336,24 +1366,24 @@ func TestPageScrollLeftPane(t *testing.T) {
 	startID := a.sectionList.Selected().ID
 
 	// Ctrl+U: half page up
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	a.Update(keyMsg("ctrl+u"))
 	if a.sectionList.Selected() != nil && a.sectionList.Selected().ID == startID {
 		t.Error("Ctrl+U should move cursor up from current position")
 	}
 
 	// Ctrl+D: half page down back
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	a.Update(keyMsg("ctrl+d"))
 	// Should have moved down
 
 	// Ctrl+F: full page down
 	a.sectionList.CursorTop()
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
+	a.Update(keyMsg("ctrl+f"))
 	if a.sectionList.IsOverviewSelected() {
 		t.Error("Ctrl+F should move cursor away from top")
 	}
 
 	// Ctrl+B: full page up
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	a.Update(keyMsg("ctrl+b"))
 	if !a.sectionList.IsOverviewSelected() {
 		t.Error("Ctrl+B from near top should return to overview")
 	}
@@ -1368,29 +1398,29 @@ func TestPageScrollRightPane(t *testing.T) {
 	a.refreshDetail()
 
 	// Ctrl+D: half page down in right pane
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
-	if a.detail.viewport.YOffset == 0 {
+	a.Update(keyMsg("ctrl+d"))
+	if a.detail.viewport.YOffset() == 0 {
 		t.Error("Ctrl+D in right pane should scroll down")
 	}
-	offsetAfterDown := a.detail.viewport.YOffset
+	offsetAfterDown := a.detail.viewport.YOffset()
 
 	// Ctrl+U: half page up in right pane
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
-	if a.detail.viewport.YOffset >= offsetAfterDown {
+	a.Update(keyMsg("ctrl+u"))
+	if a.detail.viewport.YOffset() >= offsetAfterDown {
 		t.Error("Ctrl+U in right pane should scroll up")
 	}
 
 	// Ctrl+F: full page down
 	a.detail.viewport.SetYOffset(0)
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
-	if a.detail.viewport.YOffset == 0 {
+	a.Update(keyMsg("ctrl+f"))
+	if a.detail.viewport.YOffset() == 0 {
 		t.Error("Ctrl+F in right pane should scroll down")
 	}
 
 	// Ctrl+B: full page up
-	offsetAfterPageDown := a.detail.viewport.YOffset
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
-	if a.detail.viewport.YOffset >= offsetAfterPageDown {
+	offsetAfterPageDown := a.detail.viewport.YOffset()
+	a.Update(keyMsg("ctrl+b"))
+	if a.detail.viewport.YOffset() >= offsetAfterPageDown {
 		t.Error("Ctrl+B in right pane should scroll up")
 	}
 }
@@ -1514,7 +1544,7 @@ func TestSinglePaneFocusRight(t *testing.T) {
 	}
 	a.focus = FocusRight
 
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty in single pane right focus")
 	}
@@ -1524,7 +1554,7 @@ func TestHelpModeEnter(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 	a.mode = ModeHelp
 
-	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	a.Update(keyMsg("enter"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after enter in help", a.mode)
 	}
@@ -1557,11 +1587,12 @@ func TestLeftRightWidth(t *testing.T) {
 		t.Errorf("leftWidth=%d, rightWidth=%d, both should be > 0", lw, rw)
 	}
 
-	// Single pane mode
+	// Single pane mode: in lipgloss v2, Width(N) is the total width including
+	// borders, so leftWidth equals the full terminal width.
 	a.width = 60
 	lw = a.leftWidth()
-	if lw != 58 { // 60 - 2
-		t.Errorf("leftWidth in single pane = %d, want 58", lw)
+	if lw != 60 {
+		t.Errorf("leftWidth in single pane = %d, want 60", lw)
 	}
 }
 
@@ -1663,14 +1694,14 @@ func TestSinglePaneTitleBar(t *testing.T) {
 	}
 
 	// Left focus with title
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty")
 	}
 
 	// Right focus with title
 	a.focus = FocusRight
-	view = a.View()
+	view = a.View().Content
 	if view == "" {
 		t.Error("view should not be empty in right focus")
 	}
@@ -1683,7 +1714,7 @@ func TestCommentModeCtrlSEmptyBody(t *testing.T) {
 	a.Update(keyMsg("c"))
 
 	// Don't type anything (empty comment)
-	a.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	a.Update(keyMsg("ctrl+s"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal", a.mode)
 	}
@@ -1768,7 +1799,7 @@ func TestSinglePaneNoTitleBar(t *testing.T) {
 		t.Fatalf("model type = %T, want *App", model)
 	}
 
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty")
 	}
@@ -1778,7 +1809,7 @@ func TestDualPaneFocusRight(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 	a.focus = FocusRight
 
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty with right focus in dual pane")
 	}
@@ -1789,7 +1820,7 @@ func TestDualPaneNoTitleBar(t *testing.T) {
 	p := &markdown.Document{Sections: []*markdown.Section{{ID: "S1", Title: "Step", Level: 2}}}
 	a := initApp(t, p)
 
-	view := a.View()
+	view := a.View().Content
 	if view == "" {
 		t.Error("view should not be empty")
 	}

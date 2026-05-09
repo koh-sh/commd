@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/mattn/go-runewidth"
 )

@@ -14,11 +14,11 @@ func TestNewDetailPane(t *testing.T) {
 		t.Fatal("NewDetailPane returned nil")
 		return
 	}
-	if dp.viewport.Width != 80 {
-		t.Errorf("width = %d, want 80", dp.viewport.Width)
+	if dp.viewport.Width() != 80 {
+		t.Errorf("width = %d, want 80", dp.viewport.Width())
 	}
-	if dp.viewport.Height != 24 {
-		t.Errorf("height = %d, want 24", dp.viewport.Height)
+	if dp.viewport.Height() != 24 {
+		t.Errorf("height = %d, want 24", dp.viewport.Height())
 	}
 }
 
@@ -113,17 +113,17 @@ func TestDetailPaneSetSize(t *testing.T) {
 
 	// Same size should be no-op
 	dp.SetSize(80, 24)
-	if dp.viewport.Width != 80 || dp.viewport.Height != 24 {
+	if dp.viewport.Width() != 80 || dp.viewport.Height() != 24 {
 		t.Error("same size should not change")
 	}
 
 	// Different size
 	dp.SetSize(100, 30)
-	if dp.viewport.Width != 100 {
-		t.Errorf("width = %d, want 100", dp.viewport.Width)
+	if dp.viewport.Width() != 100 {
+		t.Errorf("width = %d, want 100", dp.viewport.Width())
 	}
-	if dp.viewport.Height != 30 {
-		t.Errorf("height = %d, want 30", dp.viewport.Height)
+	if dp.viewport.Height() != 30 {
+		t.Errorf("height = %d, want 30", dp.viewport.Height())
 	}
 }
 
@@ -559,24 +559,24 @@ func TestScrollToSectionID(t *testing.T) {
 
 	t.Run("known sectionID", func(t *testing.T) {
 		dp.ScrollToSectionID("S2")
-		if dp.viewport.YOffset != 20 {
-			t.Errorf("YOffset = %d, want 20", dp.viewport.YOffset)
+		if dp.viewport.YOffset() != 20 {
+			t.Errorf("YOffset = %d, want 20", dp.viewport.YOffset())
 		}
 	})
 
 	t.Run("unknown sectionID", func(t *testing.T) {
 		dp.viewport.SetYOffset(10)
 		dp.ScrollToSectionID("S99")
-		if dp.viewport.YOffset != 10 {
-			t.Errorf("YOffset should not change for unknown sectionID, got %d", dp.viewport.YOffset)
+		if dp.viewport.YOffset() != 10 {
+			t.Errorf("YOffset should not change for unknown sectionID, got %d", dp.viewport.YOffset())
 		}
 	})
 
 	t.Run("empty sectionID scrolls to top", func(t *testing.T) {
 		dp.viewport.SetYOffset(10)
 		dp.ScrollToSectionID("")
-		if dp.viewport.YOffset != 0 {
-			t.Errorf("YOffset = %d, want 0 for empty sectionID", dp.viewport.YOffset)
+		if dp.viewport.YOffset() != 0 {
+			t.Errorf("YOffset = %d, want 0 for empty sectionID", dp.viewport.YOffset())
 		}
 	})
 }

@@ -4,39 +4,39 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestFilePicker(t *testing.T) {
 	tests := []struct {
 		name          string
 		files         []string
-		keys          []tea.KeyMsg
+		keys          []tea.KeyPressMsg
 		wantSelected  []string
 		wantCancelled bool
 	}{
 		{
 			name:         "enter with all selected by default",
 			files:        []string{"a.md", "b.md"},
-			keys:         []tea.KeyMsg{keyMsg("enter")},
+			keys:         []tea.KeyPressMsg{keyMsg("enter")},
 			wantSelected: []string{"a.md", "b.md"},
 		},
 		{
 			name:          "q cancels",
 			files:         []string{"a.md"},
-			keys:          []tea.KeyMsg{keyMsg("q")},
+			keys:          []tea.KeyPressMsg{keyMsg("q")},
 			wantCancelled: true,
 		},
 		{
 			name:          "esc cancels",
 			files:         []string{"a.md"},
-			keys:          []tea.KeyMsg{keyMsg("esc")},
+			keys:          []tea.KeyPressMsg{keyMsg("esc")},
 			wantCancelled: true,
 		},
 		{
 			name:  "deselect first file with space",
 			files: []string{"a.md", "b.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg(" "),     // deselect a.md
 				keyMsg("enter"), // confirm
 			},
@@ -45,7 +45,7 @@ func TestFilePicker(t *testing.T) {
 		{
 			name:  "navigate and toggle",
 			files: []string{"a.md", "b.md", "c.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg(" "),     // deselect a.md (cursor at 0)
 				keyMsg("j"),     // move to b.md
 				keyMsg(" "),     // deselect b.md
@@ -56,7 +56,7 @@ func TestFilePicker(t *testing.T) {
 		{
 			name:  "toggle all with a",
 			files: []string{"a.md", "b.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg("a"),     // deselect all (all were selected)
 				keyMsg("enter"), // confirm
 			},
@@ -65,7 +65,7 @@ func TestFilePicker(t *testing.T) {
 		{
 			name:  "toggle all then reselect all",
 			files: []string{"a.md", "b.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg("a"),     // deselect all
 				keyMsg("a"),     // select all
 				keyMsg("enter"), // confirm
@@ -75,7 +75,7 @@ func TestFilePicker(t *testing.T) {
 		{
 			name:  "cursor bounds up",
 			files: []string{"a.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg("k"), // already at 0, no-op
 				keyMsg("enter"),
 			},
@@ -84,7 +84,7 @@ func TestFilePicker(t *testing.T) {
 		{
 			name:  "cursor bounds down",
 			files: []string{"a.md"},
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg("j"), // already at last, no-op
 				keyMsg("enter"),
 			},
@@ -129,7 +129,7 @@ func TestFilePickerView(t *testing.T) {
 	var model tea.Model = fp
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
 
-	view := model.(*FilePicker).View()
+	view := model.(*FilePicker).View().Content
 	if view == "" {
 		t.Fatal("View() should not be empty")
 	}
@@ -142,7 +142,7 @@ func TestFilePickerView(t *testing.T) {
 
 	// After quitting, View should be empty
 	model, _ = model.Update(keyMsg("q"))
-	quitView := model.(*FilePicker).View()
+	quitView := model.(*FilePicker).View().Content
 	if quitView != "" {
 		t.Errorf("View after quit should be empty, got %q", quitView)
 	}

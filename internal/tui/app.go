@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/koh-sh/commd/internal/markdown"
 )
 
@@ -167,7 +167,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.refreshDetail()
 		return a, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return a.handleKey(msg)
 	}
 
@@ -184,7 +184,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch a.mode {
 	case ModeNormal:
 		return a.handleNormalMode(msg)
@@ -204,7 +204,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleNormalMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Handle 'gg' chord (second g after pending g)
 	if a.pendingG {
 		a.pendingG = false
@@ -247,7 +247,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, a.keymap.Quit):
-		if msg.Type == tea.KeyCtrlC {
+		if msg.String() == "ctrl+c" {
 			a.result.Status = markdown.StatusCancelled
 			return a, tea.Quit
 		}
@@ -383,7 +383,7 @@ func (a *App) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a.handleRightPaneKeys(msg)
 }
 
-func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleLeftPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
 		a.sectionList.CursorUp()
@@ -433,7 +433,7 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleRightPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleRightPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if a.isRawMode() {
 		return a.handleLinePaneKeys(msg)
 	}
@@ -448,7 +448,7 @@ func (a *App) handleRightPaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleLinePaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
 		if !a.fullView && a.linePane.AtRangeTop() {
@@ -498,7 +498,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleLineSelectMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleLineSelectMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Up):
 		a.linePane.CursorUp()
@@ -536,7 +536,7 @@ func (a *App) syncSectionFromLineCursor() {
 	}
 }
 
-func (a *App) handleCommentMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleCommentMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Save):
 		result := a.comment.Result()
@@ -555,15 +555,15 @@ func (a *App) handleCommentMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.returnFromComment()
 		return a, nil
 
-	case msg.Type == tea.KeyCtrlD:
+	case msg.String() == "ctrl+d":
 		a.comment.CycleDecoration()
 		return a, nil
 
-	case msg.Type == tea.KeyShiftTab:
+	case msg.String() == "shift+tab":
 		a.comment.CycleLabelReverse()
 		return a, nil
 
-	case msg.Type == tea.KeyTab:
+	case msg.String() == "tab":
 		a.comment.CycleLabel()
 		return a, nil
 	}
@@ -585,8 +585,8 @@ func (a *App) returnFromComment() {
 	a.editCommentIdx = -1
 }
 
-func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.Type == tea.KeyEsc {
+func (a *App) handleCommentListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" {
 		a.commentList.Close()
 		a.mode = ModeNormal
 		a.refreshDetail()
@@ -633,7 +633,7 @@ func (a *App) handleCommentListMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleConfirmMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		switch a.confirmAction {
@@ -647,19 +647,19 @@ func (a *App) handleConfirmMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.mode = ModeNormal
 		return a, nil
 	}
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		a.mode = ModeNormal
 		return a, nil
-	case tea.KeyCtrlC:
+	case "ctrl+c":
 		a.result.Status = markdown.StatusCancelled
 		return a, tea.Quit
 	}
 	return a, nil
 }
 
-func (a *App) handleHelpMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.Type == tea.KeyEsc {
+func (a *App) handleHelpMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" {
 		a.mode = ModeNormal
 		return a, nil
 	}
@@ -672,16 +672,16 @@ func (a *App) handleHelpMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEnter:
+func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
 		// Confirm search, stay at current cursor position
 		a.search.Close()
 		a.mode = ModeNormal
 		a.refreshDetail()
 		return a, nil
 
-	case tea.KeyEsc:
+	case "esc":
 		// Cancel search, restore full list
 		a.search.Close()
 		a.sectionList.ClearFilter()
@@ -731,7 +731,7 @@ func (a *App) syncCursorToScroll() {
 	if !a.fullView || a.detail == nil {
 		return
 	}
-	sectionID := a.detail.SectionIDAtOffset(a.detail.Viewport().YOffset)
+	sectionID := a.detail.SectionIDAtOffset(a.detail.Viewport().YOffset())
 	if sectionID == "" {
 		return
 	}
@@ -864,7 +864,6 @@ func (a *App) renderTitleBar() string {
 		return ""
 	}
 
-	innerWidth := a.width - 2
 	var parts []string
 	if a.doc.Title != "" {
 		parts = append(parts, a.doc.Title)
@@ -878,8 +877,10 @@ func (a *App) renderTitleBar() string {
 	}
 
 	content := a.styles.Title.Render(strings.Join(parts, " "))
+	// In lipgloss v2, Width(N) sets the total width including borders,
+	// so passing a.width here makes the title bar exactly a.width cells wide.
 	return a.styles.InactiveBorder.
-		Width(innerWidth).
+		Width(a.width).
 		Render(content)
 }
 
@@ -913,37 +914,61 @@ func (a *App) resizeLeftPane(delta int) {
 
 func (a *App) leftWidth() int {
 	if a.width < 80 {
-		return a.width - 2
+		return a.width
 	}
 	return a.width * a.leftRatio / 100
 }
 
+// rightWidth returns the right pane's total width (including its borders).
+// In lipgloss v2, Width(N) sets the total width including borders, so the two
+// panes' widths sum to a.width with no extra subtraction needed.
 func (a *App) rightWidth() int {
 	if a.width < 80 {
-		return a.width - 2
+		return a.width
 	}
-	return a.width - a.leftWidth() - 4
+	return a.width - a.leftWidth()
 }
 
 func (a *App) updateLayout() {
 	ch := a.contentHeight()
+	innerH := paneInnerHeight(ch)
 	rw := a.rightWidth()
+	innerW := paneInnerWidth(rw)
 
 	if a.detail == nil {
-		a.detail = NewDetailPane(rw, ch, a.opts.Theme)
+		a.detail = NewDetailPane(innerW, innerH, a.opts.Theme)
 	} else {
-		a.detail.SetSize(rw, ch)
+		a.detail.SetSize(innerW, innerH)
 	}
 
 	if a.linePane != nil {
-		a.linePane.SetSize(rw, ch)
+		a.linePane.SetSize(innerW, innerH)
 	}
 
-	a.comment.SetWidth(rw - 2)
+	a.comment.SetWidth(innerW)
+}
+
+// paneInnerHeight returns the inner content height of a pane after subtracting
+// the top and bottom border lines.
+func paneInnerHeight(paneHeight int) int {
+	return max(paneHeight-2, 1)
+}
+
+// paneInnerWidth returns the inner content width of a pane after subtracting
+// the left and right border columns.
+func paneInnerWidth(paneWidth int) int {
+	return max(paneWidth-2, 1)
 }
 
 // View implements tea.Model.
-func (a *App) View() string {
+func (a *App) View() tea.View {
+	v := tea.NewView(a.renderView())
+	v.AltScreen = true
+	return v
+}
+
+// renderView returns the rendered string content for the current state.
+func (a *App) renderView() string {
 	if !a.ready {
 		return "Loading..."
 	}
@@ -963,12 +988,15 @@ func (a *App) View() string {
 		tbHeight = lipgloss.Height(titleBar)
 	}
 	ch := a.contentHeightWith(tbHeight)
+	innerH := paneInnerHeight(ch)
 	lw := a.leftWidth()
 	rw := a.rightWidth()
+	leftInnerW := paneInnerWidth(lw)
+	rightInnerW := paneInnerWidth(rw)
 	singlePane := a.width < 80
 
 	// Left pane
-	leftContent := clipLines(a.sectionList.Render(lw, ch, a.styles), ch)
+	leftContent := clipLines(a.sectionList.Render(leftInnerW, innerH, a.styles), innerH)
 	leftBorder := a.styles.InactiveBorder
 	if a.focus == FocusLeft {
 		leftBorder = a.styles.ActiveBorder
@@ -976,14 +1004,15 @@ func (a *App) View() string {
 	leftPane := leftBorder.
 		Width(lw).
 		Height(ch).
+		MaxHeight(ch).
 		Render(leftContent)
 
 	if singlePane {
 		var pane string
 		if a.focus == FocusRight {
-			rightContent := clipLines(a.renderRightContent(rw, ch), ch)
+			rightContent := clipLines(a.renderRightContent(rightInnerW, innerH), innerH)
 			rightBorder := a.styles.ActiveBorder
-			pane = rightBorder.Width(rw).Height(ch).Render(rightContent)
+			pane = rightBorder.Width(rw).Height(ch).MaxHeight(ch).Render(rightContent)
 		} else {
 			pane = leftPane
 		}
@@ -994,7 +1023,7 @@ func (a *App) View() string {
 	}
 
 	// Right pane
-	rightContent := clipLines(a.renderRightContent(rw, ch), ch)
+	rightContent := clipLines(a.renderRightContent(rightInnerW, innerH), innerH)
 	rightBorder := a.styles.InactiveBorder
 	if a.focus == FocusRight {
 		rightBorder = a.styles.ActiveBorder
@@ -1002,6 +1031,7 @@ func (a *App) View() string {
 	rightPane := rightBorder.
 		Width(rw).
 		Height(ch).
+		MaxHeight(ch).
 		Render(rightContent)
 
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
@@ -1024,7 +1054,7 @@ func (a *App) renderRightContent(width, height int) string {
 		if ref := a.comment.FormatLineRef(); ref != "" {
 			commentLabel += " (" + ref + ")"
 		}
-		separator := a.styles.CommentBorder.Width(width - 2).Render(commentLabel)
+		separator := a.styles.CommentBorder.Width(width).Render(commentLabel)
 		commentView := a.comment.View()
 
 		// \n between parts does not add extra lines in lipgloss.Height

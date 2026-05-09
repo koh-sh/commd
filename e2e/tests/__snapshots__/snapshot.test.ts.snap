@@ -5,38 +5,36 @@ exports[`Snapshot initial view 1`] = `
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
-│>   Overview                        ││                                                                                │
-│  ▼ S1 Step 1: Auth Middleware      ││   Plan: Authentication System                                                  │
-│      S1.1 1.1 JWT Verification     ││                                                                                │
-│      S1.2 1.2 Middleware Regis...  ││  This plan implements a basic authentication system.                           │
-│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
-│      S2.1 2.1 Endpoint Addition    ││                                                                                │
-│      S2.2 2.2 Validation           ││                                                                                │
-│    S3 Step 3: Tests                ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────╮╭──────────────────────────────────────────────────────────────────────────────────╮
+│>   Overview                      ││                                                                                  │
+│  ▼ S1 Step 1: Auth Middleware    ││   Plan: Authentication System                                                    │
+│      S1.1 1.1 JWT Verification   ││                                                                                  │
+│      S1.2 1.2 Middleware Reg...  ││  This plan implements a basic authentication system.                             │
+│  ▼ S2 Step 2: Routing Updates    ││                                                                                  │
+│      S2.1 2.1 Endpoint Addition  ││                                                                                  │
+│      S2.2 2.2 Validation         ││                                                                                  │
+│    S3 Step 3: Tests              ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
+╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────────────────╯
 enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
 `;
 
@@ -96,131 +94,11 @@ exports[`Snapshot quit confirmation dialog 1`] = `
 
 
 
-                                       ╭────────────────────────────────────────╮
-                                       │                                        │
-                                       │  Quit review?                          │
-                                       │                                        │
-                                       │  y yes   n no   esc cancel             │
-                                       │                                        │
-                                       ╰────────────────────────────────────────╯"
-`;
-
-exports[`Snapshot search mode 1`] = `
-"
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
-│> ▼ S1 Step 1: Auth Middleware      ││                                                                                │
-│      S1.1 1.1 JWT Verification     ││  ## S1: Step 1: Auth Middleware                                                │
-│      S1.2 1.2 Middleware Regis...  ││                                                                                │
-│  ▼ S2 Step 2: Routing Updates      ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
-│      S2.1 2.1 Endpoint Addition    ││                                                                                │
-│      S2.2 2.2 Validation           ││                                                                                │
-│    S3 Step 3: Tests                ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
-/Step"
-`;
-
-exports[`Snapshot comment editor 1`] = `
-"
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
-│    Overview                        ││                                                                                │
-│> ▼ S1 Step 1: Auth Middleware      ││  ## S1: Step 1: Auth Middleware                                                │
-│      S1.1 1.1 JWT Verification     ││                                                                                │
-│      S1.2 1.2 Middleware Regis...  ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
-│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
-│      S2.1 2.1 Endpoint Addition    ││                                                                                │
-│      S2.2 2.2 Validation           ││                                                                                │
-│    S3 Step 3: Tests                ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││╭──────────────────────────────────────────────────────────────────────────────╮│
-│                                    │││Comment [question]                                                            ││
-│                                    ││╰──────────────────────────────────────────────────────────────────────────────╯│
-│                                    ││┃ Enter review comment... (Ctrl+S to save, Esc to cancel)                       │
-│                                    ││┃                                                                               │
-│                                    ││┃                                                                               │
-│                                    ││┃                                                                               │
-│                                    ││┃                                                                               │
-╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
-tab/S-tab label: question  ctrl+d deco  ctrl+s save  esc cancel"
-`;
-
-exports[`Snapshot section collapsed 1`] = `
-"
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│Plan: Authentication System (internal/markdown/testdata/basic.md)                                                     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭────────────────────────────────────╮╭────────────────────────────────────────────────────────────────────────────────╮
-│    Overview                        ││                                                                                │
-│> ▶ S1 Step 1: Auth Middleware      ││  ## S1: Step 1: Auth Middleware                                                │
-│  ▼ S2 Step 2: Routing Updates      ││                                                                                │
-│      S2.1 2.1 Endpoint Addition    ││  Implement authentication middleware in  pkg/auth/middleware.go .              │
-│      S2.2 2.2 Validation           ││                                                                                │
-│    S3 Step 3: Tests                ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-│                                    ││                                                                                │
-╰────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────────╯
-enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
+                                        ╭──────────────────────────────────────╮
+                                        │                                      │
+                                        │  Quit review?                        │
+                                        │                                      │
+                                        │  y yes   n no   esc cancel           │
+                                        │                                      │
+                                        ╰──────────────────────────────────────╯"
 `;

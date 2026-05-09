@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/alecthomas/kong"
-	tea "github.com/charmbracelet/bubbletea"
 	ghclient "github.com/koh-sh/commd/internal/github"
 )
 

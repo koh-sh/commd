@@ -3,8 +3,8 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/koh-sh/commd/internal/markdown"
 )
 
@@ -26,6 +26,10 @@ func NewCommentEditor() *CommentEditor {
 	ta.ShowLineNumbers = false
 	ta.SetHeight(5)
 	ta.CharLimit = 0
+	// Use virtual cursor (rendered as a character within the content) so the
+	// cursor stays inside the textarea region instead of being placed at the
+	// program's absolute (0,0) by Bubble Tea v2's real-cursor default.
+	ta.SetVirtualCursor(true)
 
 	return &CommentEditor{
 		textarea: ta,

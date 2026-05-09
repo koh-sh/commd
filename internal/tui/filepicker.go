@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/mattn/go-runewidth"
 )
 
 // FilePickerResult is the result of the file picker interaction.
@@ -58,7 +59,7 @@ func (fp *FilePicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		fp.height = msg.Height
 		return fp, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, key.NewBinding(key.WithKeys("q", "esc"))):
 			fp.result.Cancelled = true
@@ -88,7 +89,7 @@ func (fp *FilePicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				fp.ensureVisible()
 			}
 
-		case key.Matches(msg, key.NewBinding(key.WithKeys(" "))):
+		case key.Matches(msg, key.NewBinding(key.WithKeys("space"))):
 			fp.selected[fp.cursor] = !fp.selected[fp.cursor]
 
 		case key.Matches(msg, key.NewBinding(key.WithKeys("a"))):
@@ -120,7 +121,14 @@ func (fp *FilePicker) ensureVisible() {
 }
 
 // View implements tea.Model.
-func (fp *FilePicker) View() string {
+func (fp *FilePicker) View() tea.View {
+	v := tea.NewView(fp.renderView())
+	v.AltScreen = true
+	return v
+}
+
+// renderView returns the rendered string content for the current state.
+func (fp *FilePicker) renderView() string {
 	if fp.quitting {
 		return ""
 	}
@@ -149,13 +157,15 @@ func (fp *FilePicker) View() string {
 			check = "[✓]"
 		}
 
-		line := fmt.Sprintf("%s%s %s", cursor, check, fp.files[i])
-		if i == fp.cursor {
-			line = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("14")).
-				Render(line)
+		raw := fmt.Sprintf("%s%s %s", cursor, check, fp.files[i])
+		if pad := fp.width - runewidth.StringWidth(raw); pad > 0 {
+			raw += strings.Repeat(" ", pad)
 		}
-		b.WriteString(line + "\n")
+		style := lipgloss.NewStyle()
+		if i == fp.cursor {
+			style = style.Foreground(lipgloss.Color("14"))
+		}
+		b.WriteString(style.Render(raw) + "\n")
 	}
 
 	b.WriteString("\n")

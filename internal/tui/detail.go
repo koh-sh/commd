@@ -5,11 +5,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/glamour/ansi"
-	glamourStyles "github.com/charmbracelet/glamour/styles"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/glamour/v2"
+	"charm.land/glamour/v2/ansi"
+	glamourStyles "charm.land/glamour/v2/styles"
+	"charm.land/lipgloss/v2"
 	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/mattn/go-runewidth"
 )
@@ -53,7 +53,7 @@ func customStyle(theme string) ansi.StyleConfig {
 
 // NewDetailPane creates a new DetailPane.
 func NewDetailPane(width, height int, theme string) *DetailPane {
-	vp := viewport.New(width, height)
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height))
 	// Intentionally ignore error: renderContent falls back to plain text when renderer is nil.
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithStyles(customStyle(theme)),
@@ -70,11 +70,11 @@ func NewDetailPane(width, height int, theme string) *DetailPane {
 // SetSize updates the pane size. It does not re-render current content;
 // call ShowSection or ShowOverview after resizing to refresh the viewport.
 func (d *DetailPane) SetSize(width, height int) {
-	if width == d.viewport.Width && height == d.viewport.Height {
+	if width == d.viewport.Width() && height == d.viewport.Height() {
 		return
 	}
-	d.viewport.Width = width
-	d.viewport.Height = height
+	d.viewport.SetWidth(width)
+	d.viewport.SetHeight(height)
 }
 
 // ShowSection renders and displays a section's content.
@@ -157,7 +157,7 @@ func (d *DetailPane) ShowAll(doc *markdown.Document, getComments func(string) []
 
 // renderMarkdown renders Markdown to a styled string without setting viewport content.
 func (d *DetailPane) renderMarkdown(md string) string {
-	wrapWidth := d.viewport.Width - glamourHorizontalOverhead
+	wrapWidth := d.viewport.Width() - glamourHorizontalOverhead
 	md = renderMermaidBlocks(md)
 	md = wrapProse(md, wrapWidth)
 	if d.renderer != nil {
@@ -362,7 +362,7 @@ func (d *DetailPane) renderCommentBox(comment *markdown.ReviewComment, index, to
 		content += "\n\n" + comment.Body
 	}
 
-	boxWidth := d.viewport.Width - glamourHorizontalOverhead
+	boxWidth := d.viewport.Width() - glamourHorizontalOverhead
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(d.commentBorderColor())).

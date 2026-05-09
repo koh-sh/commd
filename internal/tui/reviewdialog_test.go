@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestReviewDialog(t *testing.T) {
@@ -12,7 +12,7 @@ func TestReviewDialog(t *testing.T) {
 		name        string
 		summary     []string
 		hasComments bool
-		keys        []tea.KeyMsg
+		keys        []tea.KeyPressMsg
 		wantAction  ReviewAction
 		wantBody    string
 	}{
@@ -20,21 +20,21 @@ func TestReviewDialog(t *testing.T) {
 			name:        "no comments select approve",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys:        []tea.KeyMsg{keyMsg("enter"), ctrlKeyMsg(tea.KeyCtrlS)},
+			keys:        []tea.KeyPressMsg{keyMsg("enter"), ctrlKeyMsg('s')},
 			wantAction:  ReviewActionApprove,
 		},
 		{
 			name:        "no comments select exit",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys:        []tea.KeyMsg{keyMsg("j"), keyMsg("enter")},
+			keys:        []tea.KeyPressMsg{keyMsg("j"), keyMsg("enter")},
 			wantAction:  ReviewActionExit,
 		},
 		{
 			name:        "has comments select comment with body",
 			summary:     []string{"file.md: 2 comment(s)", "Total: 2 comment(s)"},
 			hasComments: true,
-			keys:        []tea.KeyMsg{keyMsg("enter"), keyMsg("x"), ctrlKeyMsg(tea.KeyCtrlS)},
+			keys:        []tea.KeyPressMsg{keyMsg("enter"), keyMsg("x"), ctrlKeyMsg('s')},
 			wantAction:  ReviewActionComment,
 			wantBody:    "x",
 		},
@@ -42,28 +42,28 @@ func TestReviewDialog(t *testing.T) {
 			name:        "has comments select approve",
 			summary:     []string{"file.md: 1 comment(s)"},
 			hasComments: true,
-			keys:        []tea.KeyMsg{keyMsg("j"), keyMsg("enter"), ctrlKeyMsg(tea.KeyCtrlS)},
+			keys:        []tea.KeyPressMsg{keyMsg("j"), keyMsg("enter"), ctrlKeyMsg('s')},
 			wantAction:  ReviewActionApprove,
 		},
 		{
 			name:        "cancel with q",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys:        []tea.KeyMsg{keyMsg("q")},
+			keys:        []tea.KeyPressMsg{keyMsg("q")},
 			wantAction:  ReviewActionExit,
 		},
 		{
 			name:        "cancel with esc",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys:        []tea.KeyMsg{keyMsg("esc")},
+			keys:        []tea.KeyPressMsg{keyMsg("esc")},
 			wantAction:  ReviewActionExit,
 		},
 		{
 			name:        "body mode esc returns to select",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys: []tea.KeyMsg{
+			keys: []tea.KeyPressMsg{
 				keyMsg("enter"), // enter body mode
 				keyMsg("esc"),   // back to select
 				keyMsg("j"),     // move to exit
@@ -101,7 +101,7 @@ func TestReviewDialogView(t *testing.T) {
 		var model tea.Model = d
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-		view := model.(*ReviewDialog).View()
+		view := model.(*ReviewDialog).View().Content
 		if !strings.Contains(view, "file.md") {
 			t.Error("View should contain file summary")
 		}
@@ -117,7 +117,7 @@ func TestReviewDialogView(t *testing.T) {
 		// Enter body mode
 		model, _ = model.Update(keyMsg("enter"))
 
-		view := model.(*ReviewDialog).View()
+		view := model.(*ReviewDialog).View().Content
 		if !strings.Contains(view, "Action:") {
 			t.Error("View in body mode should show action label")
 		}
@@ -132,7 +132,7 @@ func TestReviewDialogView(t *testing.T) {
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		model, _ = model.Update(keyMsg("q"))
 
-		view := model.(*ReviewDialog).View()
+		view := model.(*ReviewDialog).View().Content
 		if view != "" {
 			t.Errorf("View after quit should be empty, got %q", view)
 		}
@@ -154,6 +154,6 @@ func TestReviewDialogView(t *testing.T) {
 	})
 }
 
-func ctrlKeyMsg(k tea.KeyType) tea.KeyMsg {
-	return tea.KeyMsg{Type: k}
+func ctrlKeyMsg(c rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: c, Mod: tea.ModCtrl}
 }

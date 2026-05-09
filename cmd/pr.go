@@ -6,7 +6,7 @@ import (
 	"os"
 	"slices"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	ghclient "github.com/koh-sh/commd/internal/github"
 	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/koh-sh/commd/internal/tui"
@@ -232,7 +232,7 @@ func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *
 }
 
 // runTea creates and runs a Bubble Tea program with alt screen and optional extra options.
+// Alt screen mode is set via the View.AltScreen field in each model's View() method.
 func runTea(model tea.Model, extraOpts []tea.ProgramOption) (tea.Model, error) {
-	opts := append([]tea.ProgramOption{tea.WithAltScreen()}, extraOpts...)
-	return tea.NewProgram(model, opts...).Run()
+	return tea.NewProgram(model, extraOpts...).Run()
 }
