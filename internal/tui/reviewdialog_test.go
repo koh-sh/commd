@@ -20,7 +20,7 @@ func TestReviewDialog(t *testing.T) {
 			name:        "no comments select approve",
 			summary:     []string{"No comments"},
 			hasComments: false,
-			keys:        []tea.KeyPressMsg{keyMsg("enter"), ctrlKeyMsg('s')},
+			keys:        []tea.KeyPressMsg{keyMsg("enter"), keyMsg("ctrl+s")},
 			wantAction:  ReviewActionApprove,
 		},
 		{
@@ -34,7 +34,7 @@ func TestReviewDialog(t *testing.T) {
 			name:        "has comments select comment with body",
 			summary:     []string{"file.md: 2 comment(s)", "Total: 2 comment(s)"},
 			hasComments: true,
-			keys:        []tea.KeyPressMsg{keyMsg("enter"), keyMsg("x"), ctrlKeyMsg('s')},
+			keys:        []tea.KeyPressMsg{keyMsg("enter"), keyMsg("x"), keyMsg("ctrl+s")},
 			wantAction:  ReviewActionComment,
 			wantBody:    "x",
 		},
@@ -42,7 +42,7 @@ func TestReviewDialog(t *testing.T) {
 			name:        "has comments select approve",
 			summary:     []string{"file.md: 1 comment(s)"},
 			hasComments: true,
-			keys:        []tea.KeyPressMsg{keyMsg("j"), keyMsg("enter"), ctrlKeyMsg('s')},
+			keys:        []tea.KeyPressMsg{keyMsg("j"), keyMsg("enter"), keyMsg("ctrl+s")},
 			wantAction:  ReviewActionApprove,
 		},
 		{
@@ -152,8 +152,4 @@ func TestReviewDialogView(t *testing.T) {
 		// Verify no crash with cursor clamping
 		_ = model.(*ReviewDialog).Result()
 	})
-}
-
-func ctrlKeyMsg(c rune) tea.KeyPressMsg {
-	return tea.KeyPressMsg{Code: c, Mod: tea.ModCtrl}
 }

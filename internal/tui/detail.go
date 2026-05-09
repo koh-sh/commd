@@ -18,6 +18,11 @@ import (
 // margin (2 each) and padding (2 each) = 8 total.
 const glamourHorizontalOverhead = 8
 
+// commentBoxOverhead accounts for the comment box's rounded border (1 each)
+// and padding (1 each) = 4 total. Used when computing the total Width passed
+// to lipgloss v2's Width(N), which now includes border + padding.
+const commentBoxOverhead = 4
+
 type sectionOffset struct {
 	line      int
 	sectionID string
@@ -362,7 +367,9 @@ func (d *DetailPane) renderCommentBox(comment *markdown.ReviewComment, index, to
 		content += "\n\n" + comment.Body
 	}
 
-	boxWidth := d.viewport.Width() - glamourHorizontalOverhead
+	// Match the inline-rendered glamour body width (viewport - glamour overhead),
+	// plus this box's own border + padding so the visible content area aligns.
+	boxWidth := d.viewport.Width() - glamourHorizontalOverhead + commentBoxOverhead
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(d.commentBorderColor())).

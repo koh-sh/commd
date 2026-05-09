@@ -555,15 +555,15 @@ func (a *App) handleCommentMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.returnFromComment()
 		return a, nil
 
-	case msg.String() == "ctrl+d":
+	case key.Matches(msg, a.keymap.CommentCycleDeco):
 		a.comment.CycleDecoration()
 		return a, nil
 
-	case msg.String() == "shift+tab":
+	case key.Matches(msg, a.keymap.CommentLabelPrev):
 		a.comment.CycleLabelReverse()
 		return a, nil
 
-	case msg.String() == "tab":
+	case key.Matches(msg, a.keymap.CommentLabelNext):
 		a.comment.CycleLabel()
 		return a, nil
 	}
@@ -586,7 +586,7 @@ func (a *App) returnFromComment() {
 }
 
 func (a *App) handleCommentListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "esc" {
+	if key.Matches(msg, a.keymap.Cancel) {
 		a.commentList.Close()
 		a.mode = ModeNormal
 		a.refreshDetail()
@@ -636,19 +636,8 @@ func (a *App) handleCommentListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
-		switch a.confirmAction {
-		case confirmSubmit:
-			return a.submitReview()
-		case confirmQuit:
-			a.result.Status = markdown.StatusCancelled
-			return a, tea.Quit
-		}
-	case "n", "N":
-		a.mode = ModeNormal
-		return a, nil
-	}
-	switch msg.String() {
-	case "esc":
+		return a.executeConfirm()
+	case "n", "N", "esc":
 		a.mode = ModeNormal
 		return a, nil
 	case "ctrl+c":
@@ -658,30 +647,39 @@ func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a *App) handleHelpMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "esc" {
-		a.mode = ModeNormal
-		return a, nil
+// executeConfirm performs the action pending in confirmAction.
+func (a *App) executeConfirm() (tea.Model, tea.Cmd) {
+	switch a.confirmAction {
+	case confirmSubmit:
+		return a.submitReview()
+	case confirmQuit:
+		a.result.Status = markdown.StatusCancelled
+		return a, tea.Quit
 	}
+	return a, nil
+}
+
+func (a *App) handleHelpMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, a.keymap.Help):
-		a.mode = ModeNormal
-	case msg.String() == "enter", msg.String() == "q":
+	case key.Matches(msg, a.keymap.Cancel),
+		key.Matches(msg, a.keymap.Help),
+		key.Matches(msg, a.keymap.Toggle),
+		msg.String() == "q":
 		a.mode = ModeNormal
 	}
 	return a, nil
 }
 
 func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
+	switch {
+	case key.Matches(msg, a.keymap.Toggle):
 		// Confirm search, stay at current cursor position
 		a.search.Close()
 		a.mode = ModeNormal
 		a.refreshDetail()
 		return a, nil
 
-	case "esc":
+	case key.Matches(msg, a.keymap.Cancel):
 		// Cancel search, restore full list
 		a.search.Close()
 		a.sectionList.ClearFilter()
@@ -931,9 +929,9 @@ func (a *App) rightWidth() int {
 
 func (a *App) updateLayout() {
 	ch := a.contentHeight()
-	innerH := paneInnerHeight(ch)
+	innerH := paneInnerSize(ch)
 	rw := a.rightWidth()
-	innerW := paneInnerWidth(rw)
+	innerW := paneInnerSize(rw)
 
 	if a.detail == nil {
 		a.detail = NewDetailPane(innerW, innerH, a.opts.Theme)
@@ -948,27 +946,13 @@ func (a *App) updateLayout() {
 	a.comment.SetWidth(innerW)
 }
 
-// paneInnerHeight returns the inner content height of a pane after subtracting
-// the top and bottom border lines.
-func paneInnerHeight(paneHeight int) int {
-	return max(paneHeight-2, 1)
-}
-
-// paneInnerWidth returns the inner content width of a pane after subtracting
-// the left and right border columns.
-func paneInnerWidth(paneWidth int) int {
-	return max(paneWidth-2, 1)
-}
-
 // View implements tea.Model.
 func (a *App) View() tea.View {
-	v := tea.NewView(a.renderView())
-	v.AltScreen = true
-	return v
+	return altScreenView(a.renderApp())
 }
 
-// renderView returns the rendered string content for the current state.
-func (a *App) renderView() string {
+// renderApp returns the rendered string content for the current state.
+func (a *App) renderApp() string {
 	if !a.ready {
 		return "Loading..."
 	}
@@ -988,11 +972,11 @@ func (a *App) renderView() string {
 		tbHeight = lipgloss.Height(titleBar)
 	}
 	ch := a.contentHeightWith(tbHeight)
-	innerH := paneInnerHeight(ch)
+	innerH := paneInnerSize(ch)
 	lw := a.leftWidth()
 	rw := a.rightWidth()
-	leftInnerW := paneInnerWidth(lw)
-	rightInnerW := paneInnerWidth(rw)
+	leftInnerW := paneInnerSize(lw)
+	rightInnerW := paneInnerSize(rw)
 	singlePane := a.width < 80
 
 	// Left pane

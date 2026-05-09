@@ -152,13 +152,11 @@ func (d *ReviewDialog) updateBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (d *ReviewDialog) View() tea.View {
-	v := tea.NewView(d.renderView())
-	v.AltScreen = true
-	return v
+	return altScreenView(d.renderReviewDialog())
 }
 
-// renderView returns the rendered string content for the current state.
-func (d *ReviewDialog) renderView() string {
+// renderReviewDialog returns the rendered string content for the current state.
+func (d *ReviewDialog) renderReviewDialog() string {
 	if d.quitting {
 		return ""
 	}

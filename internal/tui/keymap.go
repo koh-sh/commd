@@ -41,6 +41,11 @@ type KeyMap struct {
 	Edit   key.Binding
 	Delete key.Binding
 
+	// Comment editor specific
+	CommentLabelNext key.Binding
+	CommentLabelPrev key.Binding
+	CommentCycleDeco key.Binding
+
 	// Line mode
 	RawView      key.Binding
 	VisualSelect key.Binding
@@ -152,6 +157,18 @@ func DefaultKeyMap() KeyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete"),
+		),
+		CommentLabelNext: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "next label"),
+		),
+		CommentLabelPrev: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "prev label"),
+		),
+		CommentCycleDeco: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "decoration"),
 		),
 		RawView: key.NewBinding(
 			key.WithKeys("r"),

@@ -7,7 +7,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/mattn/go-runewidth"
 )
 
 // FilePickerResult is the result of the file picker interaction.
@@ -122,13 +121,11 @@ func (fp *FilePicker) ensureVisible() {
 
 // View implements tea.Model.
 func (fp *FilePicker) View() tea.View {
-	v := tea.NewView(fp.renderView())
-	v.AltScreen = true
-	return v
+	return altScreenView(fp.renderFilePicker())
 }
 
-// renderView returns the rendered string content for the current state.
-func (fp *FilePicker) renderView() string {
+// renderFilePicker returns the rendered string content for the current state.
+func (fp *FilePicker) renderFilePicker() string {
 	if fp.quitting {
 		return ""
 	}
@@ -157,10 +154,7 @@ func (fp *FilePicker) renderView() string {
 			check = "[✓]"
 		}
 
-		raw := fmt.Sprintf("%s%s %s", cursor, check, fp.files[i])
-		if pad := fp.width - runewidth.StringWidth(raw); pad > 0 {
-			raw += strings.Repeat(" ", pad)
-		}
+		raw := fitToWidth(fmt.Sprintf("%s%s %s", cursor, check, fp.files[i]), fp.width)
 		style := lipgloss.NewStyle()
 		if i == fp.cursor {
 			style = style.Foreground(lipgloss.Color("14"))
