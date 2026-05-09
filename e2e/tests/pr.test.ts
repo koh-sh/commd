@@ -75,32 +75,27 @@ describe("PR File Picker", () => {
     expect(text).toContain("[ ]");
   }, TEST_TIMEOUT);
 
-  // TODO: After upgrading the charmbracelet stack to v2, tuistory's text()
-  // returns the previous frame's `[✓]` as leftover cells after `a` toggles
-  // all files off. The production View() output is correct (verified via
-  // debug dump). Whether the bug is in tuistory or in the Bubble Tea v2
-  // cell-diff renderer is not yet investigated. Re-enable after fixing.
-  // test("a toggles all files selection", async () => {
-  //   mock = createMockGitHubServer({
-  //     ...defaultConfig(),
-  //     files: [
-  //       { filename: "docs/README.md", status: "modified", content: BASIC_MD },
-  //       { filename: "docs/guide.md", status: "added", content: SECOND_MD },
-  //     ],
-  //   });
-  //   session = await launchCommdPR({ prURL: MOCK_PR_URL, mockServerURL: mock.url });
-  //   await session.waitForText("Select Markdown files", { timeout: 15000 });
-  //   // All selected by default; press a to deselect all
-  //   await session.press("a");
-  //   let text = await session.text();
-  //   expect(text).not.toContain("[✓]");
-  //   // Press a again to select all
-  //   await session.press("a");
-  //   text = await session.text();
-  //   const checks = text.match(/\[✓\]/g);
-  //   expect(checks).not.toBeNull();
-  //   expect(checks!.length).toBe(2);
-  // }, TEST_TIMEOUT);
+  test("a toggles all files selection", async () => {
+    mock = createMockGitHubServer({
+      ...defaultConfig(),
+      files: [
+        { filename: "docs/README.md", status: "modified", content: BASIC_MD },
+        { filename: "docs/guide.md", status: "added", content: SECOND_MD },
+      ],
+    });
+    session = await launchCommdPR({ prURL: MOCK_PR_URL, mockServerURL: mock.url });
+    await session.waitForText("Select Markdown files", { timeout: 15000 });
+    // All selected by default; press a to deselect all
+    await session.press("a");
+    let text = await session.text();
+    expect(text).not.toContain("[✓]");
+    // Press a again to select all
+    await session.press("a");
+    text = await session.text();
+    const checks = text.match(/\[✓\]/g);
+    expect(checks).not.toBeNull();
+    expect(checks!.length).toBe(2);
+  }, TEST_TIMEOUT);
 
   test("all files deselected then enter exits without review", async () => {
     mock = createMockGitHubServer({

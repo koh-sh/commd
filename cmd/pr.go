@@ -234,5 +234,11 @@ func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *
 // runTea creates and runs a Bubble Tea program with alt screen and optional extra options.
 // Alt screen mode is set via the View.AltScreen field in each model's View() method.
 func runTea(model tea.Model, extraOpts []tea.ProgramOption) (tea.Model, error) {
+	// Reset Line Feed/New Line Mode (LNM) so bare LF moves cursor down without
+	// resetting the column. The renderer's cursor-down-and-back diff updates
+	// rely on this; some terminal emulators default LNM to on, which makes
+	// those updates land at the wrong column. VT100-compliant terminals already
+	// have LNM off, so this is a no-op there.
+	fmt.Print("\x1b[20l")
 	return tea.NewProgram(model, extraOpts...).Run()
 }
