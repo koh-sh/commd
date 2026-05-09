@@ -10,7 +10,7 @@ commd is a Go CLI tool for reviewing Markdown files in an interactive TUI. It pa
 
 **`mise run ci` must always pass.** Before finishing any code change, run `mise run ci` and confirm all steps succeed. This is non-negotiable — do not leave the codebase in a state where `mise run ci` fails.
 
-`mise run ci` runs: `fmt` → `fix` → `lint` → `build` → `cov` (test with coverage) → `e2e-basic` (basic E2E tests). If any step fails, fix it before considering the task complete.
+`mise run ci` runs: `fmt` → `fix` → `lint` → `build` → `cov` (test with coverage) → `e2e-basic` (basic E2E tests). If any step fails, fix it before considering the task complete. Run `mise run vuln` separately to check for known vulnerabilities (`go mod verify` + `govulncheck`).
 
 ## Build & Test Commands
 
@@ -26,6 +26,7 @@ mise run lint                           # Run golangci-lint with --fix
 mise run fmt                            # Format with gofumpt
 mise run fix                            # Run go fix (modernize)
 mise run tidy                           # Run go mod tidy -v
+mise run vuln                           # Run go mod verify + govulncheck
 mise run install-skills                 # Install tuistory Claude Code skill
 go test -v ./internal/markdown           # Run tests for a specific package
 go test -run TestParsePreamble ./internal/markdown  # Run a single test

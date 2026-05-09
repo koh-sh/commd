@@ -34,6 +34,13 @@ run = "go build -o commd ."
 description = "Run go mod tidy -v"
 run = "go mod tidy -v"
 
+[tasks.vuln]
+description = "Verify module checksums and run govulncheck"
+run = [
+    "go mod verify",
+    "go run golang.org/x/vuln/cmd/govulncheck@latest ./...",
+]
+
 [tasks.cov]
 description = "Run tests with coverage"
 env = { CI = "1", GITHUB_REPOSITORY = "koh-sh/commd" }
