@@ -2,7 +2,7 @@
 install_before = "3d"
 
 [tools]
-go = "1.26.1"
+go = "1.26.3"
 "github:golangci/golangci-lint" = "2.11.3"
 "github:mfridman/tparse" = "0.18.0"
 "github:mvdan/gofumpt" = "0.9.2"
