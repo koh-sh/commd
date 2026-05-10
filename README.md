@@ -5,7 +5,7 @@ Add review comments at section level or line level using [Conventional Comments]
 
 > Formerly **ccplan** — see [Migration from ccplan](#migration-from-ccplan) for upgrade instructions.
 
-https://github.com/user-attachments/assets/55defd1d-c28c-473b-95ea-9e427f6a4266
+![commd review demo](vhs/demo.gif)
 
 ## Install
 
