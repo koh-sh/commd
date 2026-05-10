@@ -40,7 +40,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Entry Point & CLI
 
-`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version).
+`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version). Cross-field constraints are enforced via `Validate()` methods on each command struct (called by Kong post-parse). The GitHub client is wired with `kong.BindToProvider(ghclient.NewClient)` and lazily injected only into commands that take `*ghclient.Client` in their `Run()` signature (currently `PRCmd`).
 
 ### Package Layout
 
@@ -55,7 +55,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 **Review**: `cmd/review.go` → `markdown.Parse(source)` → `tui.NewApp(doc)` → Bubble Tea loop → `markdown.FormatReview(result.Review, doc, filePath)` → clipboard/file/stdout
 
-**PR Review**: `cmd/pr.go` → `github.ParsePRURL()` → `github.ListMDFiles()` → file picker (multi-select) → for each file: `github.FetchFileContent()` → `markdown.Parse()` → `tui.NewApp()` → `github.BuildPRReview()` → `github.SubmitReview()`
+**PR Review**: `cmd/pr.go` → `PRCmd.Validate()` (parses URL) → `Run(client)` (client injected by Kong via `BindToProvider`) → `github.ListMDFiles()` → file picker (multi-select) → for each file: `github.FetchFileContent()` → `markdown.Parse()` → `tui.NewApp()` → `github.BuildPRReview()` → `github.SubmitReview()`
 
 **Hook**: Claude Code (PostToolUse: Write|Edit) → stdin JSON → `cchook.Run()` → `pane.SpawnAndWait(commd review ...)` → temp file IPC → exit 0 or 2
 

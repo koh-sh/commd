@@ -7,6 +7,15 @@ import (
 	"github.com/koh-sh/commd/internal/cclocate"
 )
 
+// Validate requires --transcript or --stdin. Note that the transcript path
+// resolved from stdin (when --stdin is set) is checked in Run, not here.
+func (l *LocateCmd) Validate() error {
+	if l.Transcript == "" && !l.Stdin {
+		return fmt.Errorf("--transcript or --stdin is required")
+	}
+	return nil
+}
+
 // Run executes the locate subcommand.
 func (l *LocateCmd) Run() error {
 	opts := cclocate.Options{
@@ -25,10 +34,6 @@ func (l *LocateCmd) Run() error {
 		if input.CWD != "" {
 			opts.CWD = input.CWD
 		}
-	}
-
-	if opts.TranscriptPath == "" {
-		return fmt.Errorf("--transcript or --stdin is required")
 	}
 
 	paths, err := cclocate.LocatePlanFile(opts)

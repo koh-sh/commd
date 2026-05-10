@@ -12,23 +12,21 @@ import (
 	"github.com/koh-sh/commd/internal/tui"
 )
 
-// Run executes the pr subcommand.
-func (p *PRCmd) Run() error {
+// Validate ensures the PR URL is well-formed before Run is invoked.
+func (p *PRCmd) Validate() error {
+	_, err := ghclient.ParsePRURL(p.URL)
+	return err
+}
+
+// Run executes the pr subcommand. The GitHub client is provided by Kong via
+// BindToProvider; tests may call Run with a stub client directly. URL is
+// guaranteed parseable here because Validate runs first.
+func (p *PRCmd) Run(client *ghclient.Client) error {
 	ctx := context.Background()
 
-	// Parse PR URL
 	ref, err := ghclient.ParsePRURL(p.URL)
 	if err != nil {
 		return err
-	}
-
-	// Create or reuse GitHub client
-	client := p.client
-	if client == nil {
-		client, err = ghclient.NewClient()
-		if err != nil {
-			return err
-		}
 	}
 
 	// List changed .md files

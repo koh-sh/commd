@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/alecthomas/kong"
-	ghclient "github.com/koh-sh/commd/internal/github"
 )
 
 // CLI is the top-level command structure for commd.
@@ -41,7 +40,6 @@ type PRCmd struct {
 	Theme string `enum:"dark,light" default:"dark" help:"Color theme (dark|light)"`
 
 	teaOpts []tea.ProgramOption // for testing: override tea.NewProgram options
-	client  *ghclient.Client    // for testing: override GitHub client
 }
 
 // LocateCmd is the locate subcommand.

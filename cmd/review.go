@@ -25,9 +25,6 @@ func writeReviewOutput(output, mode, outputPath string) error {
 	case "stdout":
 		fmt.Print(output)
 	case "file":
-		if outputPath == "" {
-			return fmt.Errorf("--output-path is required with --output file")
-		}
 		if _, err := os.Stat(outputPath); errors.Is(err, os.ErrNotExist) {
 			// Output file was deleted (possibly due to hook timeout). Fall back to clipboard.
 			if err := clipboard.WriteAll(output); err != nil {
@@ -41,6 +38,14 @@ func writeReviewOutput(output, mode, outputPath string) error {
 		} else {
 			fmt.Fprintf(os.Stderr, "Review written to %s\n", outputPath)
 		}
+	}
+	return nil
+}
+
+// Validate requires --output-path when --output=file.
+func (r *ReviewCmd) Validate() error {
+	if r.Output == "file" && r.OutputPath == "" {
+		return fmt.Errorf("--output-path is required with --output file")
 	}
 	return nil
 }

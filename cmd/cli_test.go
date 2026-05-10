@@ -45,14 +45,42 @@ func TestVersionCmdRun(t *testing.T) {
 	}
 }
 
-func TestLocateCmdRunNoArgs(t *testing.T) {
-	l := &LocateCmd{}
-	err := l.Run()
-	if err == nil {
-		t.Fatal("expected error when no transcript or stdin specified")
+func TestCommandValidate(t *testing.T) {
+	type validator interface{ Validate() error }
+	tests := []struct {
+		name    string
+		cmd     validator
+		wantErr string
+	}{
+		// LocateCmd: requires --transcript or --stdin (paths are not stat'd here).
+		{name: "locate no args", cmd: &LocateCmd{}, wantErr: "--transcript or --stdin is required"},
+		{name: "locate transcript", cmd: &LocateCmd{Transcript: "any/path.jsonl"}},
+		{name: "locate stdin", cmd: &LocateCmd{Stdin: true}},
+
+		// ReviewCmd: requires --output-path when --output=file.
+		{name: "review file with path", cmd: &ReviewCmd{Output: "file", OutputPath: "any/path"}},
+		{name: "review file without path", cmd: &ReviewCmd{Output: "file"}, wantErr: "--output-path is required"},
+		{name: "review stdout", cmd: &ReviewCmd{Output: "stdout"}},
+		{name: "review clipboard", cmd: &ReviewCmd{Output: "clipboard"}},
+
+		// PRCmd: requires a parseable GitHub PR URL.
+		{name: "pr valid url", cmd: &PRCmd{URL: "https://github.com/owner/repo/pull/1"}},
+		{name: "pr invalid url", cmd: &PRCmd{URL: "not-a-url"}, wantErr: "invalid PR URL"},
+		{name: "pr empty url", cmd: &PRCmd{URL: ""}, wantErr: "invalid PR URL"},
 	}
-	if !strings.Contains(err.Error(), "--transcript or --stdin is required") {
-		t.Errorf("error = %q, want to contain '--transcript or --stdin is required'", err.Error())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("err = %v, want to contain %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -179,16 +207,6 @@ func TestWriteReviewOutput(t *testing.T) {
 		}
 		if string(got) != "review content" {
 			t.Errorf("file content = %q, want %q", string(got), "review content")
-		}
-	})
-
-	t.Run("file missing output path", func(t *testing.T) {
-		err := writeReviewOutput("review", "file", "")
-		if err == nil {
-			t.Fatal("expected error for empty output path")
-		}
-		if !strings.Contains(err.Error(), "--output-path is required") {
-			t.Errorf("error = %q, want to contain '--output-path is required'", err.Error())
 		}
 	})
 
@@ -424,24 +442,13 @@ func TestLocateCmdRunStdinMode(t *testing.T) {
 	}
 }
 
+// Validate normally guards against invalid URLs, but Run is also defensive in
+// case it is called directly (e.g. from tests). nil client is safe here because
+// ParsePRURL returns an error before client is touched.
 func TestPRCmdRunInvalidURL(t *testing.T) {
 	p := &PRCmd{URL: "not-a-url"}
-	err := p.Run()
-	if err == nil {
+	if err := p.Run(nil); err == nil {
 		t.Fatal("expected error for invalid URL")
-	}
-}
-
-func TestPRCmdRunNoToken(t *testing.T) {
-	t.Setenv("GITHUB_TOKEN", "")
-	t.Setenv("PATH", "") // disable gh CLI fallback
-	p := &PRCmd{URL: "https://github.com/owner/repo/pull/1"}
-	err := p.Run()
-	if err == nil {
-		t.Fatal("expected error when no token available")
-	}
-	if !strings.Contains(err.Error(), "GitHub token not found") {
-		t.Errorf("error = %q, want to contain 'GitHub token not found'", err.Error())
 	}
 }
 
@@ -451,11 +458,8 @@ func TestPRCmdRunNoMDFiles(t *testing.T) {
 	}, "")
 
 	client := ghclient.NewClientWithHTTP(srv.Client(), srv.URL+"/")
-	p := &PRCmd{
-		URL:    "https://github.com/owner/repo/pull/1",
-		client: client,
-	}
-	err := p.Run()
+	p := &PRCmd{URL: "https://github.com/owner/repo/pull/1"}
+	err := p.Run(client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -468,11 +472,10 @@ func TestPRCmdRunFileNotInPR(t *testing.T) {
 
 	client := ghclient.NewClientWithHTTP(srv.Client(), srv.URL+"/")
 	p := &PRCmd{
-		URL:    "https://github.com/owner/repo/pull/1",
-		File:   "missing.md",
-		client: client,
+		URL:  "https://github.com/owner/repo/pull/1",
+		File: "missing.md",
 	}
-	err := p.Run()
+	err := p.Run(client)
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -497,10 +500,9 @@ func TestPRCmdRunWithFileFlag(t *testing.T) {
 		URL:     "https://github.com/owner/repo/pull/1",
 		File:    "README.md",
 		Theme:   "dark",
-		client:  client,
 		teaOpts: []tea.ProgramOption{tea.WithInput(pr)},
 	}
-	err := p.Run()
+	err := p.Run(client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
