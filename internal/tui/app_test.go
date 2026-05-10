@@ -559,6 +559,113 @@ func TestLeftPaneSearch(t *testing.T) {
 	}
 }
 
+func TestSectionActionsCommentDisabledInRawView(t *testing.T) {
+	tests := []struct {
+		name  string
+		focus Focus
+	}{
+		{"left_pane", FocusLeft},
+		{"right_pane", FocusRight},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			a.Update(keyMsg("j")) // S1
+			a.focus = tt.focus
+			a.rawView = true
+
+			a.Update(keyMsg("c"))
+
+			if a.mode != ModeNormal {
+				t.Errorf("mode = %d, want ModeNormal (c should be no-op in raw view)", a.mode)
+			}
+		})
+	}
+}
+
+func TestRightPaneSectionActions(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(a *App)
+		key      string
+		wantMode AppMode
+		check    func(t *testing.T, a *App)
+	}{
+		{
+			name: "comment",
+			setup: func(a *App) {
+				a.Update(keyMsg("j")) // S1
+				a.Update(keyMsg("tab"))
+			},
+			key:      "c",
+			wantMode: ModeComment,
+			check: func(t *testing.T, a *App) {
+				t.Helper()
+				if a.comment.SectionID() != "S1" {
+					t.Errorf("comment sectionID = %s, want S1", a.comment.SectionID())
+				}
+			},
+		},
+		{
+			name: "comment_on_overview",
+			setup: func(a *App) {
+				a.Update(keyMsg("tab"))
+			},
+			key:      "c",
+			wantMode: ModeComment,
+			check: func(t *testing.T, a *App) {
+				t.Helper()
+				if a.comment.SectionID() != markdown.OverviewSectionID {
+					t.Errorf("comment sectionID = %s, want %s", a.comment.SectionID(), markdown.OverviewSectionID)
+				}
+			},
+		},
+		{
+			name: "comment_list",
+			setup: func(a *App) {
+				a.Update(keyMsg("j")) // S1
+				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+				a.Update(keyMsg("tab"))
+			},
+			key:      "C",
+			wantMode: ModeCommentList,
+		},
+		{
+			name: "viewed",
+			setup: func(a *App) {
+				a.Update(keyMsg("j")) // S1
+				a.Update(keyMsg("tab"))
+			},
+			key:      "v",
+			wantMode: ModeNormal,
+			check: func(t *testing.T, a *App) {
+				t.Helper()
+				if !a.sectionList.IsViewed("S1") {
+					t.Error("S1 should be viewed after v from right pane")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			tt.setup(a)
+			if a.focus != FocusRight {
+				t.Fatalf("setup failed: focus = %d, want FocusRight", a.focus)
+			}
+
+			a.Update(keyMsg(tt.key))
+
+			if a.mode != tt.wantMode {
+				t.Errorf("mode = %d, want %d", a.mode, tt.wantMode)
+			}
+			if tt.check != nil {
+				tt.check(t, a)
+			}
+		})
+	}
+}
+
 func TestCommentModeCtrlS(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
 

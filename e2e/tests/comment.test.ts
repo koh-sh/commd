@@ -79,6 +79,20 @@ describe("Comment", () => {
     expect(text).toContain("minor formatting");
   }, TEST_TIMEOUT);
 
+  test("c works from right pane after Tab", async () => {
+    session = await launchCommd({ file: FIXTURE_BASIC });
+    await session.press("j");
+    await session.press("tab"); // focus right pane
+    await session.press("c");
+    await session.waitForText("save");
+    await session.type("from right pane");
+    await session.press(["ctrl", "s"]);
+    await session.waitForText("quit");
+    const text = await session.text();
+    expect(text).toContain("[*]");
+    expect(text).toContain("from right pane");
+  }, TEST_TIMEOUT);
+
   test("comments on multiple sections", async () => {
     session = await launchCommd({ file: FIXTURE_BASIC });
     // Comment on Step 1

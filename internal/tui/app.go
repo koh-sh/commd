@@ -388,41 +388,16 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keymap.Up):
 		a.sectionList.CursorUp()
 		a.refreshAfterCursorMove()
+		return a, nil
 
 	case key.Matches(msg, a.keymap.Down):
 		a.sectionList.CursorDown()
 		a.refreshAfterCursorMove()
+		return a, nil
 
 	case key.Matches(msg, a.keymap.Toggle):
 		a.sectionList.ToggleExpand()
-
-	case key.Matches(msg, a.keymap.Comment):
-		if a.rawView {
-			// In raw view, section-level comments are disabled from left pane
-			return a, nil
-		}
-		sectionID := a.selectedSectionID()
-		if sectionID != "" {
-			a.editCommentIdx = -1
-			cmd := a.comment.Open(sectionID, nil)
-			a.mode = ModeComment
-			return a, cmd
-		}
-
-	case key.Matches(msg, a.keymap.CommentList):
-		sectionID := a.selectedSectionID()
-		if sectionID != "" {
-			comments := a.sectionList.GetComments(sectionID)
-			if len(comments) > 0 {
-				a.commentList.Open(sectionID, comments)
-				a.mode = ModeCommentList
-			}
-		}
-
-	case key.Matches(msg, a.keymap.Viewed):
-		if section := a.sectionList.Selected(); section != nil {
-			a.sectionList.ToggleViewed(section.ID)
-		}
+		return a, nil
 
 	case key.Matches(msg, a.keymap.Search):
 		cmd := a.search.Open()
@@ -430,12 +405,18 @@ func (a *App) handleLeftPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	}
 
+	if cmd, handled := a.handleSectionActions(msg); handled {
+		return a, cmd
+	}
 	return a, nil
 }
 
 func (a *App) handleRightPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if a.isRawMode() {
 		return a.handleLinePaneKeys(msg)
+	}
+	if cmd, handled := a.handleSectionActions(msg); handled {
+		return a, cmd
 	}
 	switch {
 	case key.Matches(msg, a.keymap.Up):
@@ -446,6 +427,52 @@ func (a *App) handleRightPaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorToScroll()
 	}
 	return a, nil
+}
+
+// handleSectionActions handles section-level actions (c/C/v) that operate on
+// the section currently selected in the left pane. These work identically
+// regardless of which pane is focused, as long as the rendered (non-raw) view
+// is active. In raw view, c is delegated to the line pane and is consumed
+// here as a no-op when the left pane is focused.
+//
+// The returned bool indicates whether the key was handled (and thus the
+// caller should not process it further).
+func (a *App) handleSectionActions(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, a.keymap.Comment):
+		if a.rawView {
+			// Section-level commenting is disabled in raw view; line-level
+			// commenting is handled by the line pane instead.
+			return nil, true
+		}
+		sectionID := a.selectedSectionID()
+		if sectionID == "" {
+			return nil, true
+		}
+		a.editCommentIdx = -1
+		cmd := a.comment.Open(sectionID, nil)
+		a.mode = ModeComment
+		return cmd, true
+
+	case key.Matches(msg, a.keymap.CommentList):
+		sectionID := a.selectedSectionID()
+		if sectionID == "" {
+			return nil, true
+		}
+		comments := a.sectionList.GetComments(sectionID)
+		if len(comments) > 0 {
+			a.commentList.Open(sectionID, comments)
+			a.mode = ModeCommentList
+		}
+		return nil, true
+
+	case key.Matches(msg, a.keymap.Viewed):
+		if section := a.sectionList.Selected(); section != nil {
+			a.sectionList.ToggleViewed(section.ID)
+		}
+		return nil, true
+	}
+	return nil, false
 }
 
 func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
