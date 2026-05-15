@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "tuistory": "0.4.0",
+    "tuistory": "0.4.1",
     "@types/bun": "latest"
   }
 }
