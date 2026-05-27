@@ -26,10 +26,13 @@ func NewCommentEditor() *CommentEditor {
 	ta.ShowLineNumbers = false
 	ta.SetHeight(5)
 	ta.CharLimit = 0
-	// Use virtual cursor (rendered as a character within the content) so the
-	// cursor stays inside the textarea region instead of being placed at the
-	// program's absolute (0,0) by Bubble Tea v2's real-cursor default.
-	ta.SetVirtualCursor(true)
+	// Use the real terminal cursor (not the virtual cursor) so terminal-level
+	// IME preedit overlays land on the same column as the textarea cursor.
+	// With the virtual cursor on, the real cursor sits one cell past the
+	// highlighted virtual-cursor character, which shifts IME preedit by one
+	// column and leaves the leftmost placeholder glyph visible. The absolute
+	// cursor position is wired through tea.View.Cursor in App.View().
+	ta.SetVirtualCursor(false)
 
 	return &CommentEditor{
 		textarea: ta,
@@ -165,6 +168,14 @@ func (c *CommentEditor) Update(msg tea.Msg) tea.Cmd {
 // View renders the comment editor.
 func (c *CommentEditor) View() string {
 	return c.textarea.View()
+}
+
+// Cursor returns the textarea's cursor position relative to its own rendered
+// output. The caller must offset it by the textarea's absolute screen origin
+// before assigning it to tea.View.Cursor. Returns nil when the textarea is
+// using the virtual cursor or is not focused.
+func (c *CommentEditor) Cursor() *tea.Cursor {
+	return c.textarea.Cursor()
 }
 
 // SetWidth sets the width of the textarea.

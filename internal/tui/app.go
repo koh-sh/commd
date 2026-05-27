@@ -975,7 +975,60 @@ func (a *App) updateLayout() {
 
 // View implements tea.Model.
 func (a *App) View() tea.View {
-	return altScreenView(a.renderApp())
+	v := altScreenView(a.renderApp())
+	if cur := a.commentCursor(); cur != nil {
+		v.Cursor = cur
+	}
+	return v
+}
+
+// commentCursor returns the absolute screen position of the comment editor's
+// cursor when in ModeComment and the editor is on-screen, or nil otherwise.
+// The textarea's own cursor is relative to its rendered output; this method
+// adds the offsets that renderApp() uses to place the editor.
+func (a *App) commentCursor() *tea.Cursor {
+	if a.mode != ModeComment || !a.ready {
+		return nil
+	}
+	cur := a.comment.Cursor()
+	if cur == nil {
+		return nil
+	}
+
+	tbHeight := a.titleBarHeight()
+	ch := a.contentHeightWith(tbHeight)
+	innerH := paneInnerSize(ch)
+	rw := a.rightWidth()
+	rightInnerW := paneInnerSize(rw)
+	singlePane := a.width < 80
+
+	// In single-pane mode the comment editor is rendered only when the right
+	// pane has focus; otherwise it is off-screen and the cursor must stay
+	// hidden to avoid landing on unrelated content.
+	if singlePane && a.focus != FocusRight {
+		return nil
+	}
+
+	// Mirror the height calculation in renderRightContent's ModeComment branch
+	// so the cursor lands on the same row where the textarea is drawn.
+	commentLabel := "Comment [" + a.comment.FormatLabel() + "]"
+	if ref := a.comment.FormatLineRef(); ref != "" {
+		commentLabel += " (" + ref + ")"
+	}
+	separator := a.styles.CommentBorder.Width(rightInnerW).Render(commentLabel)
+	sepHeight := lipgloss.Height(separator)
+	commentViewHeight := lipgloss.Height(a.comment.View())
+	detailHeight := max(innerH-sepHeight-commentViewHeight, 1)
+
+	paneLeftCol := 0
+	if !singlePane {
+		paneLeftCol = a.leftWidth()
+	}
+	// Layout: titleBar (tbHeight) → pane top border (1) → detail rows →
+	// separator rows → commentView (where the textarea sits).
+	cur.X += paneLeftCol + 1
+	cur.Y += tbHeight + 1 + detailHeight + sepHeight
+	return cur
 }
 
 // renderApp returns the rendered string content for the current state.
