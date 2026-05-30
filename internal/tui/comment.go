@@ -49,12 +49,14 @@ func (c *CommentEditor) Open(sectionID string, existing *markdown.ReviewComment)
 		c.textarea.SetValue(existing.Body)
 		c.startLine = existing.StartLine
 		c.endLine = existing.EndLine
+		c.side = existing.Side
 	} else {
 		c.labelIndex = c.labelIndexFor(markdown.DefaultAction)
 		c.decoIndex = 0
 		c.textarea.SetValue("")
 		c.startLine = 0
 		c.endLine = 0
+		c.side = ""
 	}
 
 	return c.textarea.Focus()

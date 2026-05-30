@@ -242,6 +242,54 @@ func TestCommentEditorOpenExistingWithDecoration(t *testing.T) {
 	}
 }
 
+func TestCommentEditorSide(t *testing.T) {
+	tests := []struct {
+		name string
+		// setup mutates the editor before the assertion to simulate a prior
+		// editing session whose side must not leak into the next Open.
+		setup    func(ce *CommentEditor)
+		existing *markdown.ReviewComment
+		want     string
+	}{
+		{
+			name:     "new comment resets stale side",
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "LEFT") },
+			existing: nil,
+			want:     "",
+		},
+		{
+			name:     "editing loads existing side",
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "RIGHT") },
+			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b", StartLine: 5, Side: "LEFT"},
+			want:     "LEFT",
+		},
+		{
+			name:     "editing comment without side clears stale side",
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "RIGHT") },
+			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b"},
+			want:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ce := NewCommentEditor()
+			tt.setup(ce)
+
+			ce.Open("S1", tt.existing)
+			ce.textarea.SetValue("body")
+
+			result := ce.Result()
+			if result == nil {
+				t.Fatal("result should not be nil")
+			}
+			if result.Side != tt.want {
+				t.Errorf("Side = %q, want %q", result.Side, tt.want)
+			}
+		})
+	}
+}
+
 func TestCommentEditorResultWithDecoration(t *testing.T) {
 	ce := NewCommentEditor()
 	ce.Open("S1", nil)
