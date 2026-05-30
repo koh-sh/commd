@@ -515,7 +515,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.linePane.StartVisualSelect()
 		a.mode = ModeLineSelect
 	case key.Matches(msg, a.keymap.CommentList):
-		sectionID := a.linePane.SectionIDAtLine(a.linePane.Cursor() + 1)
+		sectionID := a.linePane.SectionIDAtCursor()
 		comments := a.sectionList.GetComments(sectionID)
 		if len(comments) > 0 {
 			a.commentList.Open(sectionID, comments)
@@ -557,7 +557,7 @@ func (a *App) syncSectionFromLineCursor() {
 	if a.linePane == nil {
 		return
 	}
-	sectionID := a.linePane.SectionIDAtLine(a.linePane.Cursor() + 1)
+	sectionID := a.linePane.SectionIDAtCursor()
 	if sectionID != "" {
 		a.sectionList.SelectBySectionID(sectionID)
 	}

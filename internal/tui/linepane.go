@@ -314,6 +314,25 @@ func (lp *LinePane) SectionIDAtLine(line int) string {
 	return result
 }
 
+// SectionIDAtCursor returns the section ID for the line under the cursor.
+// In diff mode the cursor is a display index, so it is mapped through
+// diffLineMap to a file line before lookup; returns "" when the cursor is on
+// a non-commentable line (no file line mapping). In non-diff mode the cursor
+// index is the file line.
+func (lp *LinePane) SectionIDAtCursor() string {
+	if lp.diffLineMap != nil {
+		if lp.cursor >= len(lp.diffLineMap) {
+			return ""
+		}
+		fileLine := lp.diffLineMap[lp.cursor]
+		if fileLine == 0 {
+			return ""
+		}
+		return lp.SectionIDAtLine(fileLine)
+	}
+	return lp.SectionIDAtLine(lp.cursor + 1)
+}
+
 // Cursor returns the current 0-based cursor position.
 func (lp *LinePane) Cursor() int {
 	return lp.cursor

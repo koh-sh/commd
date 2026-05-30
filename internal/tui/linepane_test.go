@@ -136,6 +136,43 @@ func TestLinePaneSectionIDAtLine(t *testing.T) {
 	}
 }
 
+func TestLinePaneSectionIDAtCursor(t *testing.T) {
+	sections := []*markdown.Section{
+		{ID: "S1", StartLine: 5, EndLine: 10},
+		{ID: "S2", StartLine: 12, EndLine: 20},
+	}
+
+	tests := []struct {
+		name        string
+		diffLineMap []int // nil = non-diff mode
+		cursor      int
+		want        string
+	}{
+		{name: "non-diff uses cursor+1 as file line", diffLineMap: nil, cursor: 4, want: "S1"},
+		{name: "non-diff before any section", diffLineMap: nil, cursor: 0, want: markdown.OverviewSectionID},
+		// In diff mode the cursor is a display index; the file line comes from
+		// diffLineMap. Display index 3 maps to file line 12 (S2), proving the
+		// display index is no longer used directly as a file line.
+		{name: "diff maps display index to file line", diffLineMap: []int{1, 5, 0, 12}, cursor: 3, want: "S2"},
+		{name: "diff maps to first section", diffLineMap: []int{1, 5, 0, 12}, cursor: 1, want: "S1"},
+		{name: "diff non-commentable line returns empty", diffLineMap: []int{1, 5, 0, 12}, cursor: 2, want: ""},
+		{name: "diff cursor past map returns empty", diffLineMap: []int{1, 5}, cursor: 9, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(make([]string, 25), sections)
+			lp.diffLineMap = tt.diffLineMap
+			lp.cursor = tt.cursor
+
+			got := lp.SectionIDAtCursor()
+			if got != tt.want {
+				t.Errorf("SectionIDAtCursor() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLinePaneScrollToLine(t *testing.T) {
 	lines := make([]string, 100)
 	for i := range lines {
