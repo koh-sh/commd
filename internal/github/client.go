@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -127,10 +128,47 @@ func (c *Client) FetchFileContent(ctx context.Context, ref *PRRef, path, headSHA
 		return nil, fmt.Errorf("fetching file %s: path is a directory, not a file", path)
 	}
 
+	// Files between 1 MB and 100 MB come back with an empty body and
+	// encoding "none", which GetContent cannot decode. Fall back to the raw
+	// download URL, which the API already resolves to the requested ref.
+	if content.GetEncoding() == "none" {
+		return c.downloadRawContent(ctx, content.GetDownloadURL(), path)
+	}
+
 	decoded, err := content.GetContent()
 	if err != nil {
 		return nil, fmt.Errorf("decoding file %s: %w", path, err)
 	}
 
 	return []byte(decoded), nil
+}
+
+// downloadRawContent fetches a file's bytes from its raw download URL,
+// bypassing the 1 MB GetContents decode limit.
+func (c *Client) downloadRawContent(ctx context.Context, url, path string) ([]byte, error) {
+	if url == "" {
+		return nil, fmt.Errorf("fetching file %s: no download URL for oversized file", path)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("downloading file %s: %w", path, err)
+	}
+
+	resp, err := c.inner.Client().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("downloading file %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("downloading file %s: unexpected status %d", path, resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading file %s: %w", path, err)
+	}
+
+	return data, nil
 }

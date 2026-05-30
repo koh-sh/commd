@@ -89,12 +89,19 @@ func TestFetchFileContent(t *testing.T) {
 		path        string
 		fileContent string
 		statusCode  int
+		oversized   bool
 		wantErr     bool
 	}{
 		{
 			name:        "fetches file content",
 			path:        "README.md",
 			fileContent: "# Hello World\n\nThis is a test.",
+		},
+		{
+			name:        "fetches oversized file via download URL",
+			path:        "BIG.md",
+			fileContent: "# Big file\n\ncontent over 1 MB",
+			oversized:   true,
 		},
 		{
 			name:       "file not found",
@@ -107,11 +114,23 @@ func TestFetchFileContent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := http.NewServeMux()
+			var srv *httptest.Server
 
 			// Contents endpoint
 			mux.HandleFunc("GET /repos/owner/repo/contents/", func(w http.ResponseWriter, r *http.Request) {
 				if tt.statusCode == 404 {
 					http.NotFound(w, r)
+					return
+				}
+				if tt.oversized {
+					// Files between 1 MB and 100 MB return an empty body with
+					// encoding "none" plus a download URL for the raw content.
+					writeJSON(t, w, map[string]any{
+						"type":         "file",
+						"encoding":     "none",
+						"content":      "",
+						"download_url": srv.URL + "/raw/" + tt.path,
+					})
 					return
 				}
 				encoded := base64.StdEncoding.EncodeToString([]byte(tt.fileContent))
@@ -122,7 +141,12 @@ func TestFetchFileContent(t *testing.T) {
 				})
 			})
 
-			srv := httptest.NewServer(mux)
+			// Raw download endpoint serving full file bytes for oversized files.
+			mux.HandleFunc("GET /raw/", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tt.fileContent))
+			})
+
+			srv = httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
 			client := NewClientWithHTTP(srv.Client(), srv.URL+"/")
