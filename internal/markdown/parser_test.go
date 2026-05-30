@@ -317,6 +317,39 @@ Content here.
 	}
 }
 
+func TestParseNonLeadingH1(t *testing.T) {
+	// A non-leading H1 must NOT become the Title. The first heading is an H2,
+	// so the document has no Title and every heading stays a section.
+	source := []byte(`## Section A
+
+text
+
+# Real Title
+
+body of real title
+`)
+	doc, err := Parse(source)
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
+
+	if doc.Title != "" {
+		t.Errorf("Title = %q, want empty (no leading H1)", doc.Title)
+	}
+
+	// "## Section A" (level 2) and "# Real Title" (level 1) are both
+	// top-level sections; the H1 is not promoted nor folded into the preamble.
+	if len(doc.Sections) != 2 {
+		t.Fatalf("len(Sections) = %d, want 2", len(doc.Sections))
+	}
+	if doc.Sections[0].Title != "Section A" {
+		t.Errorf("Sections[0].Title = %q, want %q", doc.Sections[0].Title, "Section A")
+	}
+	if doc.Sections[1].Title != "Real Title" {
+		t.Errorf("Sections[1].Title = %q, want %q", doc.Sections[1].Title, "Real Title")
+	}
+}
+
 func TestParseLevelSkip(t *testing.T) {
 	source := []byte(`# Plan
 

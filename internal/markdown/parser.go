@@ -80,7 +80,11 @@ func Parse(source []byte) (*Document, error) {
 			body = strings.TrimSpace(string(source[bodyStart:bodyEnd]))
 		}
 
-		if h.level == 1 && document.Title == "" {
+		// Promote only a document-leading H1 to the Title. A non-leading H1
+		// (the first heading is not H1, or an H1 appears later) stays a
+		// level-1 section so it remains visible instead of being folded into
+		// the preamble.
+		if i == 0 && h.level == 1 {
 			document.Title = h.title
 			if body != "" {
 				if document.Preamble != "" {
