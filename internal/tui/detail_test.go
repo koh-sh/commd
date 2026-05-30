@@ -411,6 +411,29 @@ func TestBuildSectionOffsetsWithChildren(t *testing.T) {
 	}
 }
 
+func TestInsertCommentBoxesSkipsUnmatchedSection(t *testing.T) {
+	dp := NewDetailPane(80, 40, "dark")
+	// Only S1 has a known render offset; S2's heading was not matched by
+	// sectionHeadingRe, so it is absent from sectionOffsets.
+	dp.sectionOffsets = []sectionOffset{{line: 3, sectionID: "S1"}}
+
+	rendered := "L0\nL1\nL2\nL3\nL4"
+	comments := map[string][]*markdown.ReviewComment{
+		"S2": {{SectionID: "S2", Action: markdown.ActionIssue, Body: "ORPHANBODY"}},
+	}
+	getComments := func(id string) []*markdown.ReviewComment { return comments[id] }
+
+	out := dp.insertCommentBoxes(rendered, []string{"S1", "S2"}, getComments)
+
+	// The orphan comment must not be rendered, and certainly not at the top.
+	if strings.Contains(out, "ORPHANBODY") {
+		t.Errorf("unmatched section comment should be skipped, got:\n%s", out)
+	}
+	if firstLine := strings.SplitN(out, "\n", 2)[0]; firstLine != "L0" {
+		t.Errorf("first line = %q, want %q (boxes must not be inserted at top)", firstLine, "L0")
+	}
+}
+
 func TestSectionIDAtOffset(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
 	dp.sectionOffsets = []sectionOffset{

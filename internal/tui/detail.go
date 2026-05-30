@@ -406,7 +406,14 @@ func (d *DetailPane) insertCommentBoxes(rendered string, sectionOrder []string, 
 		if len(comments) == 0 {
 			continue
 		}
-		insertAt := endLines[sectionID]
+		insertAt, ok := endLines[sectionID]
+		if !ok {
+			// The section's rendered heading was not matched by
+			// sectionHeadingRe, so there is no known offset. Skip rather
+			// than fall back to the map's zero value (line 0), which would
+			// misplace the boxes at the top of the document.
+			continue
+		}
 		var boxes []string
 		for ci, c := range comments {
 			boxStr := d.renderCommentBox(c, ci, len(comments))
