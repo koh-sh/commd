@@ -883,23 +883,21 @@ func TestConfirmModeAccept(t *testing.T) {
 	}
 }
 
-func TestConfirmModeNo(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.mode = ModeConfirm
+func TestConfirmModeCancel(t *testing.T) {
+	for _, key := range []string{"n", "N", "q", "esc"} {
+		t.Run(key, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			a.confirmAction = confirmQuit
+			a.mode = ModeConfirm
 
-	a.Update(keyMsg("n"))
-	if a.mode != ModeNormal {
-		t.Errorf("mode = %d, want ModeNormal", a.mode)
-	}
-}
-
-func TestConfirmModeEsc(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.mode = ModeConfirm
-
-	a.Update(keyMsg("esc"))
-	if a.mode != ModeNormal {
-		t.Errorf("mode = %d, want ModeNormal", a.mode)
+			_, cmd := a.Update(keyMsg(key))
+			if a.mode != ModeNormal {
+				t.Errorf("mode = %d, want ModeNormal", a.mode)
+			}
+			if cmd != nil {
+				t.Error("cancelling the dialog should not return a quit command")
+			}
+		})
 	}
 }
 
@@ -1630,16 +1628,6 @@ func TestHelpModeEnter(t *testing.T) {
 	a.Update(keyMsg("enter"))
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after enter in help", a.mode)
-	}
-}
-
-func TestConfirmModeCapitalN(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.mode = ModeConfirm
-
-	a.Update(keyMsg("N"))
-	if a.mode != ModeNormal {
-		t.Errorf("mode = %d, want ModeNormal after N", a.mode)
 	}
 }
 

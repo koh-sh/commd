@@ -664,7 +664,9 @@ func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		return a.executeConfirm()
-	case "n", "N", "esc":
+	case "n", "N", "q", "esc":
+		// q cancels the dialog, matching its quit-like meaning elsewhere
+		// while keeping the dialog itself a deliberate y/n decision.
 		a.mode = ModeNormal
 		return a, nil
 	case "ctrl+c":
