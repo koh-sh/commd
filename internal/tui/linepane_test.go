@@ -536,3 +536,48 @@ func TestLinePaneDiffModeVisualSelect(t *testing.T) {
 		t.Errorf("visual select range = (%d, %d), want (1, 3)", start, end)
 	}
 }
+
+// TestLinePaneDiffModeVisualSelectSingleSide verifies that a visual selection
+// spanning both removed (LEFT/old) and added (RIGHT/new) lines is restricted to
+// the cursor's side, so it never yields a mixed-side range (which GitHub
+// rejects with HTTP 422).
+func TestLinePaneDiffModeVisualSelectSingleSide(t *testing.T) {
+	// Display: 0:ctx 1:-del(old10) 2:-del(old11) 3:+add(new20) 4:+add(new21)
+	lines := []string{" ctx", "-del1", "-del2", "+add1", "+add2"}
+	diffLineMap := []int{5, 10, 11, 20, 21}
+	diffSideMap := []string{"RIGHT", "LEFT", "LEFT", "RIGHT", "RIGHT"}
+
+	tests := []struct {
+		name      string
+		anchor    int
+		cursor    int
+		wantStart int
+		wantEnd   int
+	}{
+		{
+			// Cursor ends on an added (RIGHT) line: keep only new-file lines.
+			name: "cursor on RIGHT keeps added lines", anchor: 1, cursor: 4,
+			wantStart: 20, wantEnd: 21,
+		},
+		{
+			// Cursor ends on a removed (LEFT) line: keep only old-file lines.
+			name: "cursor on LEFT keeps removed lines", anchor: 4, cursor: 1,
+			wantStart: 10, wantEnd: 11,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(lines, nil)
+			lp.diffLineMap = diffLineMap
+			lp.diffSideMap = diffSideMap
+			lp.cursor = tt.anchor
+			lp.StartVisualSelect()
+			lp.cursor = tt.cursor
+			start, end := lp.SelectedRange()
+			if start != tt.wantStart || end != tt.wantEnd {
+				t.Errorf("SelectedRange() = (%d, %d), want (%d, %d)", start, end, tt.wantStart, tt.wantEnd)
+			}
+		})
+	}
+}

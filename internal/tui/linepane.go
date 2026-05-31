@@ -245,19 +245,29 @@ func (lp *LinePane) selectedRangeDiff() (startLine, endLine int) {
 		return 0, 0
 	}
 
-	// Visual selection: find valid range boundaries
+	// Visual selection: find valid range boundaries.
 	lo := min(lp.selectAnchor, lp.cursor)
 	hi := max(lp.selectAnchor, lp.cursor)
+
+	// A GitHub multiline comment must stay on a single side (all old-file
+	// LEFT lines or all new-file RIGHT lines). Restrict the range to the
+	// cursor's side so a selection spanning removed and added lines yields a
+	// valid range instead of mixing old and new line numbers.
+	side := lp.CursorSide()
 
 	startLine = 0
 	endLine = 0
 	for i := lo; i <= hi; i++ {
-		if i < len(lp.diffLineMap) && lp.diffLineMap[i] > 0 {
-			if startLine == 0 {
-				startLine = lp.diffLineMap[i]
-			}
-			endLine = lp.diffLineMap[i]
+		if i >= len(lp.diffLineMap) || lp.diffLineMap[i] <= 0 {
+			continue
 		}
+		if side != "" && i < len(lp.diffSideMap) && lp.diffSideMap[i] != side {
+			continue
+		}
+		if startLine == 0 {
+			startLine = lp.diffLineMap[i]
+		}
+		endLine = lp.diffLineMap[i]
 	}
 	if startLine == endLine {
 		endLine = 0
