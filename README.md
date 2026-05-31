@@ -69,6 +69,8 @@ commd pr https://github.com/owner/repo/pull/123 --file docs/README.md
 
 **Authentication**: Requires a GitHub token via `GITHUB_TOKEN` environment variable or `gh auth login`.
 
+**File size**: The GitHub Contents API only decodes files up to 1 MB. Larger files (up to GitHub's 100 MB limit) are fetched automatically via their raw download URL.
+
 **File picker**: When `--file` is not specified, an interactive file picker shows all changed `.md` files. All files are selected by default. Use `space` to toggle, `a` to select/deselect all, `enter` to confirm, `q` to cancel.
 
 **Review flow**: After selecting files, you review them one by one. For each file you can add comments, then press `s` to finish or `q` to skip. After all files, a summary dialog lets you choose to approve, comment, or cancel the review.
@@ -150,7 +152,7 @@ Fenced `` ```mermaid `` code blocks are automatically converted to ASCII art in 
 Press `r` to switch the right pane to raw source view with line numbers. In this mode:
 
 - **Line-level commenting**: Press `c` to comment on the cursor line
-- **Visual selection**: Press `V`, move with `j`/`k` to select a range, then `c` to comment
+- **Visual selection**: Press `V`, move with `j`/`k` to select a range, then `c` to comment. In diff mode (PR reviews), a selection spanning both sides is automatically restricted to the cursor's side (old or new file lines) to satisfy GitHub's single-side comment requirement
 - **Section navigation**: `j`/`k` at the edge of a section automatically moves to the adjacent section
 - Press `f` to toggle between section view (only selected section's lines) and full file view
 - Press `r` again to return to rendered view
