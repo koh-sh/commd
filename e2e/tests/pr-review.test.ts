@@ -130,18 +130,46 @@ describe("PR Mode Review TUI", () => {
     // Start visual select
     await session.press("V");
     await session.waitForText("VISUAL");
-    // Extend selection
+    // Extend the selection down to an added (RIGHT) line. The patch is
+    // context / removed(LEFT) / added(RIGHT), so we step past the removed
+    // line and land the cursor on an added line, keeping a same-side range.
+    await session.press("j");
     await session.press("j");
     // Comment on range
     await session.press("c");
     const commentText = await session.waitForText("save");
-    // Should show range like (L1-L2)
+    // Should show a same-side range like (L1-L2)
     expect(commentText).toMatch(/\(L\d+-L\d+\)/);
     await session.type("range feedback");
     await session.press(["ctrl", "s"]);
     await session.waitForText("quit");
     const text = await session.text();
     expect(text).toContain("range feedback");
+  }, TEST_TIMEOUT);
+
+  test("visual select spanning removed+added lines collapses to a single side (#32)", async () => {
+    mock = createMockGitHubServer(defaultConfig());
+    session = await launchCommdPR({
+      prURL: MOCK_PR_URL,
+      mockServerURL: mock.url,
+      file: "docs/README.md",
+    });
+    await session.waitForText("quit", { timeout: 15000 });
+    // Focus the diff pane and move the cursor onto the removed (LEFT) line.
+    await session.press("tab");
+    await session.press("j"); // context -> removed line
+    // Start a visual selection that extends down across the added (RIGHT)
+    // line, so the selection spans both sides.
+    await session.press("V");
+    await session.waitForText("VISUAL");
+    await session.press("j"); // extend onto the added (RIGHT) line
+    await session.press("c");
+    const commentText = await session.waitForText("save");
+    // A GitHub multiline comment cannot mix sides, so the range is restricted
+    // to the cursor's side (the added line), yielding a single-line ref here
+    // rather than an invalid mixed (L2-L2)/cross-side range.
+    expect(commentText).toMatch(/\(L\d+\)/);
+    expect(commentText).not.toMatch(/\(L\d+-L\d+\)/);
   }, TEST_TIMEOUT);
 
   test("s shows PR mode confirm: Finish reviewing this file?", async () => {
