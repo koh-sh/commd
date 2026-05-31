@@ -564,6 +564,12 @@ func TestLinePaneDiffModeVisualSelectSingleSide(t *testing.T) {
 			name: "cursor on LEFT keeps removed lines", anchor: 4, cursor: 1,
 			wantStart: 10, wantEnd: 11,
 		},
+		{
+			// Selection spans both sides but only one RIGHT line survives the
+			// side filter: the range collapses to a single line (endLine 0).
+			name: "single matched line after side filter collapses to single line", anchor: 1, cursor: 3,
+			wantStart: 20, wantEnd: 0,
+		},
 	}
 
 	for _, tt := range tests {
