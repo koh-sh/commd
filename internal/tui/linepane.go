@@ -403,18 +403,7 @@ func (lp *LinePane) View() string {
 			if linesRendered >= lp.height {
 				break
 			}
-			box := lp.renderInlineCommentBox(c, contentWidth)
-			for boxLine := range strings.SplitSeq(box, "\n") {
-				if linesRendered >= lp.height {
-					break
-				}
-				padding := strings.Repeat(" ", lp.gutterWidth+2)
-				sb.WriteString(padding + " " + boxLine)
-				linesRendered++
-				if linesRendered < lp.height {
-					sb.WriteString("\n")
-				}
-			}
+			linesRendered = lp.writeCommentBox(&sb, c, contentWidth, linesRendered)
 		}
 	}
 
@@ -471,19 +460,7 @@ func (lp *LinePane) View() string {
 				if linesRendered >= lp.height {
 					break
 				}
-				box := lp.renderInlineCommentBox(c, contentWidth)
-				boxLines := strings.SplitSeq(box, "\n")
-				for boxLine := range boxLines {
-					if linesRendered >= lp.height {
-						break
-					}
-					padding := strings.Repeat(" ", lp.gutterWidth+2)
-					sb.WriteString(padding + " " + boxLine)
-					linesRendered++
-					if linesRendered < lp.height {
-						sb.WriteString("\n")
-					}
-				}
+				linesRendered = lp.writeCommentBox(&sb, c, contentWidth, linesRendered)
 			}
 		}
 	}
@@ -564,8 +541,9 @@ func (lp *LinePane) buildCommentMap() map[int][]*markdown.ReviewComment {
 	return m
 }
 
-// overviewComments returns the file-level (Overview) comments, which are
-// section-level (StartLine == 0) and not tied to any source line.
+// overviewComments returns the file-level (Overview) comments. StartLine == 0
+// is shared by all section-level comments, so the OverviewSectionID check is
+// what isolates the file-level ones from ordinary section comments.
 func (lp *LinePane) overviewComments() []*markdown.ReviewComment {
 	var out []*markdown.ReviewComment
 	for _, c := range lp.comments {
@@ -599,6 +577,25 @@ func (lp *LinePane) renderInlineCommentBox(c *markdown.ReviewComment, maxWidth i
 		Padding(0, 1)
 
 	return style.Render(content)
+}
+
+// writeCommentBox renders a single inline comment box into sb, indented to
+// align under the content column, and stops early once the pane height is
+// reached. It returns the updated rendered-line count.
+func (lp *LinePane) writeCommentBox(sb *strings.Builder, c *markdown.ReviewComment, contentWidth, linesRendered int) int {
+	box := lp.renderInlineCommentBox(c, contentWidth)
+	padding := strings.Repeat(" ", lp.gutterWidth+2)
+	for boxLine := range strings.SplitSeq(box, "\n") {
+		if linesRendered >= lp.height {
+			break
+		}
+		sb.WriteString(padding + " " + boxLine)
+		linesRendered++
+		if linesRendered < lp.height {
+			sb.WriteString("\n")
+		}
+	}
+	return linesRendered
 }
 
 // fitToWidth truncates or pads a string to exactly the given display width.
