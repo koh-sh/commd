@@ -85,12 +85,15 @@ func TestListMDFiles(t *testing.T) {
 
 func TestFetchFileContent(t *testing.T) {
 	tests := []struct {
-		name        string
-		path        string
-		fileContent string
-		statusCode  int
-		oversized   bool
-		wantErr     bool
+		name          string
+		path          string
+		fileContent   string
+		statusCode    int
+		oversized     bool
+		emptyDownload bool   // oversized response omits the download URL
+		downloadURL   string // overrides the oversized download URL verbatim
+		rawStatus     int    // non-200 status returned by the raw download endpoint
+		wantErr       bool
 	}{
 		{
 			name:        "fetches file content",
@@ -102,6 +105,27 @@ func TestFetchFileContent(t *testing.T) {
 			path:        "BIG.md",
 			fileContent: "# Big file\n\ncontent over 1 MB",
 			oversized:   true,
+		},
+		{
+			name:          "oversized file with empty download URL returns error",
+			path:          "BIG.md",
+			oversized:     true,
+			emptyDownload: true,
+			wantErr:       true,
+		},
+		{
+			name:      "oversized file raw download non-200 returns error",
+			path:      "BIG.md",
+			oversized: true,
+			rawStatus: http.StatusForbidden,
+			wantErr:   true,
+		},
+		{
+			name:        "oversized file non-https download URL rejected",
+			path:        "BIG.md",
+			oversized:   true,
+			downloadURL: "http://example.com/raw/BIG.md",
+			wantErr:     true,
 		},
 		{
 			name:       "file not found",
@@ -125,11 +149,18 @@ func TestFetchFileContent(t *testing.T) {
 				if tt.oversized {
 					// Files between 1 MB and 100 MB return an empty body with
 					// encoding "none" plus a download URL for the raw content.
+					downloadURL := srv.URL + "/raw/" + tt.path
+					if tt.emptyDownload {
+						downloadURL = ""
+					}
+					if tt.downloadURL != "" {
+						downloadURL = tt.downloadURL
+					}
 					writeJSON(t, w, map[string]any{
 						"type":         "file",
 						"encoding":     "none",
 						"content":      "",
-						"download_url": srv.URL + "/raw/" + tt.path,
+						"download_url": downloadURL,
 					})
 					return
 				}
@@ -143,10 +174,16 @@ func TestFetchFileContent(t *testing.T) {
 
 			// Raw download endpoint serving full file bytes for oversized files.
 			mux.HandleFunc("GET /raw/", func(w http.ResponseWriter, _ *http.Request) {
+				if tt.rawStatus != 0 {
+					w.WriteHeader(tt.rawStatus)
+					return
+				}
 				_, _ = w.Write([]byte(tt.fileContent))
 			})
 
-			srv = httptest.NewServer(mux)
+			// Use a TLS server so the raw download URL is https, matching the
+			// scheme that downloadRawContent requires.
+			srv = httptest.NewTLSServer(mux)
 			t.Cleanup(srv.Close)
 
 			client := NewClientWithHTTP(srv.Client(), srv.URL+"/")

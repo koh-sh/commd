@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,14 +144,30 @@ func (c *Client) FetchFileContent(ctx context.Context, ref *PRRef, path, headSHA
 	return []byte(decoded), nil
 }
 
+// maxRawFileBytes bounds raw downloads at GitHub's documented 100 MB file
+// ceiling to prevent unbounded memory use from a hostile or malformed body.
+const maxRawFileBytes = 100 * 1024 * 1024
+
 // downloadRawContent fetches a file's bytes from its raw download URL,
 // bypassing the 1 MB GetContents decode limit.
-func (c *Client) downloadRawContent(ctx context.Context, url, path string) ([]byte, error) {
-	if url == "" {
+func (c *Client) downloadRawContent(ctx context.Context, rawURL, path string) ([]byte, error) {
+	if rawURL == "" {
 		return nil, fmt.Errorf("fetching file %s: no download URL for oversized file", path)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// The download URL comes from the API response, which is untrusted when a
+	// custom COMMD_GITHUB_API_URL points at a server we do not control. Require
+	// https so a hostile response cannot redirect us to file:// (local file
+	// read) or plain http:// internal endpoints (SSRF).
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("downloading file %s: invalid download URL: %w", path, err)
+	}
+	if parsed.Scheme != "https" {
+		return nil, fmt.Errorf("downloading file %s: refusing non-https download URL %q", path, rawURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("downloading file %s: %w", path, err)
 	}
@@ -165,9 +182,15 @@ func (c *Client) downloadRawContent(ctx context.Context, url, path string) ([]by
 		return nil, fmt.Errorf("downloading file %s: unexpected status %d", path, resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// Cap the read at GitHub's documented 100 MB file ceiling so a malformed
+	// or hostile endpoint cannot exhaust memory with an unbounded body.
+	limited := io.LimitReader(resp.Body, maxRawFileBytes+1)
+	data, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, fmt.Errorf("reading file %s: %w", path, err)
+	}
+	if int64(len(data)) > maxRawFileBytes {
+		return nil, fmt.Errorf("fetching file %s: file exceeds %d byte limit", path, maxRawFileBytes)
 	}
 
 	return data, nil
