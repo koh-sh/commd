@@ -581,3 +581,66 @@ func TestLinePaneDiffModeVisualSelectSingleSide(t *testing.T) {
 		})
 	}
 }
+
+func TestLinePaneOverviewComments(t *testing.T) {
+	tests := []struct {
+		name         string
+		comment      *markdown.ReviewComment
+		wantRendered bool
+	}{
+		{
+			name: "overview comment shown at top",
+			comment: &markdown.ReviewComment{
+				SectionID: markdown.OverviewSectionID,
+				Action:    markdown.ActionIssue,
+				Body:      "RAWOVERVIEW",
+			},
+			wantRendered: true,
+		},
+		{
+			// A section-level comment that is not the Overview is not tied to a
+			// line either, but it belongs to a real section, so it must NOT be
+			// hoisted to the top of the raw view.
+			name: "non-overview section comment not shown at top",
+			comment: &markdown.ReviewComment{
+				SectionID: "S1",
+				Action:    markdown.ActionIssue,
+				Body:      "SECTIONLEVEL",
+			},
+			wantRendered: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane([]string{"line one", "line two", "line three"}, nil)
+			lp.SetComments([]*markdown.ReviewComment{tt.comment})
+
+			plain := ansiRe.ReplaceAllString(lp.View(), "")
+			got := strings.Contains(plain, tt.comment.Body)
+			if got != tt.wantRendered {
+				t.Errorf("raw view contains %q = %v, want %v\nview:\n%s", tt.comment.Body, got, tt.wantRendered, plain)
+			}
+		})
+	}
+}
+
+func TestLinePaneOverviewCommentHiddenWhenScrolled(t *testing.T) {
+	// Enough lines that the top scrolls out of view.
+	lines := make([]string, 30)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %d", i+1)
+	}
+	lp := newTestLinePane(lines, nil)
+	lp.SetComments([]*markdown.ReviewComment{
+		{SectionID: markdown.OverviewSectionID, Action: markdown.ActionIssue, Body: "TOPONLY"},
+	})
+
+	// Scroll past the top: the overview box anchors to the start of the range,
+	// so it should no longer be visible.
+	lp.ScrollToLine(25)
+	plain := ansiRe.ReplaceAllString(lp.View(), "")
+	if strings.Contains(plain, "TOPONLY") {
+		t.Errorf("overview comment should not render once scrolled past the top, got:\n%s", plain)
+	}
+}

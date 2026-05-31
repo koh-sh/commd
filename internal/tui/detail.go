@@ -150,6 +150,11 @@ func (d *DetailPane) ShowAll(doc *markdown.Document, getComments func(string) []
 	}
 	walkBuild(doc.Sections)
 
+	// Overview (file-level) comments belong to the preamble, which has no
+	// "Sn:" heading. Render them first so they appear right after the document
+	// header, consistent with section view's ShowOverview.
+	sectionOrder = append([]string{markdown.OverviewSectionID}, sectionOrder...)
+
 	rendered := d.renderMarkdown(md.String())
 	d.buildSectionOffsets(rendered)
 
@@ -398,6 +403,15 @@ func (d *DetailPane) insertCommentBoxes(rendered string, sectionOrder []string, 
 		} else {
 			endLines[so.sectionID] = len(lines)
 		}
+	}
+
+	// The Overview "section" has no heading, so it is absent from
+	// sectionOffsets. Its comments belong to the preamble, so place them just
+	// before the first real section heading (or at the end if there are none).
+	if len(d.sectionOffsets) > 0 {
+		endLines[markdown.OverviewSectionID] = d.sectionOffsets[0].line
+	} else {
+		endLines[markdown.OverviewSectionID] = len(lines)
 	}
 
 	for i := len(sectionOrder) - 1; i >= 0; i-- {

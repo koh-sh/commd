@@ -395,6 +395,29 @@ func (lp *LinePane) View() string {
 	visibleEnd := min(lp.scrollOffset+lp.height, rEnd)
 	linesRendered := 0
 
+	// Overview (file-level) comments are not tied to a source line, so render
+	// them at the very top when the start of the range is in view, consistent
+	// with how they appear in section and full view.
+	if lp.scrollOffset == lp.rangeStart() {
+		for _, c := range lp.overviewComments() {
+			if linesRendered >= lp.height {
+				break
+			}
+			box := lp.renderInlineCommentBox(c, contentWidth)
+			for boxLine := range strings.SplitSeq(box, "\n") {
+				if linesRendered >= lp.height {
+					break
+				}
+				padding := strings.Repeat(" ", lp.gutterWidth+2)
+				sb.WriteString(padding + " " + boxLine)
+				linesRendered++
+				if linesRendered < lp.height {
+					sb.WriteString("\n")
+				}
+			}
+		}
+	}
+
 	for i := lp.scrollOffset; i < visibleEnd && linesRendered < lp.height; i++ {
 		lineNum := i + 1
 		if lp.diffLineMap != nil && i < len(lp.diffLineMap) {
@@ -539,6 +562,18 @@ func (lp *LinePane) buildCommentMap() map[int][]*markdown.ReviewComment {
 		m[displayLine] = append(m[displayLine], c)
 	}
 	return m
+}
+
+// overviewComments returns the file-level (Overview) comments, which are
+// section-level (StartLine == 0) and not tied to any source line.
+func (lp *LinePane) overviewComments() []*markdown.ReviewComment {
+	var out []*markdown.ReviewComment
+	for _, c := range lp.comments {
+		if c.StartLine == 0 && c.SectionID == markdown.OverviewSectionID {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func (lp *LinePane) renderInlineCommentBox(c *markdown.ReviewComment, maxWidth int) string {

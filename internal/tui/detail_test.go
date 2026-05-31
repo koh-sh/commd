@@ -339,6 +339,46 @@ func TestDetailPaneShowAllWithComments(t *testing.T) {
 	}
 }
 
+func TestDetailPaneShowAllOverviewComment(t *testing.T) {
+	dp := NewDetailPane(80, 80, "dark")
+	p := &markdown.Document{
+		Title:    "Plan",
+		Preamble: "Intro preamble text.",
+		Sections: []*markdown.Section{
+			{ID: "S1", Title: "Step One", Level: 2, Body: "Section one body"},
+		},
+	}
+	getComments := func(sectionID string) []*markdown.ReviewComment {
+		if sectionID == markdown.OverviewSectionID {
+			return []*markdown.ReviewComment{
+				{SectionID: markdown.OverviewSectionID, Action: markdown.ActionIssue, Body: "OVERVIEW_FEEDBACK"},
+			}
+		}
+		return nil
+	}
+
+	dp.ShowAll(p, getComments)
+	content := dp.View()
+
+	// Strip ANSI styling so substring/position checks are not defeated by
+	// glamour splitting words with escape sequences.
+	plain := ansiRe.ReplaceAllString(content, "")
+
+	if !strings.Contains(plain, "OVERVIEW_FEEDBACK") {
+		t.Fatalf("full view should render the overview comment, got:\n%s", content)
+	}
+	// The overview comment belongs to the preamble, so it must appear before
+	// the first section heading.
+	overviewPos := strings.Index(plain, "OVERVIEW_FEEDBACK")
+	sectionPos := strings.Index(plain, "S1:")
+	if sectionPos < 0 {
+		t.Fatalf("full view should render the first section heading, got:\n%s", content)
+	}
+	if overviewPos > sectionPos {
+		t.Errorf("overview comment should appear before the first section, got:\n%s", content)
+	}
+}
+
 func TestDetailPaneShowAllNoPreamble(t *testing.T) {
 	dp := NewDetailPane(80, 80, "dark")
 	p := &markdown.Document{
