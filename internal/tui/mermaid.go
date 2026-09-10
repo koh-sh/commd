@@ -3,8 +3,8 @@ package tui
 import (
 	"strings"
 
-	"github.com/AlexanderGrooff/mermaid-ascii/cmd"
 	"github.com/AlexanderGrooff/mermaid-ascii/pkg/diagram"
+	"github.com/AlexanderGrooff/mermaid-ascii/pkg/render"
 )
 
 // renderMermaidBlocks scans Markdown for ```mermaid fenced code blocks and
@@ -62,7 +62,7 @@ func tryRenderMermaid(source string) (result string) {
 		}
 	}()
 	cfg := diagram.DefaultConfig()
-	rendered, err := cmd.RenderDiagram(source, cfg)
+	rendered, err := render.RenderDiagram(source, cfg)
 	if err != nil {
 		return source
 	}
