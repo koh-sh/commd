@@ -727,3 +727,51 @@ func TestSetSizeKeepsCursorVisible(t *testing.T) {
 		})
 	}
 }
+
+func TestLinePaneEmptyRangeBlocksCommenting(t *testing.T) {
+	lp := newTestLinePane([]string{"+a", "+b"}, nil)
+	lp.diffLineMap = []int{3, 4}
+	lp.diffSideMap = []string{"RIGHT", "RIGHT"}
+	lp.SetSize(40, 5)
+	lp.SetViewRange(10, 20) // no diff lines in this section
+
+	if lp.CanComment() {
+		t.Error("CanComment() = true in an empty range, want false")
+	}
+	if start, end := lp.SelectedRange(); start != 0 || end != 0 {
+		t.Errorf("SelectedRange() = (%d, %d) in an empty range, want (0, 0)", start, end)
+	}
+	lp.StartVisualSelect()
+	if lp.IsVisualSelect() {
+		t.Error("StartVisualSelect() started a selection in an empty range")
+	}
+}
+
+func TestLinePaneScrollToLineDiffMode(t *testing.T) {
+	// Hunk starting at new line 100: context, added, removed, context.
+	lines := []string{"  a", "+ b", "- z", "  c"}
+	tests := []struct {
+		name       string
+		line       int
+		wantCursor int
+	}{
+		{"first hunk line", 100, 0},
+		{"added line", 101, 1},
+		{"context after removed line", 102, 3},
+		{"line before the hunk snaps to first hunk line", 1, 0},
+		{"line past the hunk snaps to last display line", 500, 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(lines, nil)
+			lp.diffLineMap = []int{100, 101, 100, 102}
+			lp.diffSideMap = []string{"RIGHT", "RIGHT", "LEFT", "RIGHT"}
+			lp.SetSize(40, 10)
+
+			lp.ScrollToLine(tt.line)
+			if lp.Cursor() != tt.wantCursor {
+				t.Errorf("cursor = %d, want %d", lp.Cursor(), tt.wantCursor)
+			}
+		})
+	}
+}

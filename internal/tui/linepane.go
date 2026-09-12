@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/koh-sh/commd/internal/diff"
 	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/mattn/go-runewidth"
 )
@@ -205,8 +206,13 @@ func (lp *LinePane) PageUp() {
 	lp.ensureVisible()
 }
 
-// StartVisualSelect begins visual line selection from the current cursor position.
+// StartVisualSelect begins visual line selection from the current cursor
+// position. It is a no-op while the pane shows an empty diff range, since
+// there is no line to select.
 func (lp *LinePane) StartVisualSelect() {
+	if lp.emptyRange {
+		return
+	}
 	lp.selectAnchor = lp.cursor
 }
 
@@ -226,6 +232,11 @@ func (lp *LinePane) CancelVisualSelect() {
 // In diff mode, maps display indices to actual file line numbers.
 // Returns (0, 0) if the selected line is not commentable in diff mode.
 func (lp *LinePane) SelectedRange() (startLine, endLine int) {
+	if lp.emptyRange {
+		// "No changes in this section": the cursor index is stale and must
+		// not be mapped to a line from another section.
+		return 0, 0
+	}
 	if lp.diffLineMap != nil {
 		return lp.selectedRangeDiff()
 	}
@@ -292,6 +303,9 @@ func (lp *LinePane) CursorSide() string {
 // CanComment returns whether the current cursor position allows commenting.
 // All lines in the diff are commentable (added, removed, and context).
 func (lp *LinePane) CanComment() bool {
+	if lp.emptyRange {
+		return false
+	}
 	if lp.diffLineMap == nil {
 		return true
 	}
@@ -333,17 +347,31 @@ func (lp *LinePane) SourceText(startLine, endLine int, side string) []string {
 	return out
 }
 
-// ScrollToLine scrolls the viewport so the given 1-based line is visible,
-// centered if possible.
+// ScrollToLine scrolls the viewport so the given 1-based file line is
+// visible, centered if possible.
 func (lp *LinePane) ScrollToLine(line int) {
-	idx := max(line-1, 0)
-	if idx >= len(lp.lines) {
-		idx = max(len(lp.lines)-1, 0)
-	}
-	lp.cursor = idx
+	lp.cursor = lp.displayIndexForLine(line)
 	// Center the cursor in the viewport
-	lp.scrollOffset = max(idx-lp.height/2, 0)
+	lp.scrollOffset = max(lp.cursor-lp.height/2, 0)
 	lp.clampScroll()
+}
+
+// displayIndexForLine maps a 1-based new-file line number to a display
+// index. Outside diff mode the index is simply line-1. In diff mode the
+// display is a list of hunk lines, so the first new-file (RIGHT) line at or
+// after the requested line is used; a line past every hunk maps to the last
+// display line.
+func (lp *LinePane) displayIndexForLine(line int) int {
+	last := max(len(lp.lines)-1, 0)
+	if lp.diffLineMap == nil {
+		return min(max(line-1, 0), last)
+	}
+	for i, fileLine := range lp.diffLineMap {
+		if lp.diffSideMap[i] == diff.SideRight && fileLine >= line {
+			return i
+		}
+	}
+	return last
 }
 
 // SectionIDAtLine returns the section ID containing the given 1-based line number.

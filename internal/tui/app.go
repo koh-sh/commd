@@ -515,6 +515,9 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.mode = ModeComment
 		return a, cmd
 	case key.Matches(msg, a.keymap.VisualSelect):
+		if !a.linePane.CanComment() {
+			return a, nil
+		}
 		a.linePane.StartVisualSelect()
 		a.mode = ModeLineSelect
 	case key.Matches(msg, a.keymap.CommentList):

@@ -2252,3 +2252,38 @@ func TestDetailHeightRestoredAfterComment(t *testing.T) {
 		})
 	}
 }
+
+func TestDiffEmptySectionBlocksLineComment(t *testing.T) {
+	// Only S1 has a hunk; S2 shows "No changes in this section".
+	doc, err := markdown.Parse([]byte("# T\n\n## S1\nb\n\n## S2\nunchanged\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"c does not open the editor", "c"},
+		{"V does not start a selection", "V"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := NewApp(doc, AppOptions{Diff: NewDiffData(diff.ParsePatch("@@ -3,1 +3,1 @@\n-a\n+b\n"))})
+			a.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
+			a.Update(keyMsg("j")) // S1
+			a.Update(keyMsg("j")) // S2
+			if !a.linePane.emptyRange {
+				t.Fatal("expected S2 to have an empty diff range")
+			}
+			a.Update(keyMsg("tab"))
+			a.Update(keyMsg(tt.key))
+
+			if a.mode != ModeNormal {
+				t.Errorf("mode = %d, want ModeNormal", a.mode)
+			}
+			if a.sectionList.HasComments() {
+				t.Error("a comment was created on another section's line")
+			}
+		})
+	}
+}
