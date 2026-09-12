@@ -121,10 +121,7 @@ func TestRunSkipsSpawn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("CC_PLAN_REVIEW_SKIP", tt.skipEnv)
 			mock := &mockSpawner{available: true, name: "mock"}
-			code, err := Run(context.Background(), tt.input, RunConfig{Spawner: mock})
-			if err != nil {
-				t.Fatal(err)
-			}
+			code := Run(context.Background(), tt.input, RunConfig{Spawner: mock})
 			if code != 0 {
 				t.Errorf("exit code = %d, want 0", code)
 			}
@@ -168,10 +165,7 @@ func TestRunSpawnOutcomes(t *testing.T) {
 				name = "mock"
 			}
 			mock := &mockSpawner{available: true, name: name, spawnFunc: tt.spawnFunc}
-			code, err := Run(context.Background(), postToolUseInput(cwd, planFile), RunConfig{Spawner: mock})
-			if err != nil {
-				t.Fatal(err)
-			}
+			code := Run(context.Background(), postToolUseInput(cwd, planFile), RunConfig{Spawner: mock})
 			if code != tt.wantCode {
 				t.Errorf("exit code = %d, want %d", code, tt.wantCode)
 			}
@@ -304,10 +298,7 @@ func TestRunExitPlanModeTrigger(t *testing.T) {
 				ToolName:       "ExitPlanMode",
 				ToolInput:      &ToolInput{PlanFilePath: planFile},
 			}
-			code, err := Run(context.Background(), input, RunConfig{Spawner: mock, Theme: "dark"})
-			if err != nil {
-				t.Fatal(err)
-			}
+			code := Run(context.Background(), input, RunConfig{Spawner: mock, Theme: "dark"})
 			if code != tt.wantCode {
 				t.Errorf("exit code = %d, want %d", code, tt.wantCode)
 			}

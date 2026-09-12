@@ -17,31 +17,34 @@ type RunConfig struct {
 
 // Run executes the hook orchestration flow. ctx bounds the wait for the
 // review pane; cancelling it aborts the review as if nothing was submitted.
-// Returns exitCode: 0 = continue normally, 2 = feedback to Claude.
-func Run(ctx context.Context, input *Input, cfg RunConfig) (int, error) {
+// Returns the exit code: 0 = continue normally, 2 = feedback to Claude.
+// Failures never surface as errors: the hook must not block the Claude
+// Code workflow, so they are logged to stderr and yield exit code 0.
+func Run(ctx context.Context, input *Input, cfg RunConfig) int {
 	// Early returns
 	if input.PermissionMode != permissionModePlan {
-		return 0, nil
+		return 0
 	}
 	if os.Getenv("CC_PLAN_REVIEW_SKIP") == "1" {
-		return 0, nil
+		return 0
 	}
 
 	planFile, ok := resolvePlanFile(input)
 	if !ok {
-		return 0, nil
+		return 0
 	}
 
 	// Check file exists
 	if _, err := os.Stat(planFile); err != nil {
-		return 0, nil
+		fmt.Fprintf(os.Stderr, "commd: plan file not accessible: %v\n", err)
+		return 0
 	}
 
 	// Prepare temp file for IPC with review subprocess
 	reviewFile, err := os.CreateTemp("", "commd-review-*.md")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "commd: failed to create temp review file: %v\n", err)
-		return 0, nil
+		return 0
 	}
 	reviewPath := reviewFile.Name()
 	reviewFile.Close()
@@ -74,21 +77,22 @@ func Run(ctx context.Context, input *Input, cfg RunConfig) (int, error) {
 			err = direct.SpawnAndWait(ctx, executable, args)
 		}
 		if err != nil {
-			return 0, nil
+			return 0
 		}
 	}
 
 	// Read review result -- non-empty means submitted
 	reviewBytes, err := os.ReadFile(reviewPath)
 	if err != nil {
-		return 0, nil
+		fmt.Fprintf(os.Stderr, "commd: failed to read review result: %v\n", err)
+		return 0
 	}
 	if review := string(reviewBytes); review != "" {
 		fmt.Fprint(os.Stderr, review)
-		return 2, nil
+		return 2
 	}
 
-	return 0, nil
+	return 0
 }
 
 // resolvePlanFile determines which plan file to review from the hook input.
