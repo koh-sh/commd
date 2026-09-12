@@ -34,6 +34,12 @@ func TestFilePicker(t *testing.T) {
 			wantCancelled: true,
 		},
 		{
+			name:          "ctrl+c cancels",
+			files:         []string{"a.md"},
+			keys:          []tea.KeyPressMsg{keyMsg("ctrl+c")},
+			wantCancelled: true,
+		},
+		{
 			name:  "deselect first file with space",
 			files: []string{"a.md", "b.md"},
 			keys: []tea.KeyPressMsg{

@@ -159,6 +159,12 @@ func (d *ReviewDialog) updateSelect(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (d *ReviewDialog) updateBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
+	case msg.String() == "ctrl+c":
+		// Leave without submitting, as in select mode; the textarea would
+		// otherwise swallow the key.
+		d.result.Action = ReviewActionExit
+		d.quitting = true
+		return d, tea.Quit
 	case key.Matches(msg, d.keymap.Back):
 		d.mode = dialogModeSelect
 		d.textarea.Blur()

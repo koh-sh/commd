@@ -202,6 +202,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// ctrl+c quits from every mode, as the help text promises. Bubble Tea
+	// keeps the terminal in raw mode, so nothing else turns it into an
+	// interrupt; without this it would be swallowed by the comment editor,
+	// the search input and the overlays.
+	if msg.String() == "ctrl+c" {
+		a.result.Status = markdown.StatusCancelled
+		return a, tea.Quit
+	}
 	switch a.mode {
 	case ModeNormal:
 		return a.handleNormalMode(msg)
@@ -274,10 +282,6 @@ func (a *App) handleNormalMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, a.keymap.Quit):
-		if msg.String() == "ctrl+c" {
-			a.result.Status = markdown.StatusCancelled
-			return a, tea.Quit
-		}
 		a.confirmAction = confirmQuit
 		a.mode = ModeConfirm
 		return a, nil
@@ -684,9 +688,6 @@ func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// while keeping the dialog itself a deliberate y/n decision.
 		a.mode = ModeNormal
 		return a, nil
-	case "ctrl+c":
-		a.result.Status = markdown.StatusCancelled
-		return a, tea.Quit
 	}
 	return a, nil
 }

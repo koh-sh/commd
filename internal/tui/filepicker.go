@@ -28,7 +28,7 @@ type filePickerKeyMap struct {
 
 func newFilePickerKeyMap() filePickerKeyMap {
 	return filePickerKeyMap{
-		Cancel:    key.NewBinding(key.WithKeys("q", "esc")),
+		Cancel:    key.NewBinding(key.WithKeys("q", "esc", "ctrl+c")),
 		Confirm:   key.NewBinding(key.WithKeys("enter")),
 		Down:      key.NewBinding(key.WithKeys("j", "down")),
 		Up:        key.NewBinding(key.WithKeys("k", "up")),

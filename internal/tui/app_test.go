@@ -2287,3 +2287,45 @@ func TestDiffEmptySectionBlocksLineComment(t *testing.T) {
 		})
 	}
 }
+
+func TestCtrlCQuitsFromEveryMode(t *testing.T) {
+	tests := []struct {
+		name  string
+		enter func(a *App)
+		mode  AppMode
+	}{
+		{"normal", func(a *App) {}, ModeNormal},
+		{"comment editor", func(a *App) { a.Update(keyMsg("j")); a.Update(keyMsg("c")) }, ModeComment},
+		{"comment list", func(a *App) {
+			a.Update(keyMsg("j"))
+			a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "x"})
+			a.Update(keyMsg("C"))
+		}, ModeCommentList},
+		{"confirm dialog", func(a *App) { a.Update(keyMsg("q")) }, ModeConfirm},
+		{"help", func(a *App) { a.Update(keyMsg("?")) }, ModeHelp},
+		{"search", func(a *App) { a.Update(keyMsg("/")) }, ModeSearch},
+		{"line select", func(a *App) { a.Update(keyMsg("r")); a.Update(keyMsg("V")) }, ModeLineSelect},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			a.linePane = NewLinePane([]string{"a", "b"}, 0, 0, a.styles, a.doc.AllSections())
+			tt.enter(a)
+			if a.mode != tt.mode {
+				t.Fatalf("setup: mode = %d, want %d", a.mode, tt.mode)
+			}
+
+			_, cmd := a.Update(keyMsg("ctrl+c"))
+
+			if cmd == nil {
+				t.Fatal("ctrl+c should return the quit command")
+			}
+			if _, ok := cmd().(tea.QuitMsg); !ok {
+				t.Errorf("cmd() = %T, want tea.QuitMsg", cmd())
+			}
+			if a.result.Status != markdown.StatusCancelled {
+				t.Errorf("status = %s, want cancelled", a.result.Status)
+			}
+		})
+	}
+}

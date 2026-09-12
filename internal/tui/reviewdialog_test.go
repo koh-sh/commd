@@ -31,6 +31,13 @@ func TestReviewDialog(t *testing.T) {
 			wantAction:  ReviewActionExit,
 		},
 		{
+			name:        "ctrl+c in body mode exits without submitting",
+			summary:     []string{"No comments"},
+			hasComments: false,
+			keys:        []tea.KeyPressMsg{keyMsg("enter"), keyMsg("x"), keyMsg("ctrl+c")},
+			wantAction:  ReviewActionExit,
+		},
+		{
 			name:        "has comments select comment with body",
 			summary:     []string{"file.md: 2 comment(s)", "Total: 2 comment(s)"},
 			hasComments: true,
