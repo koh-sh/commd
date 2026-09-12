@@ -12,7 +12,7 @@ require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/google/go-github/v84 v84.0.0
 	github.com/mattn/go-runewidth v0.0.29
-	github.com/yuin/goldmark v1.8.5
+	github.com/yuin/goldmark v1.8.6
 )
 
 require (
