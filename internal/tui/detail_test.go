@@ -760,3 +760,40 @@ func TestRenderMarkdownPreservesSoftLineBreaks(t *testing.T) {
 		t.Errorf("expected newline after first line, got:\n%s", plain)
 	}
 }
+
+func TestDetailPaneKeepsScrollForSameContent(t *testing.T) {
+	long := strings.Repeat("line\n\n", 80)
+	s1 := &markdown.Section{ID: "S1", Title: "One", Body: long}
+	s2 := &markdown.Section{ID: "S2", Title: "Two", Body: long}
+	doc := &markdown.Document{Title: "T", Preamble: long, Sections: []*markdown.Section{s1, s2}}
+
+	tests := []struct {
+		name     string
+		first    func(dp *DetailPane)
+		second   func(dp *DetailPane)
+		wantKeep bool
+	}{
+		{"same section re-rendered keeps the offset", func(dp *DetailPane) { dp.ShowSection(s1, nil) }, func(dp *DetailPane) { dp.ShowSection(s1, nil) }, true},
+		{"another section starts at the top", func(dp *DetailPane) { dp.ShowSection(s1, nil) }, func(dp *DetailPane) { dp.ShowSection(s2, nil) }, false},
+		{"overview after a section starts at the top", func(dp *DetailPane) { dp.ShowSection(s1, nil) }, func(dp *DetailPane) { dp.ShowOverview(doc, nil) }, false},
+		{"full view re-rendered keeps the offset", func(dp *DetailPane) { dp.ShowAll(doc, func(string) []*markdown.ReviewComment { return nil }) }, func(dp *DetailPane) { dp.ShowAll(doc, func(string) []*markdown.ReviewComment { return nil }) }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dp := NewDetailPane(80, 10, "dark")
+			tt.first(dp)
+			dp.Viewport().SetYOffset(20)
+			if dp.Viewport().YOffset() != 20 {
+				t.Fatalf("setup: YOffset = %d, want 20", dp.Viewport().YOffset())
+			}
+			tt.second(dp)
+			want := 0
+			if tt.wantKeep {
+				want = 20
+			}
+			if got := dp.Viewport().YOffset(); got != want {
+				t.Errorf("YOffset = %d, want %d", got, want)
+			}
+		})
+	}
+}

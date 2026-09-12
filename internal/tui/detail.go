@@ -34,6 +34,7 @@ type DetailPane struct {
 	renderer       *glamour.TermRenderer
 	theme          string
 	sectionOffsets []sectionOffset
+	contentKey     string // identifies what the viewport currently shows
 }
 
 // customStyle returns a glamour style with red background removed from
@@ -93,7 +94,7 @@ func (d *DetailPane) ShowSection(section *markdown.Section, comments []*markdown
 	}
 
 	rendered := d.renderMarkdown(md.String())
-	d.setViewportContent(d.appendCommentBoxes(rendered, comments))
+	d.showContent("section:"+section.ID, d.appendCommentBoxes(rendered, comments))
 }
 
 // writeDocHeader writes the document title and preamble as Markdown to the builder.
@@ -113,7 +114,7 @@ func (d *DetailPane) ShowOverview(doc *markdown.Document, comments []*markdown.R
 	writeDocHeader(&content, doc)
 
 	rendered := d.renderMarkdown(content.String())
-	d.setViewportContent(d.appendCommentBoxes(rendered, comments))
+	d.showContent("overview", d.appendCommentBoxes(rendered, comments))
 }
 
 // appendCommentBoxes appends rendered comment boxes to the given content.
@@ -163,7 +164,7 @@ func (d *DetailPane) ShowAll(doc *markdown.Document, getComments func(string) []
 		rendered = d.insertCommentBoxes(rendered, sectionOrder, getComments)
 		d.buildSectionOffsets(rendered)
 	}
-	d.setViewportContent(rendered)
+	d.showContent("all", rendered)
 }
 
 // renderMarkdown renders Markdown to a styled string without setting viewport content.
@@ -179,11 +180,20 @@ func (d *DetailPane) renderMarkdown(md string) string {
 	return md
 }
 
-// setViewportContent sets the viewport content and resets scroll position.
-func (d *DetailPane) setViewportContent(content string) {
+// showContent replaces the viewport content. key names what is shown
+// ("section:S1", "overview", "all"); re-rendering the same key (a comment
+// was added, the terminal was resized) keeps the vertical scroll position,
+// while switching to different content starts at the top.
+func (d *DetailPane) showContent(key, content string) {
+	offset := d.viewport.YOffset()
 	d.viewport.SetContent(content)
 	d.viewport.SetXOffset(0)
-	d.viewport.GotoTop()
+	if key == d.contentKey {
+		d.viewport.SetYOffset(offset) // clamped to the new content
+	} else {
+		d.viewport.GotoTop()
+	}
+	d.contentKey = key
 }
 
 // wrapProse wraps prose lines in Markdown to the given width using Markdown
