@@ -253,19 +253,19 @@ func TestCommentEditorSide(t *testing.T) {
 	}{
 		{
 			name:     "new comment resets stale side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "LEFT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "LEFT") },
 			existing: nil,
 			want:     "",
 		},
 		{
 			name:     "editing loads existing side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "RIGHT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "RIGHT") },
 			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b", StartLine: 5, Side: "LEFT"},
 			want:     "LEFT",
 		},
 		{
 			name:     "editing comment without side clears stale side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", nil, 3, 0, "RIGHT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "RIGHT") },
 			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b"},
 			want:     "",
 		},

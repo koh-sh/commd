@@ -2044,7 +2044,7 @@ func TestAppLineCommentCarriesQuote(t *testing.T) {
 	}
 	app := NewApp(doc, AppOptions{})
 	app.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
-	app.comment.OpenWithLines("S1", nil, 5, 0, "")
+	app.comment.OpenWithLines("S1", 5, 0, "")
 	app.mode = ModeComment
 	app.comment.textarea.SetValue("check this")
 	app.handleCommentMode(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})

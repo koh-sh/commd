@@ -63,9 +63,9 @@ func (c *CommentEditor) Open(sectionID string, existing *markdown.ReviewComment)
 }
 
 // OpenWithLines opens the comment editor for a new line-level comment.
-// existing must be nil; use Open directly when editing existing comments.
-func (c *CommentEditor) OpenWithLines(sectionID string, existing *markdown.ReviewComment, startLine, endLine int, side string) tea.Cmd {
-	cmd := c.Open(sectionID, existing)
+// Editing an existing comment goes through Open, which restores its lines.
+func (c *CommentEditor) OpenWithLines(sectionID string, startLine, endLine int, side string) tea.Cmd {
+	cmd := c.Open(sectionID, nil)
 	c.startLine = startLine
 	c.endLine = endLine
 	c.side = side

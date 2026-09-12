@@ -516,7 +516,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		startLine, endLine := a.linePane.SelectedRange()
 		sectionID := a.linePane.SectionIDAtLine(startLine)
 		a.editCommentIdx = -1
-		cmd := a.comment.OpenWithLines(sectionID, nil, startLine, endLine, a.linePane.CursorSide())
+		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
 		a.mode = ModeComment
 		return a, cmd
 	case key.Matches(msg, a.keymap.VisualSelect):
@@ -552,7 +552,7 @@ func (a *App) handleLineSelectMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		sectionID := a.linePane.SectionIDAtLine(startLine)
 		a.linePane.CancelVisualSelect()
 		a.editCommentIdx = -1
-		cmd := a.comment.OpenWithLines(sectionID, nil, startLine, endLine, a.linePane.CursorSide())
+		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
 		a.mode = ModeComment
 		return a, cmd
 	case key.Matches(msg, a.keymap.Cancel):
