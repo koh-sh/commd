@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -941,9 +942,10 @@ func (a *App) contentHeight() int {
 }
 
 // contentHeightWith returns the pane height (including border) for the given title bar height.
-// Layout: tbHeight + \n + pane + \n + statusBar(1) = a.height
+// Layout: tbHeight rows + pane rows + statusBar (1 row) = a.height. The
+// status bar is kept to one row by renderStatusBar, so no slack is needed.
 func (a *App) contentHeightWith(tbHeight int) int {
-	return max(a.height-tbHeight-3, 4)
+	return max(a.height-tbHeight-1, 4)
 }
 
 func (a *App) resizeLeftPane(delta int) {
@@ -1185,69 +1187,40 @@ func (a *App) statusEntry(key, label string) string {
 	return a.styles.StatusKey.Render(key) + " " + label
 }
 
+// renderStatusBar renders the one-row status bar for the current mode.
 func (a *App) renderStatusBar() string {
-	if a.mode == ModeComment {
-		return a.styles.StatusBar.Render(
-			a.statusEntry("tab/S-tab", "label:") + " " +
-				a.styles.Title.Render(a.comment.FormatLabel()) + "  " +
-				a.statusEntry("ctrl+d", "deco") + "  " +
-				a.statusEntry("ctrl+s", "save") + "  " +
-				a.statusEntry("esc", "cancel"),
-		)
-	}
+	switch a.mode {
+	case ModeComment:
+		return a.statusLine([]string{
+			a.statusEntry("tab/S-tab", "label:") + " " + a.styles.Title.Render(a.comment.FormatLabel()),
+			a.statusEntry("ctrl+d", "deco"),
+			a.statusEntry("ctrl+s", "save"),
+			a.statusEntry("esc", "cancel"),
+		}, "")
 
-	if a.mode == ModeCommentList {
-		return a.styles.StatusBar.Render(
-			a.statusEntry("j/k", "navigate") + "  " +
-				a.statusEntry("e", "edit") + "  " +
-				a.statusEntry("d", "delete") + "  " +
-				a.statusEntry("esc", "back"),
-		)
-	}
+	case ModeCommentList:
+		return a.statusLine([]string{
+			a.statusEntry("j/k", "navigate"),
+			a.statusEntry("e", "edit"),
+			a.statusEntry("d", "delete"),
+			a.statusEntry("esc", "back"),
+		}, "")
 
-	if a.mode == ModeLineSelect {
+	case ModeLineSelect:
 		lineInfo := ""
 		if a.linePane != nil {
 			startLine, endLine := a.linePane.SelectedRange()
 			lineInfo = markdown.FormatLineRef(startLine, endLine)
 		}
-		return a.styles.StatusBar.Render(
-			a.styles.Title.Render("VISUAL") + "  " +
-				a.statusEntry("j/k", "extend") + "  " +
-				a.statusEntry("c", "comment") + "  " +
-				a.statusEntry("esc", "cancel") + "  " +
-				lineInfo,
-		)
-	}
+		return a.statusLine([]string{
+			a.styles.Title.Render("VISUAL"),
+			a.statusEntry("j/k", "extend"),
+			a.statusEntry("c", "comment"),
+			a.statusEntry("esc", "cancel"),
+		}, lineInfo)
 
-	if a.mode == ModeSearch {
-		return a.search.View()
-	}
-
-	if a.isRawMode() {
-		lineInfo := fmt.Sprintf("L%d/%d", a.linePane.Cursor()+1, a.linePane.LineCount())
-		progress := ""
-		if commentCount := a.sectionList.TotalCommentCount(); commentCount > 0 {
-			progress = fmt.Sprintf(" [%d comments]", commentCount)
-		}
-		// Label shows the mode that f will switch TO (not the current mode)
-		viewMode := "full"
-		if a.fullView {
-			viewMode = "section"
-		}
-
-		return a.styles.StatusBar.Render(
-			a.statusEntry("r", "render") + "  " +
-				a.statusEntry("f", viewMode) + "  " +
-				a.statusEntry("c", "comment") + "  " +
-				a.statusEntry("V", "select") + "  " +
-				a.statusEntry("C", "comments") + "  " +
-				a.statusEntry("s", "submit") + "  " +
-				a.statusEntry("tab", "switch") + "  " +
-				a.statusEntry("?", "help") + "  " +
-				a.statusEntry("q", "quit") + "  " +
-				lineInfo + progress,
-		)
+	case ModeSearch:
+		return a.statusLine([]string{a.search.View()}, "")
 	}
 
 	// Label shows the mode that f will switch TO (not the current mode)
@@ -1255,31 +1228,67 @@ func (a *App) renderStatusBar() string {
 	if a.fullView {
 		viewMode = "section"
 	}
-
-	progress := fmt.Sprintf("[%d/%d viewed]", a.sectionList.ViewedCount(), a.sectionList.TotalSectionCount())
+	progress := ""
 	if commentCount := a.sectionList.TotalCommentCount(); commentCount > 0 {
-		progress += fmt.Sprintf(" [%d comments]", commentCount)
+		progress = fmt.Sprintf(" [%d comments]", commentCount)
 	}
 
-	rawToggle := ""
+	if a.isRawMode() {
+		lineInfo := fmt.Sprintf("L%d/%d", a.linePane.Cursor()+1, a.linePane.LineCount())
+		return a.statusLine([]string{
+			a.statusEntry("r", "render"),
+			a.statusEntry("f", viewMode),
+			a.statusEntry("c", "comment"),
+			a.statusEntry("V", "select"),
+			a.statusEntry("C", "comments"),
+			a.statusEntry("s", "submit"),
+			a.statusEntry("tab", "switch"),
+			a.statusEntry("?", "help"),
+			a.statusEntry("q", "quit"),
+		}, lineInfo+progress)
+	}
+
+	entries := []string{
+		a.statusEntry("enter", "toggle"),
+		a.statusEntry("f", viewMode),
+	}
 	if a.linePane != nil {
-		rawToggle = a.statusEntry("r", "raw") + "  "
+		entries = append(entries, a.statusEntry("r", "raw"))
 	}
-
-	return a.styles.StatusBar.Render(
-		a.statusEntry("enter", "toggle") + "  " +
-			a.statusEntry("f", viewMode) + "  " +
-			rawToggle +
-			a.statusEntry("c", "comment") + "  " +
-			a.statusEntry("C", "comments") + "  " +
-			a.statusEntry("v", "viewed") + "  " +
-			a.statusEntry("/", "search") + "  " +
-			a.statusEntry("s", "submit") + "  " +
-			a.statusEntry("tab", "switch") + "  " +
-			a.statusEntry("?", "help") + "  " +
-			a.statusEntry("q", "quit") + "  " +
-			progress,
+	entries = append(entries,
+		a.statusEntry("c", "comment"),
+		a.statusEntry("C", "comments"),
+		a.statusEntry("v", "viewed"),
+		a.statusEntry("/", "search"),
+		a.statusEntry("s", "submit"),
+		a.statusEntry("tab", "switch"),
+		a.statusEntry("?", "help"),
+		a.statusEntry("q", "quit"),
 	)
+	viewed := fmt.Sprintf("[%d/%d viewed]", a.sectionList.ViewedCount(), a.sectionList.TotalSectionCount())
+	return a.statusLine(entries, viewed+progress)
+}
+
+// statusLine joins the hint entries and the trailing indicator into a single
+// row. The layout budgets exactly one row for the status bar, so a line
+// wider than the terminal would wrap and push the panes off screen. When
+// the line does not fit, hint entries are dropped one at a time, starting
+// just before the final two (every mode ends with its help/exit keys, which
+// stay visible along with the indicator); whatever still overflows is
+// truncated.
+func (a *App) statusLine(entries []string, indicator string) string {
+	for {
+		parts := entries
+		if indicator != "" {
+			parts = append(slices.Clone(entries), indicator)
+		}
+		line := strings.Join(parts, "  ")
+		if lipgloss.Width(line) <= a.width || len(entries) == 0 {
+			return a.styles.StatusBar.MaxWidth(a.width).Render(line)
+		}
+		drop := max(len(entries)-3, 0)
+		entries = slices.Delete(slices.Clone(entries), drop, drop+1)
+	}
 }
 
 // renderConfirm renders a full-screen confirmation dialog.

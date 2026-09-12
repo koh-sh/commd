@@ -14,7 +14,7 @@ import type { Session } from "tuistory";
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const COMMD_BIN = resolve(PROJECT_ROOT, "commd");
 
-/** Launch commd review in a narrow terminal (status bar truncates "quit"). */
+/** Launch commd review in a narrow terminal (single-pane layout). */
 async function launchNarrow(
   file: string,
   cols: number,
@@ -30,8 +30,8 @@ async function launchNarrow(
     waitForData: true,
     waitForDataTimeout: 10000,
   });
-  // Status bar at narrow width truncates "quit", so wait for "comment" instead
-  await session.waitForText("comment", { timeout: 15000 });
+  // The status bar keeps its trailing "q quit" hint at any width.
+  await session.waitForText("quit", { timeout: 15000 });
   return session;
 }
 

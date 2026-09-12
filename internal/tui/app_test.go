@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -2325,6 +2326,70 @@ func TestCtrlCQuitsFromEveryMode(t *testing.T) {
 			}
 			if a.result.Status != markdown.StatusCancelled {
 				t.Errorf("status = %s, want cancelled", a.result.Status)
+			}
+		})
+	}
+}
+
+func TestStatusBarFitsWidth(t *testing.T) {
+	widths := []int{60, 80, 100, 120, 200}
+	modes := []struct {
+		name  string
+		enter func(a *App)
+	}{
+		{"normal", func(a *App) {}},
+		{"raw view", func(a *App) { a.Update(keyMsg("r")) }},
+		{"comment editor", func(a *App) { a.Update(keyMsg("j")); a.Update(keyMsg("c")) }},
+		{"line select", func(a *App) { a.Update(keyMsg("r")); a.Update(keyMsg("V")) }},
+	}
+	for _, m := range modes {
+		for _, w := range widths {
+			t.Run(fmt.Sprintf("%s/%d", m.name, w), func(t *testing.T) {
+				doc, err := markdown.Parse([]byte("# T\n\n## S1\n\nbody\n\n## S2\n\nbody\n"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				a := NewApp(doc, AppOptions{})
+				a.Update(tea.WindowSizeMsg{Width: w, Height: 30})
+				m.enter(a)
+
+				bar := a.renderStatusBar()
+				if got := lipgloss.Width(bar); got > w {
+					t.Errorf("status bar width = %d, exceeds terminal width %d", got, w)
+				}
+				if lipgloss.Height(bar) != 1 {
+					t.Errorf("status bar height = %d, want 1", lipgloss.Height(bar))
+				}
+				if m.name == "normal" && !strings.Contains(bar, "viewed]") {
+					t.Errorf("progress indicator dropped at width %d: %q", w, bar)
+				}
+				if got := countLines(a.renderApp()); got != 30 {
+					t.Errorf("rendered app height = %d, want 30", got)
+				}
+			})
+		}
+	}
+}
+
+func TestStatusLineDropsMiddleEntries(t *testing.T) {
+	entries := []string{"aaaa", "bbbb", "cccc", "help", "quit"}
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{"everything fits", 40, "aaaa  bbbb  cccc  help  quit  [ind]"},
+		{"drops the entry before the last two first", 30, "aaaa  bbbb  help  quit  [ind]"},
+		{"keeps dropping until it fits", 24, "aaaa  help  quit  [ind]"},
+		{"exit keys and indicator survive", 18, "help  quit  [ind]"},
+		{"only the indicator is left at tiny widths", 10, "[ind]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &App{width: tt.width, styles: stylesForTheme(ThemeDark)}
+			got := ansiRe.ReplaceAllString(a.statusLine(slices.Clone(entries), "[ind]"), "")
+			if got != tt.want {
+				t.Errorf("statusLine() = %q, want %q", got, tt.want)
 			}
 		})
 	}

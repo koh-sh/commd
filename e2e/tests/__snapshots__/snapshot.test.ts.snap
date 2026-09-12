@@ -34,8 +34,10 @@ exports[`Snapshot initial view 1`] = `
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
 ╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────────────────╯
-enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
+enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  ? help  q quit  [0/7 viewed]"
 `;
 
 exports[`Snapshot help overlay 1`] = `
@@ -137,6 +139,8 @@ exports[`Snapshot search mode 1`] = `
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
 ╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────────────────╯
 /Step"
 `;
@@ -155,6 +159,8 @@ exports[`Snapshot comment editor 1`] = `
 │      S2.1 2.1 Endpoint Addition  ││                                                                                  │
 │      S2.2 2.2 Validation         ││                                                                                  │
 │    S3 Step 3: Tests              ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
@@ -213,6 +219,8 @@ exports[`Snapshot section collapsed 1`] = `
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
 │                                  ││                                                                                  │
+│                                  ││                                                                                  │
+│                                  ││                                                                                  │
 ╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────────────────╯
-enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  tab switch  ? help  q quit  [0/7 viewe"
+enter toggle  f full  r raw  c comment  C comments  v viewed  / search  s submit  ? help  q quit  [0/7 viewed]"
 `;
