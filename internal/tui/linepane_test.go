@@ -775,3 +775,85 @@ func TestLinePaneScrollToLineDiffMode(t *testing.T) {
 		})
 	}
 }
+
+func TestLinePaneCommentBoxKeyedBySide(t *testing.T) {
+	// Old line 1 was replaced by new line 1, so both sides carry line 1.
+	lines := []string{"- old", "+ new", "  ctx"}
+	comment := &markdown.ReviewComment{SectionID: "S1", StartLine: 1, Side: "LEFT", Body: "on removed", Action: markdown.ActionNote}
+
+	tests := []struct {
+		name      string
+		side      string
+		wantAfter string // the line the box must directly follow
+	}{
+		{"LEFT comment follows the removed line", "LEFT", "- old"},
+		{"RIGHT comment follows the added line", "RIGHT", "+ new"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(lines, nil)
+			lp.diffLineMap = []int{1, 1, 2}
+			lp.diffSideMap = []string{"LEFT", "RIGHT", "RIGHT"}
+			lp.diffTypeMap = []byte{'-', '+', ' '}
+			lp.SetSize(60, 12)
+			c := *comment
+			c.Side = tt.side
+			lp.SetComments([]*markdown.ReviewComment{&c})
+
+			view := ansiRe.ReplaceAllString(lp.View(), "")
+			if n := strings.Count(view, "on removed"); n != 1 {
+				t.Fatalf("comment box rendered %d times, want 1:\n%s", n, view)
+			}
+			rows := strings.Split(view, "\n")
+			for i, row := range rows {
+				if strings.Contains(row, "Review Comment") {
+					if !strings.Contains(rows[i-2], tt.wantAfter) { // i-1 is the box top border
+						t.Errorf("box follows %q, want %q", rows[i-2], tt.wantAfter)
+					}
+					return
+				}
+			}
+			t.Fatal("comment box not rendered")
+		})
+	}
+}
+
+func TestLinePaneCursorVisibleWithCommentBoxes(t *testing.T) {
+	lines := make([]string, 12)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line%02d", i+1)
+	}
+	comments := []*markdown.ReviewComment{
+		{SectionID: "S1", StartLine: 1, Body: "first", Action: markdown.ActionNote},
+		{SectionID: "S1", StartLine: 6, Body: "sixth", Action: markdown.ActionNote},
+	}
+	tests := []struct {
+		name   string
+		move   func(lp *LinePane)
+		cursor int
+	}{
+		{"cursor below a box near the top", func(lp *LinePane) {
+			for range 3 {
+				lp.CursorDown()
+			}
+		}, 3},
+		{"cursor at the bottom", func(lp *LinePane) { lp.CursorBottom() }, 11},
+		{"jump then shrink", func(lp *LinePane) { lp.ScrollToLine(7); lp.SetSize(60, 4) }, 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(lines, nil)
+			lp.SetSize(60, 6)
+			lp.SetComments(comments)
+			tt.move(lp)
+
+			if lp.cursor != tt.cursor {
+				t.Fatalf("cursor = %d, want %d", lp.cursor, tt.cursor)
+			}
+			view := ansiRe.ReplaceAllString(lp.View(), "")
+			if !strings.Contains(view, lines[lp.cursor]) {
+				t.Errorf("cursor line %q not rendered (scrollOffset=%d):\n%s", lines[lp.cursor], lp.scrollOffset, view)
+			}
+		})
+	}
+}

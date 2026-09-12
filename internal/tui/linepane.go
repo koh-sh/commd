@@ -450,10 +450,7 @@ func (lp *LinePane) View() string {
 
 	// Build a map of line number -> comments for inline display
 	commentMap := lp.buildCommentMap()
-
-	contentWidth := max(
-		// gutter + separator + padding
-		lp.width-lp.gutterWidth-3, 1)
+	contentWidth := lp.contentWidth()
 
 	var sb strings.Builder
 	rEnd := lp.rangeEnd()
@@ -520,7 +517,7 @@ func (lp *LinePane) View() string {
 		}
 
 		// Render inline comment boxes after their target lines
-		if comments, ok := commentMap[lineNum]; ok && linesRendered < lp.height {
+		if comments, ok := commentMap[lp.lineKeyAt(i)]; ok && linesRendered < lp.height {
 			for _, c := range comments {
 				if linesRendered >= lp.height {
 					break
@@ -542,6 +539,9 @@ func (lp *LinePane) View() string {
 	return sb.String()
 }
 
+// ensureVisible scrolls so the cursor line is on screen. Inline comment
+// boxes take rows away from the pane, so the check counts rendered rows
+// rather than lines.
 func (lp *LinePane) ensureVisible() {
 	if lp.cursor < lp.scrollOffset {
 		lp.scrollOffset = lp.cursor
@@ -549,19 +549,79 @@ func (lp *LinePane) ensureVisible() {
 	if lp.cursor >= lp.scrollOffset+lp.height {
 		lp.scrollOffset = lp.cursor - lp.height + 1
 	}
+	if lp.height > 0 {
+		commentMap := lp.buildCommentMap()
+		cw := lp.contentWidth()
+		for lp.scrollOffset < lp.cursor && lp.rowsThrough(lp.scrollOffset, lp.cursor, commentMap, cw) > lp.height {
+			lp.scrollOffset++
+		}
+	}
 	lp.clampScroll()
 }
 
 func (lp *LinePane) clampScroll() {
 	lo := lp.rangeStart()
-	hi := lp.rangeEnd()
-	maxOffset := max(hi-lp.height, lo)
+	maxOffset := max(lp.maxScrollOffset(), lo)
 	if lp.scrollOffset > maxOffset {
 		lp.scrollOffset = maxOffset
 	}
 	if lp.scrollOffset < lo {
 		lp.scrollOffset = lo
 	}
+}
+
+// maxScrollOffset returns the largest scroll offset at which the tail of the
+// visible range still fills the pane, counting inline comment box rows.
+func (lp *LinePane) maxScrollOffset() int {
+	lo, hi := lp.rangeStart(), lp.rangeEnd()
+	if lp.height <= 0 {
+		return hi
+	}
+	commentMap := lp.buildCommentMap()
+	cw := lp.contentWidth()
+	rows := 0
+	off := hi
+	for off > lo {
+		r := lp.lineRows(off-1, commentMap, cw)
+		if rows+r > lp.height {
+			break
+		}
+		rows += r
+		off--
+	}
+	return off
+}
+
+// contentWidth returns the columns available for line text after the
+// gutter, separator and padding.
+func (lp *LinePane) contentWidth() int {
+	return max(lp.width-lp.gutterWidth-3, 1)
+}
+
+// lineRows returns how many pane rows display line i occupies: the line
+// itself plus the inline comment boxes drawn after it.
+func (lp *LinePane) lineRows(i int, commentMap map[lineKey][]*markdown.ReviewComment, contentWidth int) int {
+	rows := 1
+	for _, c := range commentMap[lp.lineKeyAt(i)] {
+		rows += lipgloss.Height(lp.renderInlineCommentBox(c, contentWidth))
+	}
+	return rows
+}
+
+// rowsThrough returns the rows needed to render display lines from..to
+// inclusive, including the overview comment boxes that View draws above the
+// first line of the range.
+func (lp *LinePane) rowsThrough(from, to int, commentMap map[lineKey][]*markdown.ReviewComment, contentWidth int) int {
+	rows := 0
+	if from == lp.rangeStart() {
+		for _, c := range lp.overviewComments() {
+			rows += lipgloss.Height(lp.renderInlineCommentBox(c, contentWidth))
+		}
+	}
+	for i := from; i <= to && i < len(lp.lines); i++ {
+		rows += lp.lineRows(i, commentMap, contentWidth)
+	}
+	return rows
 }
 
 // diffStyleForLine returns the diff color style for the given display index,
@@ -588,11 +648,27 @@ func (lp *LinePane) isInSelection(idx int) bool {
 	return idx >= lo && idx <= hi
 }
 
+// lineKey identifies a display line by its file line number and diff side.
+// The side matters in diff mode, where an old-file (LEFT) line and a new-file
+// (RIGHT) line can share the same number; outside diff mode it is "".
+type lineKey struct {
+	line int
+	side string
+}
+
+// lineKeyAt returns the lineKey of display index i.
+func (lp *LinePane) lineKeyAt(i int) lineKey {
+	if lp.diffLineMap != nil && i < len(lp.diffLineMap) {
+		return lineKey{line: lp.diffLineMap[i], side: lp.diffSideMap[i]}
+	}
+	return lineKey{line: i + 1}
+}
+
 // buildCommentMap groups line-level comments by the line they should be displayed after.
 // For single-line comments, they appear after StartLine.
 // For range comments, they appear after EndLine.
-func (lp *LinePane) buildCommentMap() map[int][]*markdown.ReviewComment {
-	m := make(map[int][]*markdown.ReviewComment)
+func (lp *LinePane) buildCommentMap() map[lineKey][]*markdown.ReviewComment {
+	m := make(map[lineKey][]*markdown.ReviewComment)
 	for _, c := range lp.comments {
 		if c.StartLine == 0 {
 			continue // section-level comment, skip
@@ -601,7 +677,8 @@ func (lp *LinePane) buildCommentMap() map[int][]*markdown.ReviewComment {
 		if c.EndLine > 0 {
 			displayLine = c.EndLine
 		}
-		m[displayLine] = append(m[displayLine], c)
+		k := lineKey{line: displayLine, side: c.Side}
+		m[k] = append(m[k], c)
 	}
 	return m
 }
