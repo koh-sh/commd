@@ -174,7 +174,7 @@ func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *
 
 	// Check if any comments remain after filtering
 	if len(review.Comments) == 0 && body == "" && event == "COMMENT" {
-		fmt.Fprintln(os.Stderr, "No comments to submit (all were overview-level).")
+		fmt.Fprintln(os.Stderr, "No inline comments to submit (overview-level comments and sections without a heading line are skipped).")
 		return nil
 	}
 
