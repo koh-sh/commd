@@ -161,7 +161,7 @@ The status bar shows key hints and a progress indicator: `[X/Y viewed]` for sect
 | Key | Action |
 |-----|--------|
 | Type text | Incremental filter (searches ID, title, and body) |
-| `j` / `k` | Navigate results |
+| `↑` / `↓` | Navigate results |
 | `Enter` | Confirm search |
 | `Esc` | Cancel search |
 

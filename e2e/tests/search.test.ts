@@ -18,6 +18,16 @@ describe("Search", () => {
     expect(text).not.toContain("Step 1");
   }, TEST_TIMEOUT);
 
+  test("j and k are typed into the query instead of navigating", async () => {
+    session = await launchCommd({ file: FIXTURE_BASIC });
+    await session.press("/");
+    await session.type("jwt");
+    const text = await session.text({ trimEnd: true });
+    expect(text).toContain("/jwt");
+    expect(text).toContain("JWT Verification");
+    expect(text).not.toContain("Step 3");
+  }, TEST_TIMEOUT);
+
   test("Enter confirms search and returns to normal mode", async () => {
     session = await launchCommd({ file: FIXTURE_BASIC });
     await session.press("/");

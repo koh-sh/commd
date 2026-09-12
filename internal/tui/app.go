@@ -726,13 +726,14 @@ func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// Handle navigation within search results
+	// Handle navigation within search results. Only the arrow keys navigate
+	// here: j/k must stay typeable so queries like "json" work.
 	switch {
-	case key.Matches(msg, a.keymap.Up):
+	case key.Matches(msg, a.keymap.SearchUp):
 		a.sectionList.CursorUp()
 		a.refreshAfterCursorMove()
 		return a, nil
-	case key.Matches(msg, a.keymap.Down):
+	case key.Matches(msg, a.keymap.SearchDown):
 		a.sectionList.CursorDown()
 		a.refreshAfterCursorMove()
 		return a, nil

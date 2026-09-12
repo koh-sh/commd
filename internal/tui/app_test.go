@@ -1526,19 +1526,36 @@ func TestRenderRightContentModes(t *testing.T) {
 }
 
 func TestSearchModeNavigation(t *testing.T) {
-	a := initApp(t, makeLargeDoc(5, 0))
-
-	a.Update(keyMsg("/"))
-	if a.mode != ModeSearch {
-		t.Fatal("should be in search mode")
+	tests := []struct {
+		name       string
+		keys       []string
+		wantQuery  string
+		wantCursor int
+	}{
+		{name: "arrow keys navigate results", keys: []string{"down", "down", "up"}, wantQuery: "", wantCursor: 1},
+		{name: "j and k are typed into the query", keys: []string{"j", "k"}, wantQuery: "jk", wantCursor: 0},
+		{name: "letters after navigation still type", keys: []string{"down", "S", "t", "e", "p"}, wantQuery: "Step", wantCursor: 1},
 	}
-
-	// Navigate with j/k in search mode
-	a.Update(keyMsg("j"))
-	a.Update(keyMsg("k"))
-	// No crash and still in search mode
-	if a.mode != ModeSearch {
-		t.Error("should still be in search mode after j/k")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(5, 0))
+			a.Update(keyMsg("/"))
+			if a.mode != ModeSearch {
+				t.Fatal("should be in search mode")
+			}
+			for _, k := range tt.keys {
+				a.Update(keyMsg(k))
+			}
+			if a.mode != ModeSearch {
+				t.Errorf("mode = %d, want ModeSearch", a.mode)
+			}
+			if got := a.search.Query(); got != tt.wantQuery {
+				t.Errorf("query = %q, want %q", got, tt.wantQuery)
+			}
+			if a.sectionList.cursor != tt.wantCursor {
+				t.Errorf("cursor = %d, want %d", a.sectionList.cursor, tt.wantCursor)
+			}
+		})
 	}
 }
 

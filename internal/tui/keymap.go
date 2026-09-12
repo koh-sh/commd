@@ -49,6 +49,11 @@ type KeyMap struct {
 	// Line mode
 	RawView      key.Binding
 	VisualSelect key.Binding
+
+	// Search mode: only arrow keys navigate so that letters (including j/k)
+	// reach the query input.
+	SearchUp   key.Binding
+	SearchDown key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings.
@@ -177,6 +182,14 @@ func DefaultKeyMap() KeyMap {
 		VisualSelect: key.NewBinding(
 			key.WithKeys("V"),
 			key.WithHelp("V", "visual select"),
+		),
+		SearchUp: key.NewBinding(
+			key.WithKeys("up"),
+			key.WithHelp("↑/↓", "navigate results"),
+		),
+		SearchDown: key.NewBinding(
+			key.WithKeys("down"),
+			key.WithHelp("", ""),
 		),
 	}
 }
