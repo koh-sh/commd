@@ -52,10 +52,9 @@ type LocateCmd struct {
 	All        bool   `help:"Output all plan files found in transcript"`
 }
 
-// VersionCmd is the version subcommand.
-type VersionCmd struct {
-	Version string `hidden:"" env:"version"`
-}
+// VersionCmd is the version subcommand. The version string comes from the
+// kong.Vars bound in main, not from a flag.
+type VersionCmd struct{}
 
 // Run executes the version subcommand.
 func (v *VersionCmd) Run(vars kong.Vars) error {
