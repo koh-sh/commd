@@ -611,6 +611,9 @@ func (a *App) handleCommentMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // returnFromComment closes the comment editor and returns to the appropriate mode.
 func (a *App) returnFromComment() {
 	a.comment.Close()
+	// Rendering the editor shrinks the detail pane to make room for it
+	// (renderRightContent); give the pane its full height back.
+	a.updateLayout()
 	if a.editCommentIdx >= 0 {
 		comments := a.sectionList.GetComments(a.comment.SectionID())
 		a.commentList.Open(a.comment.SectionID(), comments)

@@ -2220,3 +2220,35 @@ func TestSinglePaneShowsRightPaneModes(t *testing.T) {
 		})
 	}
 }
+
+func TestDetailHeightRestoredAfterComment(t *testing.T) {
+	tests := []struct {
+		name string
+		exit func(a *App)
+	}{
+		{"cancel with esc", func(a *App) { a.Update(keyMsg("esc")) }},
+		{"save with ctrl+s", func(a *App) {
+			a.comment.textarea.SetValue("body")
+			a.Update(keyMsg("ctrl+s"))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			a.Update(keyMsg("j"))
+			want := a.detail.Viewport().Height()
+
+			a.Update(keyMsg("c"))
+			_ = a.View() // rendering the editor shrinks the detail pane
+			if got := a.detail.Viewport().Height(); got >= want {
+				t.Fatalf("detail height in comment mode = %d, want < %d", got, want)
+			}
+			tt.exit(a)
+			_ = a.View()
+
+			if got := a.detail.Viewport().Height(); got != want {
+				t.Errorf("detail height after leaving comment mode = %d, want %d", got, want)
+			}
+		})
+	}
+}
