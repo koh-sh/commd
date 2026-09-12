@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koh-sh/commd/internal/markdown"
+	"github.com/mattn/go-runewidth"
 )
 
 func newTestLinePane(lines []string, sections []*markdown.Section) *LinePane {
@@ -853,6 +854,32 @@ func TestLinePaneCursorVisibleWithCommentBoxes(t *testing.T) {
 			view := ansiRe.ReplaceAllString(lp.View(), "")
 			if !strings.Contains(view, lines[lp.cursor]) {
 				t.Errorf("cursor line %q not rendered (scrollOffset=%d):\n%s", lines[lp.cursor], lp.scrollOffset, view)
+			}
+		})
+	}
+}
+
+func TestFitToWidth(t *testing.T) {
+	tests := []struct {
+		name  string
+		s     string
+		width int
+		want  string
+	}{
+		{"pads short text", "ab", 4, "ab  "},
+		{"truncates long text", "abcdef", 4, "abcd"},
+		{"leading tab expands to the first tab stop", "\tfoo", 10, "    foo   "},
+		{"tab inside text expands to the next tab stop", "ab\tc\td", 12, "ab  c   d   "},
+		{"tab after wide characters is truncated at the width", "日本\tx", 8, "日本    "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fitToWidth(tt.s, tt.width)
+			if got != tt.want {
+				t.Errorf("fitToWidth(%q, %d) = %q, want %q", tt.s, tt.width, got, tt.want)
+			}
+			if w := runewidth.StringWidth(got); w != tt.width {
+				t.Errorf("width = %d, want %d", w, tt.width)
 			}
 		})
 	}

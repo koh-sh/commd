@@ -740,8 +740,34 @@ func (lp *LinePane) writeCommentBox(sb *strings.Builder, c *markdown.ReviewComme
 	return linesRendered
 }
 
+// tabWidth is the column interval of tab stops in the raw view.
+const tabWidth = 4
+
+// expandTabs replaces each tab with spaces up to the next tab stop.
+// runewidth counts a tab as zero cells while the terminal advances to a tab
+// stop, so tabs must be expanded before any width arithmetic.
+func expandTabs(s string) string {
+	if !strings.Contains(s, "\t") {
+		return s
+	}
+	var sb strings.Builder
+	col := 0
+	for _, r := range s {
+		if r == '\t' {
+			n := tabWidth - col%tabWidth
+			sb.WriteString(strings.Repeat(" ", n))
+			col += n
+			continue
+		}
+		sb.WriteRune(r)
+		col += runewidth.RuneWidth(r)
+	}
+	return sb.String()
+}
+
 // fitToWidth truncates or pads a string to exactly the given display width.
 func fitToWidth(s string, width int) string {
+	s = expandTabs(s)
 	sw := runewidth.StringWidth(s)
 	if sw > width {
 		return runewidth.Truncate(s, width, "")
