@@ -93,7 +93,7 @@ commd pr https://github.com/owner/repo/pull/123 --file docs/README.md
 
 **File size**: The GitHub Contents API only decodes files up to 1 MB. Larger files (up to GitHub's 100 MB limit) are fetched automatically via their raw download URL.
 
-**File picker**: When `--file` is not specified, an interactive file picker shows all changed `.md` files. All files are selected by default. Use `space` to toggle, `a` to select/deselect all, `enter` to confirm, `q` to cancel.
+**File picker**: When `--file` is not specified, an interactive file picker shows all changed `.md` files. All files are selected by default. Use `space` to toggle, `a` to select/deselect all, `enter` to confirm, `q` or `esc` to cancel.
 
 **Review flow**: After selecting files, you review them one by one. For each file you can add comments, then press `s` to finish or `q` to skip. After all files, a summary dialog lets you choose to approve, comment, or cancel the review.
 
@@ -117,7 +117,7 @@ commd version
 | `gg` / `G` | Jump to first / last |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Full page down / up |
-| `l` / `h` / `→` / `←` | Expand / collapse (left pane) / Scroll right / left (right pane) |
+| `l` / `h` / `→` / `←` | Scroll the detail pane right / left |
 | `H` / `L` | Scroll to start / end (right pane) |
 | `>` / `<` | Resize left pane wider / narrower |
 | `Enter` | Toggle expand/collapse |

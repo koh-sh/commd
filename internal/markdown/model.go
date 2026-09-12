@@ -11,7 +11,7 @@ const OverviewSectionID = "overview"
 
 // Document is the parsed structure of an entire Markdown file.
 type Document struct {
-	Title       string     // H1 heading text (or filename if no H1)
+	Title       string     // Leading H1 heading text ("" when the document has none)
 	Preamble    string     // Text before the first heading
 	Sections    []*Section // Top-level sections
 	SourceLines []string   // Raw source lines (for line-level commenting)

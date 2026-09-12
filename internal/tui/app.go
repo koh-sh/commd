@@ -1390,7 +1390,7 @@ func (a *App) renderHelp() string {
     ?               Toggle this help
     q, Ctrl+C       Quit
 
-  Press Esc or ? or q to close this help.
+  Press Esc, Enter, ? or q to close this help.
 `, a.styles.Title.Render("commd - Help"), rawViewHelp)
 
 	return clipLines(help, a.height)
