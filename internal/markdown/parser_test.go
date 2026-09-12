@@ -670,3 +670,27 @@ func TestParseNormalizesCRLF(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSourceLineCount(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   []string
+	}{
+		{"trailing newline ends the last line", "a\nb\n", []string{"a", "b"}},
+		{"no trailing newline", "a\nb", []string{"a", "b"}},
+		{"trailing blank line is kept", "a\n\n", []string{"a", ""}},
+		{"empty source is one empty line", "", []string{""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(tt.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(doc.SourceLines, "|") != strings.Join(tt.want, "|") {
+				t.Errorf("SourceLines = %q, want %q", doc.SourceLines, tt.want)
+			}
+		})
+	}
+}

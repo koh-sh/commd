@@ -23,7 +23,7 @@ func Parse(source []byte) (*Document, error) {
 	doc := md.Parser().Parse(reader)
 
 	document := &Document{
-		SourceLines: strings.Split(string(source), "\n"),
+		SourceLines: sourceLines(source),
 	}
 
 	type headingInfo struct {
@@ -121,6 +121,17 @@ func Parse(source []byte) (*Document, error) {
 	document.Sections = buildHierarchy(flatSections)
 
 	return document, nil
+}
+
+// sourceLines splits source into lines. A trailing newline terminates the
+// last line rather than starting an empty one, so "a\nb\n" is two lines and
+// the raw view does not show a phantom line past the end of the file.
+func sourceLines(source []byte) []string {
+	lines := strings.Split(string(source), "\n")
+	if n := len(lines); n > 1 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
 }
 
 // findHeadingStart finds the byte offset where the heading line starts in source.
