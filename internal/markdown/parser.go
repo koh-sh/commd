@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -13,6 +14,10 @@ import (
 // Parse parses a Markdown source into a Document structure.
 // It uses goldmark to build an AST and walks headings to create sections.
 func Parse(source []byte) (*Document, error) {
+	// Normalize CRLF so no "\r" reaches SourceLines, section bodies or
+	// quoted output; a stray "\r" makes the terminal overwrite the line.
+	source = bytes.ReplaceAll(source, []byte("\r\n"), []byte("\n"))
+
 	md := goldmark.New()
 	reader := text.NewReader(source)
 	doc := md.Parser().Parse(reader)

@@ -3,6 +3,7 @@ package markdown
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yuin/goldmark/ast"
@@ -634,5 +635,38 @@ func TestFindSection(t *testing.T) {
 	missing := doc.FindSection("S99")
 	if missing != nil {
 		t.Error("FindSection(S99) should return nil")
+	}
+}
+
+func TestParseNormalizesCRLF(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{"LF", "# T\n\npre\n\n## S1\nbody\nmore\n"},
+		{"CRLF", "# T\r\n\r\npre\r\n\r\n## S1\r\nbody\r\nmore\r\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(tt.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, l := range doc.SourceLines {
+				if strings.Contains(l, "\r") {
+					t.Errorf("SourceLines[%d] = %q contains CR", i, l)
+				}
+			}
+			if doc.Preamble != "pre" {
+				t.Errorf("Preamble = %q, want %q", doc.Preamble, "pre")
+			}
+			s := doc.Sections[0]
+			if s.Body != "body\nmore" {
+				t.Errorf("Body = %q, want %q", s.Body, "body\nmore")
+			}
+			if s.StartLine != 5 || s.EndLine != 7 {
+				t.Errorf("lines = %d-%d, want 5-7", s.StartLine, s.EndLine)
+			}
+		})
 	}
 }
