@@ -522,11 +522,26 @@ func (sl *SectionList) FilterByQuery(query string) {
 }
 
 // SelectBySectionID moves the cursor to the item with the given section ID.
+// OverviewSectionID selects the overview entry. A section hidden under a
+// collapsed parent cannot be selected, so its nearest visible ancestor is
+// selected instead; the highlight then still tracks the line cursor at the
+// granularity the list shows.
 func (sl *SectionList) SelectBySectionID(sectionID string) {
-	for i, item := range sl.items {
-		if item.Section != nil && item.Section.ID == sectionID && item.Visible {
-			sl.cursor = i
-			return
+	if sectionID == markdown.OverviewSectionID {
+		for i, item := range sl.items {
+			if item.IsOverview {
+				sl.cursor = i
+				return
+			}
+		}
+		return
+	}
+	for section := sl.doc.FindSection(sectionID); section != nil; section = section.Parent {
+		for i, item := range sl.items {
+			if item.Section == section && item.Visible {
+				sl.cursor = i
+				return
+			}
 		}
 	}
 }

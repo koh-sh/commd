@@ -823,3 +823,54 @@ func TestViewedStateNil(t *testing.T) {
 		t.Error("ViewedState() should return nil when no state provided")
 	}
 }
+
+func TestSelectBySectionIDFallbacks(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func(sl *SectionList)
+		sectionID    string
+		wantOverview bool
+		wantID       string
+	}{
+		{
+			name:         "overview ID selects the overview entry",
+			setup:        func(sl *SectionList) { sl.SelectBySectionID("S2") },
+			sectionID:    markdown.OverviewSectionID,
+			wantOverview: true,
+		},
+		{
+			name: "hidden child selects its visible parent",
+			setup: func(sl *SectionList) {
+				sl.SelectBySectionID("S2")
+				sl.SelectBySectionID("S1")
+				sl.ToggleExpand() // collapse S1
+				sl.SelectBySectionID("S2")
+			},
+			sectionID: "S1.1",
+			wantID:    "S1",
+		},
+		{
+			name:      "unknown ID leaves the cursor alone",
+			setup:     func(sl *SectionList) { sl.SelectBySectionID("S2") },
+			sectionID: "S99",
+			wantID:    "S2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := makeDocWithChildren()
+			doc.Preamble = "intro"
+			sl := NewSectionList(doc, nil)
+			tt.setup(sl)
+
+			sl.SelectBySectionID(tt.sectionID)
+
+			if sl.IsOverviewSelected() != tt.wantOverview {
+				t.Errorf("IsOverviewSelected() = %v, want %v", sl.IsOverviewSelected(), tt.wantOverview)
+			}
+			if tt.wantID != "" && (sl.Selected() == nil || sl.Selected().ID != tt.wantID) {
+				t.Errorf("Selected() = %v, want %s", sl.Selected(), tt.wantID)
+			}
+		})
+	}
+}
