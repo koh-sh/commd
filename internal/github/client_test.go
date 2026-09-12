@@ -335,21 +335,32 @@ func TestNewClientWithCustomBaseURL(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	t.Setenv("GITHUB_TOKEN", "test-token")
-	t.Setenv("COMMD_GITHUB_API_URL", srv.URL+"/")
-
-	client, err := NewClient()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"with trailing slash", srv.URL + "/"},
+		{"without trailing slash", srv.URL},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GITHUB_TOKEN", "test-token")
+			t.Setenv("COMMD_GITHUB_API_URL", tt.url)
 
-	// Verify the client actually talks to the custom server.
-	ref := &PRRef{Owner: "owner", Repo: "repo", Number: 1}
-	sha, err := client.GetHeadSHA(context.Background(), ref)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if sha != "abc123" {
-		t.Errorf("got SHA %q, want %q", sha, "abc123")
+			client, err := NewClient()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Verify the client actually talks to the custom server.
+			ref := &PRRef{Owner: "owner", Repo: "repo", Number: 1}
+			sha, err := client.GetHeadSHA(context.Background(), ref)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if sha != "abc123" {
+				t.Errorf("got SHA %q, want %q", sha, "abc123")
+			}
+		})
 	}
 }

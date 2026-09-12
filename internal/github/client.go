@@ -29,6 +29,10 @@ func NewClient() (*Client, error) {
 
 	client := gh.NewClient(nil).WithAuthToken(token)
 	if baseURL := os.Getenv("COMMD_GITHUB_API_URL"); baseURL != "" {
+		// go-github rejects every request unless BaseURL ends with "/".
+		if !strings.HasSuffix(baseURL, "/") {
+			baseURL += "/"
+		}
 		parsed, err := client.BaseURL.Parse(baseURL)
 		if err != nil {
 			return nil, fmt.Errorf("invalid COMMD_GITHUB_API_URL %q: %w", baseURL, err)
