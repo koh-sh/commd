@@ -211,6 +211,14 @@ func wrapProse(md string, width int) string {
 			result = append(result, line)
 			continue
 		}
+		// Table rows and headings are single-line constructs: a hard break
+		// inside a row turns the table into plain text, and the tail of a
+		// wrapped heading becomes a paragraph. Leave them unwrapped and let
+		// the viewport scroll horizontally instead.
+		if strings.HasPrefix(trimmed, "|") || strings.HasPrefix(trimmed, "#") {
+			result = append(result, line)
+			continue
+		}
 		if fenceMarker != "" || runewidth.StringWidth(line) <= width {
 			result = append(result, line)
 			continue

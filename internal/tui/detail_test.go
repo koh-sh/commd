@@ -203,6 +203,18 @@ func TestWrapProse(t *testing.T) {
 			14,
 			"hello あいう  \nworld",
 		},
+		{
+			"table rows are not wrapped",
+			"| col a | col b |\n|---|---|\n| " + strings.Repeat("x", 30) + " | y |",
+			20,
+			"| col a | col b |\n|---|---|\n| " + strings.Repeat("x", 30) + " | y |",
+		},
+		{
+			"headings are not wrapped",
+			"## S1: a very long section heading here\n\naaa bbb ccc ddd",
+			7,
+			"## S1: a very long section heading here\n\naaa bbb  \nccc ddd",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
