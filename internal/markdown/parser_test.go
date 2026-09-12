@@ -451,29 +451,6 @@ func TestParseOnlyH1(t *testing.T) {
 	}
 }
 
-func TestParseSetextHeadings(t *testing.T) {
-	// Setext-style headings (=== for H1, --- for H2) may trigger different
-	// goldmark AST behavior for heading line positions
-	source := []byte("Title\n=====\n\nSome preamble.\n\nStep One\n--------\n\nStep body.\n")
-	p, err := Parse(source)
-	if err != nil {
-		t.Fatalf("Parse() error: %v", err)
-	}
-	if p.Title != "Title" {
-		t.Errorf("Title = %q, want %q", p.Title, "Title")
-	}
-	if len(p.Sections) != 1 {
-		t.Fatalf("len(Sections) = %d, want 1", len(p.Sections))
-	}
-	if p.Sections[0].Title != "Step One" {
-		t.Errorf("Sections[0].Title = %q, want %q", p.Sections[0].Title, "Step One")
-	}
-	// Body may include setext underline due to heading end position
-	if p.Sections[0].Body == "" {
-		t.Error("Sections[0].Body should not be empty")
-	}
-}
-
 func TestFindFirstTextPos(t *testing.T) {
 	t.Run("with text child", func(t *testing.T) {
 		heading := ast.NewHeading(2)
@@ -690,6 +667,71 @@ func TestParseSourceLineCount(t *testing.T) {
 			}
 			if strings.Join(doc.SourceLines, "|") != strings.Join(tt.want, "|") {
 				t.Errorf("SourceLines = %q, want %q", doc.SourceLines, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseSetextHeadings(t *testing.T) {
+	type want struct {
+		id, title, body string
+		start, end      int
+	}
+	tests := []struct {
+		name         string
+		source       string
+		wantTitle    string
+		wantPreamble string
+		wantSections []want
+	}{
+		{
+			name:         "setext H1 and H2",
+			source:       "Title\n=====\n\nintro\n\nSub\n---\n\ntext\n",
+			wantTitle:    "Title",
+			wantPreamble: "intro",
+			wantSections: []want{{"S1", "Sub", "text", 6, 9}},
+		},
+		{
+			name:         "multi-line setext heading",
+			source:       "# T\n\nTwo\nlines\n---\n\nbody\n",
+			wantTitle:    "T",
+			wantSections: []want{{"S1", "Two lines", "body", 3, 7}},
+		},
+		{
+			name:         "setext heading inside a blockquote keeps its underline out of the body",
+			source:       "# T\n\n> Quoted\n> ---\n> text\n",
+			wantTitle:    "T",
+			wantSections: []want{{"S1", "Quoted", "> text", 3, 5}},
+		},
+		{
+			name:         "ATX headings are unaffected",
+			source:       "# T\n\n## A\n\nbody\n\n   ## B ##\n\nmore\n",
+			wantTitle:    "T",
+			wantSections: []want{{"S1", "A", "body", 3, 5}, {"S2", "B", "more", 7, 9}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(tt.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if doc.Title != tt.wantTitle {
+				t.Errorf("Title = %q, want %q", doc.Title, tt.wantTitle)
+			}
+			if doc.Preamble != tt.wantPreamble {
+				t.Errorf("Preamble = %q, want %q", doc.Preamble, tt.wantPreamble)
+			}
+			got := doc.AllSections()
+			if len(got) != len(tt.wantSections) {
+				t.Fatalf("sections = %d, want %d", len(got), len(tt.wantSections))
+			}
+			for i, w := range tt.wantSections {
+				s := got[i]
+				if s.ID != w.id || s.Title != w.title || s.Body != w.body || s.StartLine != w.start || s.EndLine != w.end {
+					t.Errorf("section %d = {%s %q %q %d-%d}, want {%s %q %q %d-%d}",
+						i, s.ID, s.Title, s.Body, s.StartLine, s.EndLine, w.id, w.title, w.body, w.start, w.end)
+				}
 			}
 		})
 	}

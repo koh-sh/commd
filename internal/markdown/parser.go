@@ -181,6 +181,18 @@ func findHeadingEnd(heading *ast.Heading, source []byte) int {
 	}
 
 	// Advance to end of line and include newline
+	pos = skipLine(source, pos)
+	if isSetextHeading(heading, source) {
+		// The "===" / "---" underline is not part of Lines(); it belongs
+		// to the heading, not to the body that follows.
+		pos = skipLine(source, pos)
+	}
+	return pos
+}
+
+// skipLine returns the offset just past the newline that ends the line
+// containing pos (or len(source) when the line is unterminated).
+func skipLine(source []byte, pos int) int {
 	for pos < len(source) && source[pos] != '\n' {
 		pos++
 	}
@@ -188,6 +200,21 @@ func findHeadingEnd(heading *ast.Heading, source []byte) int {
 		pos++ // include the newline
 	}
 	return pos
+}
+
+// isSetextHeading reports whether heading is underlined ("Title\n====")
+// rather than prefixed with "#". goldmark's first line segment of an ATX
+// heading starts after the "#" markers, so a segment whose preceding
+// non-space byte is not "#" belongs to a setext heading.
+func isSetextHeading(heading *ast.Heading, source []byte) bool {
+	if heading.Lines().Len() == 0 {
+		return false
+	}
+	pos := heading.Lines().At(0).Start
+	for pos > 0 && source[pos-1] == ' ' {
+		pos--
+	}
+	return pos == 0 || source[pos-1] != '#'
 }
 
 // findFirstTextPos returns the Start position of the first Text segment in the node.
