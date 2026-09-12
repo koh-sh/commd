@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -105,8 +106,8 @@ func (sl *SectionList) CursorTop() {
 
 // CursorBottom moves the cursor to the last visible item.
 func (sl *SectionList) CursorBottom() {
-	for i := len(sl.items) - 1; i >= 0; i-- {
-		if sl.items[i].Visible {
+	for i, v := range slices.Backward(sl.items) {
+		if v.Visible {
 			sl.cursor = i
 			return
 		}

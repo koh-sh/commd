@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
@@ -433,8 +434,8 @@ func (d *DetailPane) insertCommentBoxes(rendered string, sectionOrder []string, 
 		endLines[markdown.OverviewSectionID] = len(lines)
 	}
 
-	for i := len(sectionOrder) - 1; i >= 0; i-- {
-		sectionID := sectionOrder[i]
+	for _, sectionID := range slices.Backward(sectionOrder) {
+
 		comments := getComments(sectionID)
 		if len(comments) == 0 {
 			continue

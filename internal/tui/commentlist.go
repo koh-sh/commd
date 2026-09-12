@@ -88,7 +88,7 @@ func (cl *CommentList) Render(width, height int, styles Styles) string {
 
 		// Show body preview (first line, truncated)
 		if c.Body != "" {
-			bodyLine := strings.SplitN(c.Body, "\n", 2)[0]
+			bodyLine, _, _ := strings.Cut(c.Body, "\n")
 			bodyLine = truncate(bodyLine, width-6)
 			sb.WriteString(styles.NormalSection.Render("    " + bodyLine))
 			sb.WriteString("\n")

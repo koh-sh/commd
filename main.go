@@ -23,8 +23,7 @@ func main() {
 	)
 	err := ctx.Run()
 	// The hook signals feedback to Claude Code through its exit code.
-	var exitErr cmd.ExitCodeError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[cmd.ExitCodeError](err); ok {
 		os.Exit(exitErr.Code)
 	}
 	ctx.FatalIfErrorf(err)

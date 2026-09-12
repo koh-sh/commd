@@ -482,7 +482,7 @@ func TestInsertCommentBoxesSkipsUnmatchedSection(t *testing.T) {
 	if strings.Contains(out, "ORPHANBODY") {
 		t.Errorf("unmatched section comment should be skipped, got:\n%s", out)
 	}
-	if firstLine := strings.SplitN(out, "\n", 2)[0]; firstLine != "L0" {
+	if firstLine, _, _ := strings.Cut(out, "\n"); firstLine != "L0" {
 		t.Errorf("first line = %q, want %q (boxes must not be inserted at top)", firstLine, "L0")
 	}
 }
