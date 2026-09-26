@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRenderMermaidBlocks_Flowchart(t *testing.T) {
+func TestRenderBlocks_Flowchart(t *testing.T) {
 	input := "```mermaid\ngraph LR\n    A[Client] --> B[Server]\n```"
 	got := RenderBlocks(input)
 
@@ -26,7 +26,7 @@ func TestRenderMermaidBlocks_Flowchart(t *testing.T) {
 	}
 }
 
-func TestRenderMermaidBlocks_NonMermaidBlock(t *testing.T) {
+func TestRenderBlocks_NonMermaidBlock(t *testing.T) {
 	input := "```go\nfmt.Println(\"hello\")\n```"
 	got := RenderBlocks(input)
 	if got != input {
@@ -34,7 +34,7 @@ func TestRenderMermaidBlocks_NonMermaidBlock(t *testing.T) {
 	}
 }
 
-func TestRenderMermaidBlocks_UnsupportedDiagramFallback(t *testing.T) {
+func TestRenderBlocks_UnsupportedDiagramFallback(t *testing.T) {
 	input := "```mermaid\ngantt\n    title A Gantt Chart\n    dateFormat YYYY-MM-DD\n    section Section\n    A task :a1, 2024-01-01, 30d\n```"
 	got := RenderBlocks(input)
 
@@ -44,7 +44,7 @@ func TestRenderMermaidBlocks_UnsupportedDiagramFallback(t *testing.T) {
 	}
 }
 
-func TestRenderMermaidBlocks_SurroundingTextPreserved(t *testing.T) {
+func TestRenderBlocks_SurroundingTextPreserved(t *testing.T) {
 	input := "Before text\n\n```mermaid\ngraph LR\n    A --> B\n```\n\nAfter text"
 	got := RenderBlocks(input)
 
@@ -56,7 +56,7 @@ func TestRenderMermaidBlocks_SurroundingTextPreserved(t *testing.T) {
 	}
 }
 
-func TestRenderMermaidBlocks_UnclosedBlock(t *testing.T) {
+func TestRenderBlocks_UnclosedBlock(t *testing.T) {
 	input := "```mermaid\ngraph LR\n    A --> B"
 	got := RenderBlocks(input)
 
