@@ -61,6 +61,10 @@ func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
 	srv := &http.Server{
 		Handler:           newHandler(s, token, opts.Theme),
 		ReadHeaderTimeout: 10 * time.Second,
+		// API requests and responses are small; images are local files.
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  2 * time.Minute,
 	}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
