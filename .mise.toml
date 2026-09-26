@@ -64,16 +64,16 @@ run = [
 ]
 
 [tasks.e2e]
-description = "Run all E2E tests with tuistory (full suite)"
+description = "Run all E2E tests with tuistory and Playwright (full suite)"
 depends = ["build"]
 dir = "e2e"
-run = ["bun install", "bun test"]
+run = ["bun install", "bunx playwright install chromium", "bun test"]
 
 [tasks.e2e-basic]
 description = "Run basic E2E tests (critical path only)"
 depends = ["build"]
 dir = "e2e"
-run = ["bun install", "bun test tests/navigation.test.ts tests/comment.test.ts tests/confirm.test.ts tests/confirm-accept.test.ts tests/help.test.ts tests/search.test.ts tests/viewed.test.ts tests/wrap.test.ts tests/pr.test.ts tests/diff.test.ts tests/line-comment.test.ts"]
+run = ["bun install", "bunx playwright install chromium", "bun test tests/navigation.test.ts tests/comment.test.ts tests/confirm.test.ts tests/confirm-accept.test.ts tests/help.test.ts tests/search.test.ts tests/viewed.test.ts tests/wrap.test.ts tests/pr.test.ts tests/diff.test.ts tests/line-comment.test.ts tests/web.test.ts tests/web-ui.test.ts"]
 
 [tasks.install-skills]
 description = "Install tuistory Claude Code skill"
@@ -93,3 +93,10 @@ run = [
 [tasks.demo-validate]
 description = "Validate vhs/demo.tape syntax (no recording)"
 run = "vhs validate vhs/demo.tape"
+
+[tasks.e2e-cov]
+description = "Run all E2E tests and report the web UI's JS coverage"
+depends = ["build"]
+dir = "e2e"
+env = { COMMD_JS_COVERAGE = "1" }
+run = ["bun install", "bunx playwright install chromium", "rm -rf .coverage", "bun test", "bun scripts/js-coverage.ts"]

@@ -33,6 +33,7 @@ go.work.sum
 
 # E2E tests
 e2e/node_modules/
+e2e/.coverage/
 
 # Claude Code skills
 skills-lock.json
