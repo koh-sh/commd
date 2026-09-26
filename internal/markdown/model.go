@@ -53,6 +53,19 @@ func (d *Document) FindSection(id string) *Section {
 	return nil
 }
 
+// SectionIDAtLine returns the ID of the section containing the given 1-based
+// line: the last section whose heading starts at or before the line, or
+// OverviewSectionID when the line precedes every heading.
+func (d *Document) SectionIDAtLine(line int) string {
+	result := OverviewSectionID
+	for _, s := range d.AllSections() {
+		if s.StartLine > 0 && line >= s.StartLine {
+			result = s.ID
+		}
+	}
+	return result
+}
+
 // ReviewComment is a review comment on a single section.
 type ReviewComment struct {
 	SectionID  string     // Target section ID
@@ -68,6 +81,27 @@ type ReviewComment struct {
 // IsRemoved reports whether the comment targets removed (old-side) diff lines.
 func (c *ReviewComment) IsRemoved() bool {
 	return c.Side == diff.SideLeft
+}
+
+// ParseAction returns the ActionType for a label string.
+func ParseAction(s string) (ActionType, bool) {
+	for _, a := range ActionLabels {
+		if string(a) == s {
+			return a, true
+		}
+	}
+	return "", false
+}
+
+// ParseDecoration returns the Decoration for a label string; "" is
+// DecorationNone.
+func ParseDecoration(s string) (Decoration, bool) {
+	for _, d := range DecorationLabels {
+		if string(d) == s {
+			return d, true
+		}
+	}
+	return "", false
 }
 
 // FileReview pairs a reviewed file with its parsed document and comments.
