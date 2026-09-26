@@ -5,8 +5,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/koh-sh/commd/internal/cclocate"
 )
 
 // errReader is a reader that always returns an error.
@@ -49,11 +47,9 @@ func TestParseInput(t *testing.T) {
 				}
 			}`,
 			want: &Input{
-				HookInput: cclocate.HookInput{
-					SessionID:      "eb5b0174-0555-4601-804e-672d68069c89",
-					TranscriptPath: "/home/user/.claude/projects/test/session.jsonl",
-					CWD:            "/home/user/projects/myapp",
-				},
+				SessionID:      "eb5b0174-0555-4601-804e-672d68069c89",
+				TranscriptPath: "/home/user/.claude/projects/test/session.jsonl",
+				CWD:            "/home/user/projects/myapp",
 				HookEventName:  "PostToolUse",
 				PermissionMode: "plan",
 				ToolName:       "Write",
@@ -74,11 +70,9 @@ func TestParseInput(t *testing.T) {
 				}
 			}`,
 			want: &Input{
-				HookInput: cclocate.HookInput{
-					SessionID:      "test",
-					TranscriptPath: "/tmp/session.jsonl",
-					CWD:            "/tmp",
-				},
+				SessionID:      "test",
+				TranscriptPath: "/tmp/session.jsonl",
+				CWD:            "/tmp",
 				HookEventName:  "PostToolUse",
 				PermissionMode: "default",
 				ToolName:       "Write",
@@ -97,11 +91,9 @@ func TestParseInput(t *testing.T) {
 				"tool_input": null
 			}`,
 			want: &Input{
-				HookInput: cclocate.HookInput{
-					SessionID:      "test",
-					TranscriptPath: "/tmp/session.jsonl",
-					CWD:            "/tmp",
-				},
+				SessionID:      "test",
+				TranscriptPath: "/tmp/session.jsonl",
+				CWD:            "/tmp",
 				HookEventName:  "PostToolUse",
 				PermissionMode: "plan",
 				ToolName:       "Write",
@@ -123,11 +115,9 @@ func TestParseInput(t *testing.T) {
 				"tool_use_id": "toolu_01ABC123"
 			}`,
 			want: &Input{
-				HookInput: cclocate.HookInput{
-					SessionID:      "test",
-					TranscriptPath: "/tmp/session.jsonl",
-					CWD:            "/tmp",
-				},
+				SessionID:      "test",
+				TranscriptPath: "/tmp/session.jsonl",
+				CWD:            "/tmp",
 				HookEventName:  "PostToolUse",
 				PermissionMode: "plan",
 				ToolName:       "Write",

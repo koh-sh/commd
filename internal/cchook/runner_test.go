@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/koh-sh/commd/internal/cclocate"
 	"github.com/koh-sh/commd/internal/pane"
 )
 
@@ -60,7 +59,7 @@ func setupPlanEnv(t *testing.T) (plansDir, planFile, cwd string) {
 // postToolUseInput builds a plan-mode PostToolUse/Write hook input for filePath.
 func postToolUseInput(cwd, filePath string) *Input {
 	return &Input{
-		HookInput:      cclocate.HookInput{CWD: cwd},
+		CWD:            cwd,
 		HookEventName:  "PostToolUse",
 		PermissionMode: "plan",
 		ToolName:       "Write",
@@ -111,7 +110,7 @@ func TestRunSkipsSpawn(t *testing.T) {
 		{
 			name: "file_path without PostToolUse event",
 			input: &Input{
-				HookInput:      cclocate.HookInput{CWD: cwd},
+				CWD:            cwd,
 				PermissionMode: "plan",
 				ToolInput:      &ToolInput{FilePath: planFile},
 			},
@@ -188,13 +187,13 @@ func TestResolvePlanFile(t *testing.T) {
 	}{
 		{
 			name:   "nil tool_input",
-			input:  &Input{HookInput: cclocate.HookInput{CWD: cwd}},
+			input:  &Input{CWD: cwd},
 			wantOK: false,
 		},
 		{
 			name: "PreToolUse ExitPlanMode uses planFilePath without plansDirectory lookup",
 			input: &Input{
-				HookInput:     cclocate.HookInput{CWD: cwd},
+				CWD:           cwd,
 				HookEventName: "PreToolUse",
 				ToolName:      "ExitPlanMode",
 				ToolInput:     &ToolInput{PlanFilePath: outside},
@@ -205,7 +204,7 @@ func TestResolvePlanFile(t *testing.T) {
 		{
 			name: "PreToolUse ExitPlanMode with empty planFilePath",
 			input: &Input{
-				HookInput:     cclocate.HookInput{CWD: cwd},
+				CWD:           cwd,
 				HookEventName: "PreToolUse",
 				ToolName:      "ExitPlanMode",
 				ToolInput:     &ToolInput{},
@@ -215,7 +214,7 @@ func TestResolvePlanFile(t *testing.T) {
 		{
 			name: "PreToolUse ExitPlanMode ignores file_path",
 			input: &Input{
-				HookInput:     cclocate.HookInput{CWD: cwd},
+				CWD:           cwd,
 				HookEventName: "PreToolUse",
 				ToolName:      "ExitPlanMode",
 				ToolInput:     &ToolInput{FilePath: planFile},
@@ -225,7 +224,7 @@ func TestResolvePlanFile(t *testing.T) {
 		{
 			name: "PreToolUse on another tool ignores file_path",
 			input: &Input{
-				HookInput:     cclocate.HookInput{CWD: cwd},
+				CWD:           cwd,
 				HookEventName: "PreToolUse",
 				ToolName:      "Write",
 				ToolInput:     &ToolInput{FilePath: planFile},
@@ -292,7 +291,7 @@ func TestRunExitPlanModeTrigger(t *testing.T) {
 				},
 			}
 			input := &Input{
-				HookInput:      cclocate.HookInput{CWD: t.TempDir()},
+				CWD:            t.TempDir(),
 				HookEventName:  "PreToolUse",
 				PermissionMode: "plan",
 				ToolName:       "ExitPlanMode",
