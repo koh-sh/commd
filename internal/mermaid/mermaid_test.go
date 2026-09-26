@@ -1,4 +1,4 @@
-package tui
+package mermaid
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 func TestRenderMermaidBlocks_Flowchart(t *testing.T) {
 	input := "```mermaid\ngraph LR\n    A[Client] --> B[Server]\n```"
-	got := renderMermaidBlocks(input)
+	got := RenderBlocks(input)
 
 	// Should be converted to a plain code block (no "mermaid" language tag).
 	if strings.Contains(got, "```mermaid") {
@@ -28,7 +28,7 @@ func TestRenderMermaidBlocks_Flowchart(t *testing.T) {
 
 func TestRenderMermaidBlocks_NonMermaidBlock(t *testing.T) {
 	input := "```go\nfmt.Println(\"hello\")\n```"
-	got := renderMermaidBlocks(input)
+	got := RenderBlocks(input)
 	if got != input {
 		t.Errorf("non-mermaid block should be unchanged\n got: %q\nwant: %q", got, input)
 	}
@@ -36,7 +36,7 @@ func TestRenderMermaidBlocks_NonMermaidBlock(t *testing.T) {
 
 func TestRenderMermaidBlocks_UnsupportedDiagramFallback(t *testing.T) {
 	input := "```mermaid\ngantt\n    title A Gantt Chart\n    dateFormat YYYY-MM-DD\n    section Section\n    A task :a1, 2024-01-01, 30d\n```"
-	got := renderMermaidBlocks(input)
+	got := RenderBlocks(input)
 
 	// Unsupported diagram type should fall back to a plain code block with original source.
 	if !strings.Contains(got, "gantt") {
@@ -46,7 +46,7 @@ func TestRenderMermaidBlocks_UnsupportedDiagramFallback(t *testing.T) {
 
 func TestRenderMermaidBlocks_SurroundingTextPreserved(t *testing.T) {
 	input := "Before text\n\n```mermaid\ngraph LR\n    A --> B\n```\n\nAfter text"
-	got := renderMermaidBlocks(input)
+	got := RenderBlocks(input)
 
 	if !strings.HasPrefix(got, "Before text") {
 		t.Error("text before mermaid block should be preserved")
@@ -58,7 +58,7 @@ func TestRenderMermaidBlocks_SurroundingTextPreserved(t *testing.T) {
 
 func TestRenderMermaidBlocks_UnclosedBlock(t *testing.T) {
 	input := "```mermaid\ngraph LR\n    A --> B"
-	got := renderMermaidBlocks(input)
+	got := RenderBlocks(input)
 
 	// Unclosed block should be emitted unchanged.
 	if !strings.HasPrefix(got, "```mermaid") {

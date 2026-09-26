@@ -1,6 +1,12 @@
 package markdown
 
-import "testing"
+import (
+	"maps"
+	"slices"
+	"testing"
+
+	"github.com/koh-sh/commd/internal/diff"
+)
 
 func TestReviewCommentFormatLabel(t *testing.T) {
 	tests := []struct {
@@ -78,6 +84,234 @@ func TestReviewCommentFormatLineRef(t *testing.T) {
 			got := tt.comment.FormatLineRef()
 			if got != tt.want {
 				t.Errorf("FormatLineRef() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// sectionsDoc has the sections S1 (lines 5-8), its child S1.1 (9-12) and S2
+// (13-15), after a preamble (lines 1-4).
+const sectionsDoc = `# Title
+
+Preamble text
+
+## Alpha
+
+alpha body
+
+### Beta
+
+beta body
+
+## Gamma
+
+gamma body
+`
+
+func TestDocumentLineSections(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   []string
+	}{
+		{
+			name:   "preamble and nested sections",
+			source: sectionsDoc,
+			want: []string{
+				OverviewSectionID, OverviewSectionID, OverviewSectionID, OverviewSectionID,
+				"S1", "S1", "S1", "S1",
+				"S1.1", "S1.1", "S1.1", "S1.1",
+				"S2", "S2", "S2",
+			},
+		},
+		{
+			name:   "no headings",
+			source: "just text\nmore text\n",
+			want:   []string{OverviewSectionID, OverviewSectionID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(tt.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := doc.LineSections(); !slices.Equal(got, tt.want) {
+				t.Errorf("LineSections() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentDiffLineSections(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		lines []diff.Line
+		want  []string
+	}{
+		{
+			name: "added and context lines use their new-file line",
+			lines: []diff.Line{
+				{Type: diff.Context, NewLine: 7, OldLine: 7},
+				{Type: diff.Added, NewLine: 13},
+			},
+			want: []string{"S1", "S2"},
+		},
+		{
+			// The old line number (14) would fall in S2 of the new file.
+			name: "removed lines follow the preceding line",
+			lines: []diff.Line{
+				{Type: diff.Context, NewLine: 11, OldLine: 13},
+				{Type: diff.Removed, OldLine: 14},
+				{Type: diff.Added, NewLine: 13},
+			},
+			want: []string{"S1.1", "S1.1", "S2"},
+		},
+		{
+			name: "leading removed lines take the next line's section",
+			lines: []diff.Line{
+				{Type: diff.Removed, OldLine: 1},
+				{Type: diff.Added, NewLine: 9},
+			},
+			want: []string{"S1.1", "S1.1"},
+		},
+		{
+			name:  "only removed lines belong to the overview",
+			lines: []diff.Line{{Type: diff.Removed, OldLine: 3}},
+			want:  []string{OverviewSectionID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := doc.DiffLineSections(&diff.Info{Lines: tt.lines})
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("DiffLineSections() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentSearchSections(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{name: "match shows its descendants", query: "alpha", want: []string{"S1", "S1.1"}},
+		{name: "match shows its ancestors", query: "BETA body", want: []string{"S1", "S1.1"}},
+		{name: "match by ID", query: "s2", want: []string{"S2"}},
+		{name: "overview by name only", query: "over", want: []string{OverviewSectionID}},
+		{name: "preamble text does not match the overview", query: "preamble", want: nil},
+		{name: "no match", query: "nonexistent", want: nil},
+		{name: "empty query", query: "", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := slices.Sorted(maps.Keys(doc.SearchSections(tt.query)))
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("SearchSections(%q) = %v, want %v", tt.query, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseActionAndDecoration(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		parse    func(string) (string, bool)
+		want     string
+		wantOkay bool
+	}{
+		{name: "action", input: "issue", parse: parseActionString, want: "issue", wantOkay: true},
+		{name: "unknown action", input: "rant", parse: parseActionString},
+		{name: "empty action", input: "", parse: parseActionString},
+		{name: "decoration", input: "blocking", parse: parseDecorationString, want: "blocking", wantOkay: true},
+		{name: "no decoration", input: "", parse: parseDecorationString, want: "", wantOkay: true},
+		{name: "unknown decoration", input: "loud", parse: parseDecorationString},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.parse(tt.input)
+			if got != tt.want || ok != tt.wantOkay {
+				t.Errorf("parse(%q) = (%q, %v), want (%q, %v)", tt.input, got, ok, tt.want, tt.wantOkay)
+			}
+		})
+	}
+}
+
+func parseActionString(s string) (string, bool) {
+	a, ok := ParseAction(s)
+	return string(a), ok
+}
+
+func parseDecorationString(s string) (string, bool) {
+	d, ok := ParseDecoration(s)
+	return string(d), ok
+}
+
+func TestNewReviewResult(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		comments []ReviewComment
+		want     []string // bodies in result order
+	}{
+		{
+			name: "document order, creation order within a section",
+			comments: []ReviewComment{
+				{SectionID: "S2", Body: "s2"},
+				{SectionID: "S1.1", Body: "child"},
+				{SectionID: "S1", Body: "s1 first"},
+				{SectionID: OverviewSectionID, Body: "overview"},
+				{SectionID: "S1", Body: "s1 second"},
+			},
+			want: []string{"overview", "s1 first", "s1 second", "child", "s2"},
+		},
+		{
+			name:     "unknown sections are dropped",
+			comments: []ReviewComment{{SectionID: "S9", Body: "gone"}, {SectionID: "S1", Body: "kept"}},
+			want:     []string{"kept"},
+		},
+		{name: "no comments", comments: nil, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, c := range NewReviewResult(doc, tt.comments).Comments {
+				got = append(got, c.Body)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("comments = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReviewResultStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ReviewResult
+		want   Status
+	}{
+		{name: "no comments", result: ReviewResult{}, want: StatusApproved},
+		{name: "with comments", result: ReviewResult{Comments: []ReviewComment{{Body: "b"}}}, want: StatusSubmitted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.result.Status(); got != tt.want {
+				t.Errorf("Status() = %s, want %s", got, tt.want)
 			}
 		})
 	}

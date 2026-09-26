@@ -71,6 +71,12 @@ func TestCommandValidate(t *testing.T) {
 		{name: "review diff no file", cmd: &ReviewCmd{Diff: true, Output: "stdout"}},
 		{name: "review diff many files", cmd: &ReviewCmd{Diff: true, Files: []string{"a.md", "b.md"}, Output: "stdout", Base: "main"}},
 		{name: "review diff with track-viewed", cmd: &ReviewCmd{Diff: true, TrackViewed: true, Output: "stdout"}, wantErr: "--track-viewed cannot be combined with --diff"},
+		// ReviewCmd: --port and --no-open only apply to --web.
+		{name: "review web with port and no-open", cmd: &ReviewCmd{Files: []string{"a.md"}, Output: "stdout", Web: true, Port: 8080, NoOpen: true}},
+		{name: "review web diff", cmd: &ReviewCmd{Diff: true, Output: "stdout", Web: true}},
+		{name: "review port without web", cmd: &ReviewCmd{Files: []string{"a.md"}, Output: "stdout", Port: 8080}, wantErr: "--port and --no-open require --web"},
+		{name: "review no-open without web", cmd: &ReviewCmd{Files: []string{"a.md"}, Output: "stdout", NoOpen: true}, wantErr: "--port and --no-open require --web"},
+		{name: "review port out of range", cmd: &ReviewCmd{Files: []string{"a.md"}, Output: "stdout", Web: true, Port: 70000}, wantErr: "--port must be between 0 and 65535"},
 
 		// PRCmd: requires a parseable GitHub PR URL.
 		{name: "pr valid url", cmd: &PRCmd{URL: "https://github.com/owner/repo/pull/1"}},

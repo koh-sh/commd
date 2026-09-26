@@ -1,0 +1,409 @@
+// Actions: what keys and clicks do, mirroring the TUI App methods.
+
+import { $, toast } from "./dom.js";
+import { st, ui, hooks, file, section, commentsOf, isViewed, isRealSection, clamp, ancestorsOf, clearSearch, listSections, visibleLines, selectionRange, clampCursorToList } from "./state.js";
+import { api, fileAPI, send, inputDeferred, deferInput } from "./api.js";
+
+// guarded runs a mouse action only in the modes where the TUI would
+// accept the equivalent key, then re-renders. Like keys, a click during a
+// request runs once the request is done.
+export function guarded(fn, fromAnyPane = false) {
+  if (inputDeferred()) {
+    deferInput(() => guarded(fn, fromAnyPane));
+    return;
+  }
+  if (ui.mode !== "normal" && !(fromAnyPane && ui.mode === "search")) {
+    refuseAction();
+    return;
+  }
+  if (ui.mode === "search") closeSearch(true);
+  fn();
+  hooks.render();
+}
+
+// refuseAction tells why a click does nothing in the current mode.
+export function refuseAction() {
+  toast(ui.mode === "comment" ? "Save (Ctrl+S) or cancel (Esc) the comment first." : "Finish the current action first (Esc).");
+}
+
+export function toggleTheme() {
+  ui.theme = ui.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = ui.theme;
+}
+
+// moveCursorBy moves the section cursor within the listed sections.
+export function moveCursorBy(delta) {
+  const list = listSections();
+  if (!list.length) return;
+  const i = list.findIndex((s) => s.id === ui.cursor);
+  const next = clamp((i < 0 ? 0 : i) + delta, 0, list.length - 1);
+  moveCursorTo(list[next].id);
+}
+
+// moveCursorTo selects a section and brings the right pane to it
+// (refreshAfterCursorMove in the TUI).
+export function moveCursorTo(id) {
+  ui.cursor = id;
+  if (ui.rawView) {
+    if (ui.fullView) {
+      const idx = file().lines.findIndex((l) => l.section === id);
+      if (idx >= 0) ui.lineCursor = idx;
+    } else {
+      ui.lineCursor = visibleLines()[0] ?? 0;
+    }
+    return;
+  }
+  if (ui.fullView) {
+    ui.pendingScroll = () => document.querySelector(`#content [data-section="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "start" });
+    ui.spyPaused = true;
+  } else {
+    ui.pendingScroll = () => ($("#content").scrollTop = 0);
+  }
+}
+
+export function toggleExpand() {
+  if (!ui.cursor) return;
+  if (ui.collapsed.has(ui.cursor)) ui.collapsed.delete(ui.cursor);
+  else ui.collapsed.add(ui.cursor);
+}
+
+export function toggleFull() {
+  ui.fullView = !ui.fullView;
+  if (ui.rawView) syncLineCursorIntoView();
+  else moveCursorTo(ui.cursor);
+}
+
+export function toggleRaw() {
+  ui.rawView = !ui.rawView;
+  ui.anchor = -1;
+  if (ui.rawView) ui.lineCursor = visibleLines()[0] ?? 0;
+}
+
+// syncLineCursorIntoView keeps the line cursor on a visible line.
+function syncLineCursorIntoView() {
+  const vis = visibleLines();
+  if (vis.length && !vis.includes(ui.lineCursor)) ui.lineCursor = vis[0];
+}
+
+// syncSectionFromLineCursor selects the section of the line under the
+// cursor, as the TUI does when the line cursor moves.
+export function syncSectionFromLineCursor() {
+  const l = file().lines[ui.lineCursor];
+  if (l && section(l.section)) ui.cursor = l.section;
+}
+
+export function moveLineCursor(delta) {
+  const vis = visibleLines();
+  if (!vis.length) return;
+  const i = Math.max(vis.indexOf(ui.lineCursor), 0);
+  ui.lineCursor = vis[clamp(i + delta, 0, vis.length - 1)];
+  syncSectionFromLineCursor();
+}
+
+// verticalMove moves the view down (positive) or up: the line cursor by rows
+// in the raw view, the scroll position by px otherwise. There are no panes
+// to focus in the browser: in the section view, moving on at the end (or
+// the start) of a section steps into the next (or previous) one.
+export function verticalMove(rows, px) {
+  if (ui.rawView) {
+    const vis = visibleLines();
+    const edge = rows > 0 ? vis.at(-1) : vis[0];
+    if (!ui.fullView && (!vis.length || ui.lineCursor === edge)) stepSection(Math.sign(rows));
+    else moveLineCursor(rows);
+    return;
+  }
+  const el = $("#content");
+  if (!ui.fullView && atScrollEdge(el, px)) stepSection(Math.sign(px));
+  else scrollDetail(el, px);
+}
+
+// jumpToEdge goes to the top (dir < 0) or the end of the whole document: in
+// the section view, to its first or last section, even when collapsed or
+// filtered out of the list (see revealSection).
+export function jumpToEdge(dir) {
+  const secs = file().sections;
+  if (!ui.fullView && secs.length) {
+    const target = dir < 0 ? secs[0] : secs.at(-1);
+    revealSection(target.id);
+    moveCursorTo(target.id);
+  }
+  if (ui.rawView) {
+    const vis = visibleLines();
+    ui.lineCursor = (dir < 0 ? vis[0] : vis.at(-1)) ?? 0;
+    syncSectionFromLineCursor();
+    return;
+  }
+  const el = $("#content");
+  if (ui.fullView) {
+    scrollDetail(el, dir < 0 ? -el.scrollHeight : el.scrollHeight);
+  } else {
+    ui.pendingScroll = () => {
+      const c = $("#content");
+      c.scrollTop = dir < 0 ? 0 : c.scrollHeight;
+    };
+  }
+}
+
+// revealSection makes a section show in the list: its collapsed ancestors are
+// expanded, and a search filter it does not match is cleared.
+function revealSection(id) {
+  const secs = file().sections;
+  const i = secs.findIndex((s) => s.id === id);
+  if (i < 0) return;
+  for (const j of ancestorsOf(i)) ui.collapsed.delete(secs[j].id);
+  if (!listSections().some((s) => s.id === id)) clearSearch();
+}
+
+// atScrollEdge reports whether el cannot scroll any further in the
+// direction of dy.
+export function atScrollEdge(el, dy) {
+  // 1px of slack: half-page scrolls leave fractional positions.
+  return dy > 0 ? el.scrollTop + el.clientHeight >= el.scrollHeight - 1 : el.scrollTop <= 1;
+}
+
+// stepSection selects the next (dir > 0) or previous listed section, showing
+// its start when moving down and its end when moving up.
+export function stepSection(dir) {
+  const prev = ui.cursor;
+  moveCursorBy(dir);
+  if (ui.cursor === prev) return;
+  if (ui.rawView) {
+    const vis = visibleLines();
+    ui.lineCursor = (dir > 0 ? vis[0] : vis.at(-1)) ?? 0;
+  } else if (dir < 0) {
+    ui.pendingScroll = () => {
+      const el = $("#content");
+      el.scrollTop = el.scrollHeight;
+    };
+  }
+}
+
+export const lineHeight = 20; // .lines line-height in style.css
+export const pageRows = () => Math.max(Math.floor(($("#content")?.clientHeight || 400) / lineHeight), 1);
+
+function scrollDetail(el, dy) {
+  el.scrollBy({ top: dy });
+  ui.spyPaused = false;
+  // The re-render after the key replaces the pane before its scroll event
+  // arrives, so follow the scroll here.
+  syncCursorToScroll();
+}
+
+// syncCursorToScroll selects the section at the top of the full rendered
+// view (syncCursorToScroll in the TUI). Reports whether the cursor moved.
+export function syncCursorToScroll() {
+  const content = $("#content");
+  if (!content || !ui.fullView || ui.rawView) return false;
+  const top = content.getBoundingClientRect().top + 24;
+  const parts = content.querySelectorAll("[data-section]");
+  // Until a section reaches the top (e.g. scrolled to the very top, below
+  // the page padding), the first one is current.
+  let current = parts[0]?.dataset.section ?? null;
+  for (const block of parts) {
+    if (block.getBoundingClientRect().top <= top) current = block.dataset.section;
+    else break;
+  }
+  if (!current || current === ui.cursor) return false;
+  ui.cursor = current;
+  return true;
+}
+
+// scrollHorizontal scrolls the wide blocks of the rendered view (code and
+// tables), the browser counterpart of the TUI detail pane's x offset.
+export function scrollHorizontal(fn) {
+  if (ui.rawView) return; // the TUI scrolls the rendered viewport only
+  for (const el of document.querySelectorAll("#content pre, #content .markdown table")) fn(el);
+}
+
+export function resizeLeft(delta) {
+  const next = ui.leftRatio + delta;
+  if (window.innerWidth < 720 || next < 10 || next > 50) return;
+  ui.leftRatio = next;
+}
+
+// startResize lets the pane border be dragged (mouse only).
+export function startResize(ev) {
+  ev.preventDefault();
+  const resizer = ev.currentTarget;
+  resizer.classList.add("dragging");
+  const move = (e) => {
+    ui.leftRatio = clamp((e.clientX / window.innerWidth) * 100, 10, 50);
+    $("#sidebar").style.width = `${ui.leftRatio}%`;
+  };
+  const up = () => {
+    resizer.classList.remove("dragging");
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+export function toggleViewed(id) {
+  if (!isRealSection(id) || !section(id)) return;
+  send(() => fileAPI("PUT", `/viewed/${encodeURIComponent(id)}`, { viewed: !isViewed(id) }));
+}
+
+export function openSectionEditor(id) {
+  if (ui.rawView || !id) return; // section comments come from the rendered view
+  openEditor({ sectionId: id }, null);
+}
+
+export function openLineEditor() {
+  const f = file();
+  const r = selectionRange();
+  if (!r || !visibleLines().length) return;
+  const start = f.lines[r.first].line;
+  const end = f.lines[r.last].line;
+  ui.anchor = -1;
+  openEditor({ sectionId: f.lines[r.first].section, startLine: start, endLine: end > start ? end : 0, side: r.side }, null);
+}
+
+// openEditor opens the editor for a new comment (existing = null) or an
+// existing one.
+function openEditor(target, existing) {
+  ui.editor = {
+    id: existing ? existing.id : null,
+    sectionId: target.sectionId,
+    startLine: target.startLine || 0,
+    endLine: target.endLine || 0,
+    side: target.side || "",
+    label: Math.max(st.labels.indexOf(existing ? existing.action : st.defaultLabel), 0),
+    deco: Math.max(st.decorations.indexOf(existing ? existing.decoration : ""), 0),
+    body: existing ? existing.body : "",
+    fromList: Boolean(existing),
+  };
+  ui.mode = "comment";
+}
+
+export async function saveEditor() {
+  const e = ui.editor;
+  const body = e.body.trim();
+  const payload = {
+    sectionId: e.sectionId,
+    action: st.labels[e.label],
+    decoration: st.decorations[e.deco],
+    body,
+    startLine: e.startLine,
+    endLine: e.endLine,
+    side: e.side,
+  };
+  // As in the TUI: an empty new comment is dropped, and emptying an
+  // existing one deletes it.
+  let ok = true;
+  if (e.id) {
+    ok = await send(() =>
+      body ? fileAPI("PATCH", `/comments/${encodeURIComponent(e.id)}`, payload) : fileAPI("DELETE", `/comments/${encodeURIComponent(e.id)}`),
+    );
+  } else if (body) {
+    ok = await send(() => fileAPI("POST", "/comments", payload));
+  }
+  if (ok) closeEditor();
+  hooks.render();
+}
+
+export function closeEditor() {
+  const e = ui.editor;
+  ui.editor = null;
+  if (e && e.fromList) reopenList(e.sectionId);
+  else ui.mode = "normal";
+}
+
+export function cycle(n, delta, len) {
+  return (n + delta + len) % len;
+}
+
+
+export function openList(sectionId) {
+  if (!sectionId || !commentsOf(sectionId).length) return;
+  ui.list = { sectionId, cursor: 0 };
+  ui.mode = "commentList";
+}
+
+// reopenList shows the list after its comments changed, or returns to
+// normal mode when none remain.
+function reopenList(sectionId) {
+  const n = commentsOf(sectionId).length;
+  if (!n) {
+    ui.list = null;
+    ui.mode = "normal";
+    return;
+  }
+  const cursor = ui.list && ui.list.sectionId === sectionId ? Math.min(ui.list.cursor, n - 1) : 0;
+  ui.list = { sectionId, cursor };
+  ui.mode = "commentList";
+}
+
+export function editFromList() {
+  const c = commentsOf(ui.list.sectionId)[ui.list.cursor];
+  if (!c) return;
+  openEditor({ sectionId: c.sectionId, startLine: c.startLine, endLine: c.endLine, side: c.side }, c);
+  hooks.render();
+}
+
+export async function deleteFromList() {
+  const c = commentsOf(ui.list.sectionId)[ui.list.cursor];
+  if (!c) return;
+  const sectionId = ui.list.sectionId;
+  if (await send(() => fileAPI("DELETE", `/comments/${encodeURIComponent(c.id)}`))) reopenList(sectionId);
+  hooks.render();
+}
+
+
+export function openConfirm(kind) {
+  ui.confirm = kind;
+  ui.mode = "confirm";
+}
+
+export function closeModal() {
+  ui.mode = "normal";
+  ui.confirm = null;
+  hooks.render();
+}
+
+export async function executeConfirm() {
+  const submit = ui.confirm === "submit";
+  ui.mode = "normal";
+  ui.confirm = null;
+  await finish(submit);
+}
+
+// finish ends the current file: submitted (or approved) or quit/skipped.
+export async function finish(submit) {
+  await send(() => fileAPI("POST", "/finish", { action: submit ? "submit" : "quit" }));
+  hooks.render();
+}
+
+export function openSearch() {
+  ui.mode = "search";
+  clearSearch();
+  ui.sidebarOpen = true; // narrow windows: the list holds the search input
+  clampCursorToList();
+}
+
+// closeSearch leaves search mode: keep=true keeps the filter (Enter),
+// otherwise it is cleared (Esc).
+export function closeSearch(keep) {
+  ui.mode = "normal";
+  ui.sidebarOpen = false;
+  if (!keep) clearSearch();
+  clampCursorToList();
+  moveCursorTo(ui.cursor);
+}
+
+
+export function togglePick(i) {
+  const sel = ui.picker.selected;
+  if (sel.has(i)) sel.delete(i);
+  else sel.add(i);
+  hooks.render();
+}
+
+export function confirmPick() {
+  send(() => api("POST", "/api/pick", { paths: st.pick.filter((_, i) => ui.picker.selected.has(i)) }));
+}
+
+export function cancelPick() {
+  send(() => api("POST", "/api/pick", { cancel: true }));
+}
+
