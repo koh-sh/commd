@@ -1,9 +1,7 @@
 import { launchTerminal, type Session } from "tuistory";
 import { resolve, join } from "path";
 import { unlinkSync, copyFileSync } from "fs";
-
-const PROJECT_ROOT = resolve(import.meta.dir, "../..");
-const COMMD_BIN = resolve(PROJECT_ROOT, "commd");
+import { PROJECT_ROOT, COMMD_BIN } from "./paths";
 
 export const TEST_TIMEOUT = 30000;
 

@@ -1,8 +1,5 @@
-import { resolve } from "path";
 import type { Subprocess } from "bun";
-
-export const PROJECT_ROOT = resolve(import.meta.dir, "../..");
-export const COMMD_BIN = resolve(PROJECT_ROOT, "commd");
+import { PROJECT_ROOT, COMMD_BIN } from "./paths";
 
 export interface WebSession {
   proc: Subprocess<"ignore", "pipe", "pipe">;

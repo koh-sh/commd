@@ -4,12 +4,11 @@ import { existsSync } from "fs";
 import { TEST_TIMEOUT, FIXTURE_BASIC, createTempFixture } from "../helpers/session";
 import { createRepo } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
+import { PROJECT_ROOT } from "../helpers/paths";
 
 // The browser UI is served by `commd review --web`. These tests drive the
 // JSON API over HTTP the way the page's script does, and check what the
 // command hands back. web-ui.test.ts drives the page itself in a browser.
-
-const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 describe("Web Review", () => {
   let web: WebSession | undefined;

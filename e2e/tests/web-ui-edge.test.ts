@@ -4,7 +4,8 @@ import { resolve } from "path";
 import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo, createRepoFrom } from "../helpers/git-repo";
-import { launchWeb, finished, stopWeb, COMMD_BIN, PROJECT_ROOT, type WebSession } from "../helpers/web";
+import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
+import { COMMD_BIN, PROJECT_ROOT } from "../helpers/paths";
 import {
   useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
 } from "../helpers/browser";

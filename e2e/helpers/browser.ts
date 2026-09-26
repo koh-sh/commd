@@ -1,10 +1,9 @@
 import { beforeAll, afterAll } from "bun:test";
 import { chromium, type Browser, type Page } from "playwright";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
-import { join, resolve } from "path";
+import { join } from "path";
 import type { WebSession } from "./web";
-
-const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+import { PROJECT_ROOT } from "./paths";
 
 /**
  * Directory for raw JS coverage when COMMD_JS_COVERAGE is set (see
@@ -33,8 +32,6 @@ export interface PageOptions {
 /** Open the review page of a web session and wait until it has rendered. */
 export async function openPage(web: WebSession, opts: PageOptions = {}): Promise<Page> {
   const page = await browser.newPage({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 800 } });
-  // The page asks before closing while the review runs; tests close it anyway.
-  page.on("dialog", (d) => d.accept());
   if (collectCoverage) await page.coverage.startJSCoverage({ resetOnNavigation: false });
   await page.goto(web.url);
   await page.waitForSelector("#statusbar, .picker, .done");
