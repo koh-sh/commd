@@ -6,7 +6,7 @@ import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo, createRepoFrom } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
 import {
-  useBrowser, openPage, closePage, press, eventually, text, count, activeSection, cursorLine, writeFixture,
+  useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
 } from "../helpers/browser";
 
 // Full suite: session edge cases (the command going away, a second tab),
@@ -17,7 +17,7 @@ useBrowser();
 
 const stateOf = async (web: WebSession) => (await web.api("GET", "/api/state")).json();
 
-describe("Web review UI edge cases (full)", () => {
+describe("Web Review UI Edge Cases (Full)", () => {
   let web: WebSession | undefined;
   let pages: Page[] = [];
   let repo: { dir: string; cleanup: () => void } | undefined;
@@ -202,8 +202,7 @@ describe("Web review UI edge cases (full)", () => {
       await page.locator(".block-head input[type=checkbox]").click();
       await eventually(async () => expect((await stateOf(web!)).file.viewed).toEqual(["S1"]));
       await press(page, " ");
-      await Bun.sleep(200);
-      expect((await stateOf(web)).file.viewed).toEqual(["S1"]);
+      await consistently(async () => expect((await stateOf(web!)).file.viewed).toEqual(["S1"]));
 
       // Comment button; the Full view and Raw buttons.
       await page.locator(".block-head button", { hasText: "Comment" }).click();
@@ -248,7 +247,7 @@ describe("Web review UI edge cases (full)", () => {
   );
 });
 
-describe("Web review UI errors and remaining paths (full)", () => {
+describe("Web Review UI Errors and Remaining Paths (Full)", () => {
   let web: WebSession | undefined;
   let page: Page | undefined;
   let repo: { dir: string; cleanup: () => void } | undefined;
@@ -383,8 +382,7 @@ describe("Web review UI errors and remaining paths (full)", () => {
       await press(page, "x");
       await page.locator(".picker h1").selectText();
       await press(page, "Control+c");
-      await Bun.sleep(200);
-      expect(web.proc.exitCode).toBeNull();
+      await consistently(() => expect(web!.proc.exitCode).toBeNull());
       await page.evaluate(() => window.getSelection()?.removeAllRanges());
       await press(page, "Control+c");
       expect((await finished(web)).stdout).toBe("");
@@ -393,7 +391,7 @@ describe("Web review UI errors and remaining paths (full)", () => {
   );
 });
 
-describe("Web review UI documents and reload (full)", () => {
+describe("Web Review UI Documents and Reload (Full)", () => {
   let web: WebSession | undefined;
   let page: Page | undefined;
   const cleanups: (() => void)[] = [];

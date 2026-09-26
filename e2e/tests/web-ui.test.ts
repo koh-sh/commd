@@ -11,7 +11,7 @@ import { useBrowser, openPage, closePage, press, eventually, text, count, active
 
 useBrowser();
 
-describe("Web review UI (basic)", () => {
+describe("Web Review UI (Basic)", () => {
   let web: WebSession | undefined;
   let page: Page | undefined;
   let repo: { dir: string; cleanup: () => void } | undefined;

@@ -79,6 +79,19 @@ export async function eventually(check: () => Promise<void> | void, timeout = 50
   }
 }
 
+/**
+ * Check that an assertion keeps passing for a while: that a key or event
+ * changed nothing, even once the page and the server had time to react.
+ */
+export async function consistently(check: () => Promise<void> | void, duration = 300): Promise<void> {
+  const end = Date.now() + duration;
+  do {
+    await check();
+    await Bun.sleep(25);
+  } while (Date.now() < end);
+  await check();
+}
+
 export const text = (page: Page, selector: string) => page.locator(selector).innerText();
 export const count = (page: Page, selector: string) => page.locator(selector).count();
 export const activeSection = (page: Page) => page.locator("#sections .active").innerText();

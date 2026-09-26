@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
 import {
-  useBrowser, openPage, closePage, press, eventually, text, count, activeSection, cursorLine, writeFixture,
+  useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
 } from "../helpers/browser";
 
 // Full suite: navigation and view keys of the web page. Unlike the TUI there
@@ -38,7 +38,7 @@ const contentScroll = (page: Page) => page.locator("#content").evaluate((el) => 
 const atBottom = (page: Page) => page.locator("#content").evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1);
 const preScroll = (page: Page) => page.locator("#content pre").first().evaluate((el) => el.scrollLeft);
 
-describe("Web review UI keys (full)", () => {
+describe("Web Review UI Keys (Full)", () => {
   let web: WebSession | undefined;
   let page: Page | undefined;
   let fixture: { path: string; cleanup: () => void } | undefined;
@@ -190,8 +190,7 @@ describe("Web review UI keys (full)", () => {
       // Not in the full view, which scrolls through everything.
       await press(page, "f", "G");
       await page.mouse.wheel(0, 100);
-      await Bun.sleep(200);
-      expect(await count(page, "#content .part")).toBe(4);
+      await consistently(async () => expect(await count(page!, "#content .part")).toBe(4));
     },
     TEST_TIMEOUT,
   );
@@ -251,8 +250,9 @@ describe("Web review UI keys (full)", () => {
       expect(listTop).toBeGreaterThan(0);
       await page.locator("#content").hover();
       await page.mouse.wheel(0, -60);
-      await Bun.sleep(300);
-      expect(Math.abs((await page.locator("#sections").evaluate((el) => el.scrollTop)) - listTop)).toBeLessThan(60);
+      await consistently(async () =>
+        expect(Math.abs((await page!.locator("#sections").evaluate((el) => el.scrollTop)) - listTop)).toBeLessThan(60),
+      );
     },
     TEST_TIMEOUT,
   );

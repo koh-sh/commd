@@ -11,7 +11,7 @@ import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
-describe("Web review", () => {
+describe("Web Review", () => {
   let web: WebSession | undefined;
   let repo: { dir: string; cleanup: () => void } | undefined;
   let fixture: { path: string; cleanup: () => Promise<void> } | undefined;

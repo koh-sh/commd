@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
-import { useBrowser, openPage, closePage, press, eventually, text, count, activeSection, cursorLine } from "../helpers/browser";
+import { useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine } from "../helpers/browser";
 
 // Full suite: the modes of the web page (comment editor, comment list,
 // confirm dialog, search, visual selection, file picker) and their keys.
@@ -12,7 +12,7 @@ useBrowser();
 
 const stateOf = async (web: WebSession) => (await web.api("GET", "/api/state")).json();
 
-describe("Web review UI modes (full)", () => {
+describe("Web Review UI Modes (Full)", () => {
   let web: WebSession | undefined;
   let page: Page | undefined;
   let repo: { dir: string; cleanup: () => void } | undefined;
@@ -273,8 +273,7 @@ describe("Web review UI modes (full)", () => {
 
       await page.locator("#content .markdown p").first().selectText();
       await press(page, "Control+c");
-      await Bun.sleep(200);
-      expect(web.proc.exitCode).toBeNull(); // still running
+      await consistently(() => expect(web!.proc.exitCode).toBeNull()); // still running
       await page.evaluate(() => window.getSelection()?.removeAllRanges());
       await press(page, "Control+c");
       const { code, stdout } = await finished(web);
