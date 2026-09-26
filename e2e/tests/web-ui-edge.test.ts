@@ -263,6 +263,20 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
   });
 
   test(
+    "--port serves on the given port",
+    async () => {
+      // Ask the OS for a free port, then hand it to commd.
+      const probe = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
+      const port = probe.port;
+      probe.stop(true);
+      web = await launchWeb([FIXTURE_BASIC, "--port", String(port)]);
+      expect(web.base).toBe(`http://127.0.0.1:${port}`);
+      expect((await web.api("GET", "/api/state")).status).toBe(200);
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
     "a --port already in use fails to start",
     async () => {
       web = await launchWeb([FIXTURE_BASIC]);
