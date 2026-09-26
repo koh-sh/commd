@@ -1,20 +1,20 @@
 // Key bindings per mode, mirroring the TUI key handlers.
 
 import { $ } from "./dom.js";
-import { st, ui, file, commentsOf, visibleLines, selectionRange } from "./state.js";
-import { queuedKeys } from "./api.js";
+import { st, ui, file, commentsOf, clamp, visibleLines, selectionRange } from "./state.js";
+import { inputDeferred, deferInput } from "./api.js";
 import { render, updateEditorChrome } from "./render.js";
 import { moveCursorBy, jumpToEdge, toggleExpand, toggleFull, toggleRaw, moveLineCursor, verticalMove, lineHeight, pageRows, scrollHorizontal, resizeLeft, toggleViewed, openSectionEditor, openLineEditor, saveEditor, closeEditor, cycle, openList, editFromList, deleteFromList, openConfirm, closeModal, executeConfirm, finish, openSearch, closeSearch, togglePick, confirmPick, cancelPick } from "./actions.js";
 
-export function onPickerKey(ev) {
+function onPickerKey(ev) {
   const p = ui.picker;
   const n = st.pick.length;
   const k = ev.key;
   const ctrlC = ev.ctrlKey && k === "c" && !hasTextSelection(); // with a selection it copies
   if (k === "q" || k === "Escape" || ctrlC) cancelPick();
   else if (k === "Enter") confirmPick();
-  else if (k === "j" || k === "ArrowDown") p.cursor = Math.min(p.cursor + 1, n - 1);
-  else if (k === "k" || k === "ArrowUp") p.cursor = Math.max(p.cursor - 1, 0);
+  else if (k === "j" || k === "ArrowDown") p.cursor = clamp(p.cursor + 1, 0, n - 1);
+  else if (k === "k" || k === "ArrowUp") p.cursor = clamp(p.cursor - 1, 0, n - 1);
   else if (k === " ") togglePick(p.cursor);
   else if (k === "a") {
     const all = p.selected.size === n;
@@ -24,11 +24,8 @@ export function onPickerKey(ev) {
   render();
 }
 
-
-// ---------- keyboard ----------
-
 // keyName normalizes a key event to the TUI's key names.
-export function keyName(ev) {
+function keyName(ev) {
   const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "enter", Escape: "esc", Tab: "tab", " ": "space" };
   let k = map[ev.key] || ev.key;
   if (ev.ctrlKey && k.length === 1) k = `ctrl+${k.toLowerCase()}`;
@@ -36,7 +33,7 @@ export function keyName(ev) {
   return k;
 }
 
-export function hasTextSelection() {
+function hasTextSelection() {
   const sel = window.getSelection();
   return Boolean(sel && !sel.isCollapsed && sel.toString());
 }
@@ -46,12 +43,12 @@ export function onKeyDown(ev) {
   // Keys that belong to an IME composition (e.g. Enter confirming Japanese
   // input) are not shortcuts.
   if (ev.isComposing || ev.keyCode === 229) return;
-  // While a request is in flight, and until the keys queued meanwhile are
-  // replayed, new keys queue up behind them so the order is kept.
-  if (ui.busy || (queuedKeys.length && !ev.replayed)) {
+  // Keys pressed during a request are replayed after it, in order.
+  if (inputDeferred()) {
     ev.preventDefault();
     const { key, ctrlKey, shiftKey, metaKey, altKey } = ev;
-    queuedKeys.push({ key, ctrlKey, shiftKey, metaKey, altKey, replayed: true, target: document.body, preventDefault() {} });
+    const replayed = { key, ctrlKey, shiftKey, metaKey, altKey, replayed: true, target: document.body, preventDefault() {} };
+    deferInput(() => onKeyDown(replayed));
     return;
   }
   if (st.phase === "pick") {
@@ -85,7 +82,7 @@ export function onKeyDown(ev) {
 
 // Handlers return false for keys they leave to the browser.
 
-export function onCommentKey(k, ev) {
+function onCommentKey(k, ev) {
   const e = ui.editor;
   if (k === "ctrl+s" || (k === "enter" && (ev.ctrlKey || ev.metaKey))) {
     saveEditor();
@@ -108,44 +105,44 @@ export function onCommentKey(k, ev) {
   return false;
 }
 
-export function onListKey(k) {
+function onListKey(k) {
   const list = ui.list;
   const n = commentsOf(list.sectionId).length;
   switch (k) {
     case "esc":
       ui.list = null;
       ui.mode = "normal";
-      return true;
+      break;
     case "k":
     case "up":
-      list.cursor = Math.max(list.cursor - 1, 0);
-      return true;
+      list.cursor = clamp(list.cursor - 1, 0, n - 1);
+      break;
     case "j":
     case "down":
-      list.cursor = Math.min(list.cursor + 1, n - 1);
-      return true;
+      list.cursor = clamp(list.cursor + 1, 0, n - 1);
+      break;
     case "e":
       editFromList();
-      return true;
+      break;
     case "d":
       deleteFromList();
-      return true;
+      break;
   }
   return true; // other keys are ignored in the list
 }
 
-export function onConfirmKey(k) {
+function onConfirmKey(k) {
   if (k === "y" || k === "Y") executeConfirm();
   else if (["n", "N", "q", "esc"].includes(k)) closeModal();
   return true;
 }
 
-export function onHelpKey(k) {
+function onHelpKey(k) {
   if (["esc", "?", "enter", "q"].includes(k)) ui.mode = "normal";
   return true;
 }
 
-export function onSearchKey(k) {
+function onSearchKey(k) {
   switch (k) {
     case "enter":
       closeSearch(true);
@@ -166,7 +163,7 @@ export function onSearchKey(k) {
   return false; // typing goes to the search input
 }
 
-export function onLineSelectKey(k) {
+function onLineSelectKey(k) {
   switch (k) {
     case "k":
     case "up":
@@ -187,7 +184,7 @@ export function onLineSelectKey(k) {
   return true;
 }
 
-export function onNormalKey(k) {
+function onNormalKey(k) {
   const el = $("#content");
   // gg chord
   if (ui.pendingG) {
@@ -278,7 +275,7 @@ export function onNormalKey(k) {
 }
 
 // sectionAction handles c and C on the selected section in the rendered view.
-export function sectionAction(k) {
+function sectionAction(k) {
   switch (k) {
     case "c":
       openSectionEditor(ui.cursor);
@@ -291,7 +288,7 @@ export function sectionAction(k) {
 }
 
 // onLineKey handles the raw view's line comment keys.
-export function onLineKey(k) {
+function onLineKey(k) {
   const canComment = visibleLines().length > 0;
   switch (k) {
     case "c":
@@ -311,7 +308,6 @@ export function onLineKey(k) {
   }
   return false;
 }
-
 
 // typeReplayed types a replayed key into the focused text field, as the
 // browser would have if the key had not been queued during a request.

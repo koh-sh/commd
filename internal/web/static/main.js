@@ -5,11 +5,13 @@
 // (internal/web); every change goes through the API and the page re-renders
 // from the returned state.
 //
-// Modules: state (client state and derived views of the server state), api
-// (server calls), render (DOM), actions (what keys and clicks do), keys
-// (key bindings per mode), mouse, dom (small DOM helpers).
+// Modules, lowest first (each imports only lower ones): state (client state
+// and derived views of the server state), dom (small DOM helpers), api
+// (server calls and the input queue), actions (what keys and clicks do),
+// render (DOM), keys (key bindings per mode), mouse. Lower modules reach
+// render through state.hooks.
 
-import { st, ui } from "./state.js";
+import { st, ui, hooks } from "./state.js";
 import { load } from "./api.js";
 import { render } from "./render.js";
 import { onKeyDown } from "./keys.js";
@@ -26,6 +28,7 @@ function bind() {
   document.addEventListener("wheel", onWheel, { passive: true });
 }
 
+hooks.render = render;
 bind();
 load().then(() => {
   if (st) {

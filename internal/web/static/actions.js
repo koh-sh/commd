@@ -1,42 +1,42 @@
 // Actions: what keys and clicks do, mirroring the TUI App methods.
 
 import { $, toast } from "./dom.js";
-import { st, ui, file, section, commentsOf, isViewed, isRealSection, listSections, visibleLines, selectionRange, clampCursorToList } from "./state.js";
-import { api, fileAPI, send } from "./api.js";
-import { render } from "./render.js";
-
-// ---------- actions ----------
+import { st, ui, hooks, file, section, commentsOf, isViewed, isRealSection, clamp, ancestorsOf, clearSearch, listSections, visibleLines, selectionRange, clampCursorToList } from "./state.js";
+import { api, fileAPI, send, inputDeferred, deferInput } from "./api.js";
 
 // guarded runs a mouse action only in the modes where the TUI would
-// accept the equivalent key, then re-renders.
+// accept the equivalent key, then re-renders. Like keys, a click during a
+// request runs once the request is done.
 export function guarded(fn, fromAnyPane = false) {
-  if (ui.busy) {
-    // Like keys, a click during a request runs once the request is done.
-    setTimeout(() => guarded(fn, fromAnyPane), 20);
+  if (inputDeferred()) {
+    deferInput(() => guarded(fn, fromAnyPane));
     return;
   }
   if (ui.mode !== "normal" && !(fromAnyPane && ui.mode === "search")) {
-    toast(ui.mode === "comment" ? "Save (Ctrl+S) or cancel (Esc) the comment first." : "Finish the current action first (Esc).");
+    refuseAction();
     return;
   }
   if (ui.mode === "search") closeSearch(true);
   fn();
-  render();
+  hooks.render();
 }
 
+// refuseAction tells why a click does nothing in the current mode.
+export function refuseAction() {
+  toast(ui.mode === "comment" ? "Save (Ctrl+S) or cancel (Esc) the comment first." : "Finish the current action first (Esc).");
+}
 
 export function toggleTheme() {
   ui.theme = ui.theme === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = ui.theme;
 }
 
-
 // moveCursorBy moves the section cursor within the listed sections.
 export function moveCursorBy(delta) {
   const list = listSections();
   if (!list.length) return;
   const i = list.findIndex((s) => s.id === ui.cursor);
-  const next = Math.min(Math.max((i < 0 ? 0 : i) + delta, 0), list.length - 1);
+  const next = clamp((i < 0 ? 0 : i) + delta, 0, list.length - 1);
   moveCursorTo(list[next].id);
 }
 
@@ -80,7 +80,7 @@ export function toggleRaw() {
 }
 
 // syncLineCursorIntoView keeps the line cursor on a visible line.
-export function syncLineCursorIntoView() {
+function syncLineCursorIntoView() {
   const vis = visibleLines();
   if (vis.length && !vis.includes(ui.lineCursor)) ui.lineCursor = vis[0];
 }
@@ -96,7 +96,7 @@ export function moveLineCursor(delta) {
   const vis = visibleLines();
   if (!vis.length) return;
   const i = Math.max(vis.indexOf(ui.lineCursor), 0);
-  ui.lineCursor = vis[Math.min(Math.max(i + delta, 0), vis.length - 1)];
+  ui.lineCursor = vis[clamp(i + delta, 0, vis.length - 1)];
   syncSectionFromLineCursor();
 }
 
@@ -146,18 +146,12 @@ export function jumpToEdge(dir) {
 
 // revealSection makes a section show in the list: its collapsed ancestors are
 // expanded, and a search filter it does not match is cleared.
-export function revealSection(id) {
+function revealSection(id) {
   const secs = file().sections;
   const i = secs.findIndex((s) => s.id === id);
   if (i < 0) return;
-  let depth = secs[i].depth;
-  for (let j = i - 1; j >= 0 && depth > 0; j--) {
-    if (secs[j].depth < depth) {
-      ui.collapsed.delete(secs[j].id);
-      depth = secs[j].depth;
-    }
-  }
-  if (!listSections().some((s) => s.id === id)) ui.query = "";
+  for (const j of ancestorsOf(i)) ui.collapsed.delete(secs[j].id);
+  if (!listSections().some((s) => s.id === id)) clearSearch();
 }
 
 // atScrollEdge reports whether el cannot scroll any further in the
@@ -187,7 +181,7 @@ export function stepSection(dir) {
 export const lineHeight = 20; // .lines line-height in style.css
 export const pageRows = () => Math.max(Math.floor(($("#content")?.clientHeight || 400) / lineHeight), 1);
 
-export function scrollDetail(el, dy) {
+function scrollDetail(el, dy) {
   el.scrollBy({ top: dy });
   ui.spyPaused = false;
   // The re-render after the key replaces the pane before its scroll event
@@ -227,13 +221,28 @@ export function resizeLeft(delta) {
   ui.leftRatio = next;
 }
 
+// startResize lets the pane border be dragged (mouse only).
+export function startResize(ev) {
+  ev.preventDefault();
+  const resizer = ev.currentTarget;
+  resizer.classList.add("dragging");
+  const move = (e) => {
+    ui.leftRatio = clamp((e.clientX / window.innerWidth) * 100, 10, 50);
+    $("#sidebar").style.width = `${ui.leftRatio}%`;
+  };
+  const up = () => {
+    resizer.classList.remove("dragging");
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
 export function toggleViewed(id) {
   if (!isRealSection(id) || !section(id)) return;
   send(() => fileAPI("PUT", `/viewed/${encodeURIComponent(id)}`, { viewed: !isViewed(id) }));
 }
-
-
-// ---------- comment editor ----------
 
 export function openSectionEditor(id) {
   if (ui.rawView || !id) return; // section comments come from the rendered view
@@ -252,7 +261,7 @@ export function openLineEditor() {
 
 // openEditor opens the editor for a new comment (existing = null) or an
 // existing one.
-export function openEditor(target, existing) {
+function openEditor(target, existing) {
   ui.editor = {
     id: existing ? existing.id : null,
     sectionId: target.sectionId,
@@ -290,10 +299,8 @@ export async function saveEditor() {
     ok = await send(() => fileAPI("POST", "/comments", payload));
   }
   if (ok) closeEditor();
-  render();
+  hooks.render();
 }
-
-
 
 export function closeEditor() {
   const e = ui.editor;
@@ -306,7 +313,6 @@ export function cycle(n, delta, len) {
   return (n + delta + len) % len;
 }
 
-// ---------- comment list ----------
 
 export function openList(sectionId) {
   if (!sectionId || !commentsOf(sectionId).length) return;
@@ -316,7 +322,7 @@ export function openList(sectionId) {
 
 // reopenList shows the list after its comments changed, or returns to
 // normal mode when none remain.
-export function reopenList(sectionId) {
+function reopenList(sectionId) {
   const n = commentsOf(sectionId).length;
   if (!n) {
     ui.list = null;
@@ -332,7 +338,7 @@ export function editFromList() {
   const c = commentsOf(ui.list.sectionId)[ui.list.cursor];
   if (!c) return;
   openEditor({ sectionId: c.sectionId, startLine: c.startLine, endLine: c.endLine, side: c.side }, c);
-  render();
+  hooks.render();
 }
 
 export async function deleteFromList() {
@@ -340,10 +346,9 @@ export async function deleteFromList() {
   if (!c) return;
   const sectionId = ui.list.sectionId;
   if (await send(() => fileAPI("DELETE", `/comments/${encodeURIComponent(c.id)}`))) reopenList(sectionId);
-  render();
+  hooks.render();
 }
 
-// ---------- dialogs, search, finishing ----------
 
 export function openConfirm(kind) {
   ui.confirm = kind;
@@ -353,7 +358,7 @@ export function openConfirm(kind) {
 export function closeModal() {
   ui.mode = "normal";
   ui.confirm = null;
-  render();
+  hooks.render();
 }
 
 export async function executeConfirm() {
@@ -366,12 +371,12 @@ export async function executeConfirm() {
 // finish ends the current file: submitted (or approved) or quit/skipped.
 export async function finish(submit) {
   await send(() => fileAPI("POST", "/finish", { action: submit ? "submit" : "quit" }));
-  render();
+  hooks.render();
 }
 
 export function openSearch() {
   ui.mode = "search";
-  ui.query = "";
+  clearSearch();
   ui.sidebarOpen = true; // narrow windows: the list holds the search input
   clampCursorToList();
 }
@@ -381,18 +386,17 @@ export function openSearch() {
 export function closeSearch(keep) {
   ui.mode = "normal";
   ui.sidebarOpen = false;
-  if (!keep) ui.query = "";
+  if (!keep) clearSearch();
   clampCursorToList();
   moveCursorTo(ui.cursor);
 }
 
-// ---------- file picker ----------
 
 export function togglePick(i) {
   const sel = ui.picker.selected;
   if (sel.has(i)) sel.delete(i);
   else sel.add(i);
-  render();
+  hooks.render();
 }
 
 export function confirmPick() {

@@ -2,8 +2,6 @@
 
 import { ui } from "./state.js";
 
-// ---------- helpers ----------
-
 export const $ = (sel) => document.querySelector(sel);
 
 // h builds an element. Children that are not Nodes become text, so
@@ -26,7 +24,7 @@ export function h(tag, attrs, ...children) {
 
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export let toastTimer = 0;
+let toastTimer = 0;
 export function toast(msg) {
   if (ui.finished) return;
   const el = $("#toast");

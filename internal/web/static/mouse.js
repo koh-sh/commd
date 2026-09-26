@@ -1,13 +1,11 @@
 // Mouse support (browser only): line selection by dragging line numbers,
-// pane resizing, stepping sections by wheel at the edges, and section
-// following in the full view.
+// stepping sections by wheel at the edges, and section following in the full
+// view. The pane border drag is startResize in actions.js.
 
 import { $ } from "./dom.js";
 import { st, ui } from "./state.js";
 import { render, refreshCursor, visibleTop } from "./render.js";
-import { guarded, syncSectionFromLineCursor, openLineEditor, syncCursorToScroll, atScrollEdge, stepSection, lineHeight } from "./actions.js";
-
-// ---------- mouse ----------
+import { refuseAction, syncSectionFromLineCursor, openLineEditor, syncCursorToScroll, atScrollEdge, stepSection, lineHeight } from "./actions.js";
 
 let dragging = false;
 
@@ -16,7 +14,7 @@ export function onLineMouseDown(ev) {
   if (!cell || ev.button !== 0) return;
   ev.preventDefault();
   if (ui.mode !== "normal" && ui.mode !== "lineSelect") {
-    guarded(() => {});
+    refuseAction();
     return;
   }
   const idx = Number(cell.dataset.idx);
@@ -45,23 +43,6 @@ export function onMouseUp() {
   syncSectionFromLineCursor();
   openLineEditor(); // mouse selection = V + j/k + c
   render();
-}
-
-export function startResize(ev) {
-  ev.preventDefault();
-  const resizer = ev.currentTarget;
-  resizer.classList.add("dragging");
-  const move = (e) => {
-    ui.leftRatio = Math.min(Math.max((e.clientX / window.innerWidth) * 100, 10), 50);
-    $("#sidebar").style.width = `${ui.leftRatio}%`;
-  };
-  const up = () => {
-    resizer.classList.remove("dragging");
-    document.removeEventListener("mousemove", move);
-    document.removeEventListener("mouseup", up);
-  };
-  document.addEventListener("mousemove", move);
-  document.addEventListener("mouseup", up);
 }
 
 // onContentScroll keeps the cursors with the scroll: in the full rendered

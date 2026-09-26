@@ -53,7 +53,6 @@ type sectionJSON struct {
 	Start int    `json:"start"`
 	End   int    `json:"end"`
 	HTML  string `json:"html"` // rendered Markdown; raw HTML in the source is escaped
-	Text  string `json:"text"` // section body for search ("" for the overview, which the TUI matches by name only)
 }
 
 type lineJSON struct {
@@ -209,7 +208,6 @@ func (f *fileState) sectionsJSON(imageURL func(string) string) []sectionJSON {
 				Start: sec.StartLine,
 				End:   sec.EndLine,
 				HTML:  renderHTML(md, imageURL),
-				Text:  sec.Body, // what the TUI search matches, with the ID and title
 			})
 			walk(sec.Children, depth+1)
 		}

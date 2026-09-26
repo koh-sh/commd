@@ -2,10 +2,8 @@
 
 import { $, h, plural } from "./dom.js";
 import { st, ui, file, section, commentsOf, isViewed, isRealSection, lineRef, formatLabel, listSections, hasChildren, visibleLines, selectionRange, inSelection, clampCursorToList } from "./state.js";
-import { guarded, toggleTheme, moveCursorTo, toggleExpand, toggleFull, toggleRaw, toggleViewed, openSectionEditor, editFromList, deleteFromList, openConfirm, closeModal, executeConfirm, openSearch, togglePick, confirmPick, cancelPick } from "./actions.js";
-import { startResize } from "./mouse.js";
-
-// ---------- rendering ----------
+import { searchSections } from "./api.js";
+import { guarded, toggleTheme, moveCursorTo, toggleExpand, toggleFull, toggleRaw, toggleViewed, openSectionEditor, editFromList, deleteFromList, openConfirm, closeModal, executeConfirm, openSearch, togglePick, confirmPick, cancelPick, startResize } from "./actions.js";
 
 export function render() {
   if (ui.finished || !st) return;
@@ -36,9 +34,6 @@ export function render() {
   afterRender();
 }
 
-// refreshPanes re-renders the section list, the right pane and the status
-// bar but not the search input, so typing (including IME composition) in
-// it is not interrupted.
 // replaceSectionList re-renders the section list in place, keeping where it
 // was scrolled to.
 function replaceSectionList() {
@@ -80,7 +75,10 @@ export function refreshCursor() {
   $("#statusbar").replaceWith(renderStatusBar());
 }
 
-export function refreshPanes() {
+// refreshPanes re-renders the section list, the right pane and the status
+// bar but not the search input, so typing (including IME composition) in
+// it is not interrupted.
+function refreshPanes() {
   const contentTop = $("#content")?.scrollTop ?? 0;
   replaceSectionList();
   $("#right").replaceWith(renderRight());
@@ -89,7 +87,7 @@ export function refreshPanes() {
   afterRender();
 }
 
-export function renderTitleBar(title) {
+function renderTitleBar(title) {
   const f = file();
   // Icon-only buttons get their title as accessible name.
   const btn = (label, titleText, onclick, cls = "btn") =>
@@ -115,7 +113,7 @@ export function renderTitleBar(title) {
   );
 }
 
-export function renderSidebar() {
+function renderSidebar() {
   const search =
     ui.mode === "search" || ui.query
       ? h("input", {
@@ -128,9 +126,7 @@ export function renderSidebar() {
           readonly: ui.mode === "search" ? null : true,
           oninput: (e) => {
             ui.query = e.target.value;
-            clampCursorToList();
-            moveCursorTo(ui.cursor);
-            refreshPanes();
+            runSearch();
           },
           onmousedown: (e) => {
             if (ui.mode !== "normal") return;
@@ -145,7 +141,20 @@ export function renderSidebar() {
   return h("aside", { id: "sidebar" }, search, renderSectionList());
 }
 
-export function renderSectionList() {
+// runSearch filters the section list by the query typed so far. The server
+// matches the sections, as the TUI's filter does; a response that arrives
+// after the query changed again is dropped.
+async function runSearch() {
+  const query = ui.query;
+  const matches = query ? await searchSections(query) : null;
+  if (ui.query !== query || (query && !matches)) return;
+  ui.matches = matches && new Set(matches);
+  clampCursorToList();
+  moveCursorTo(ui.cursor);
+  refreshPanes();
+}
+
+function renderSectionList() {
   const items = listSections().map((s) => {
     const n = commentsOf(s.id).length;
     const viewed = isViewed(s.id);
@@ -189,7 +198,7 @@ export function renderSectionList() {
   return h("ul", { id: "sections", "aria-label": "Sections" }, items);
 }
 
-export function renderRight() {
+function renderRight() {
   const main = h("main", { id: "content" });
   if (ui.mode === "commentList") {
     main.append(renderCommentList());
@@ -209,7 +218,7 @@ export function renderRight() {
   return right;
 }
 
-export function blockHead(s) {
+function blockHead(s) {
   const viewed = isViewed(s.id);
   return h(
     "div",
@@ -235,73 +244,59 @@ export function blockHead(s) {
   );
 }
 
-export function renderRenderedBlock(s) {
+function renderRenderedBlock(s) {
   const body = h("div", { class: "markdown" });
   body.innerHTML = s.html; // rendered by goldmark with raw HTML escaped
-  const comments = commentsOf(s.id);
   return h(
     "section",
     { class: `block${isViewed(s.id) ? " viewed" : ""}${s.id === ui.cursor ? " current" : ""}`, dataset: { section: s.id } },
     blockHead(s),
     body,
-    comments.length ? h("div", { class: "comments" }, comments.map((c) => renderComment(c, true))) : null,
+    commentsBox(commentsOf(s.id), true),
   );
 }
 
 // renderFullDocument renders the whole document as one Markdown page with no
 // section chrome; each section's comments follow its content, as in the
 // TUI's full view. The data-section parts let the list follow the scroll.
-export function renderFullDocument() {
+function renderFullDocument() {
   return h(
     "article",
     { class: "document markdown" },
     file().sections.map((s) => {
       const part = h("div", { class: "part", dataset: { section: s.id } });
       part.innerHTML = s.html; // rendered by goldmark with raw HTML escaped
-      const comments = commentsOf(s.id);
-      if (comments.length) part.append(h("div", { class: "comments" }, comments.map((c) => renderComment(c, true))));
+      const comments = commentsBox(commentsOf(s.id), true);
+      if (comments) part.append(comments);
       return part;
     }),
   );
 }
 
-// renderRawBlocks groups the visible lines of the section view into one
-// block (the full view is a single listing). Lines that belong to no listed
-// section (before the first heading without a preamble) get no header.
-export function renderRawBlocks() {
-  const f = file();
+// renderRawBlocks renders the raw view: one continuous listing in the full
+// view, like the TUI's, or the selected section's lines under its header.
+function renderRawBlocks() {
   const vis = visibleLines();
+  const s = section(ui.cursor);
   if (!vis.length) {
-    const msg = f.diff ? "No changes in this section." : "No lines.";
-    const s = section(ui.cursor);
+    const msg = file().diff ? "No changes in this section." : "No lines.";
     return [h("section", { class: "block" }, s ? blockHead(s) : null, h("div", { class: "empty" }, msg))];
   }
-  // The full view is one continuous listing, like the TUI's; section
-  // comments follow the last line of their section.
+  // In the full view, section comments follow the last line of their section.
   if (ui.fullView) return [h("section", { class: "block document" }, renderLines(vis, true))];
-  const listed = new Set(f.sections.map((s) => s.id));
-  const groups = [];
-  for (const i of vis) {
-    const id = listed.has(f.lines[i].section) ? f.lines[i].section : "";
-    // In the section view every visible line belongs to the selected section.
-    const key = ui.fullView ? id : ui.cursor;
-    if (!groups.length || groups[groups.length - 1].key !== key) groups.push({ key, lines: [] });
-    groups[groups.length - 1].lines.push(i);
-  }
-  return groups.map((g) => {
-    const s = section(g.key);
-    const sectionComments = s ? commentsOf(s.id).filter((c) => !c.startLine) : [];
-    return h(
+  const sectionComments = s ? commentsOf(s.id).filter((c) => !c.startLine) : [];
+  return [
+    h(
       "section",
-      { class: `block${s && isViewed(s.id) ? " viewed" : ""}`, dataset: { section: g.key } },
+      { class: `block${s && isViewed(s.id) ? " viewed" : ""}`, dataset: { section: ui.cursor } },
       s ? blockHead(s) : null,
-      renderLines(g.lines),
-      sectionComments.length ? h("div", { class: "comments" }, sectionComments.map((c) => renderComment(c, false))) : null,
-    );
-  });
+      renderLines(vis),
+      commentsBox(sectionComments, false),
+    ),
+  ];
 }
 
-export function renderLines(indices, withSectionComments = false) {
+function renderLines(indices, withSectionComments = false) {
   const f = file();
   const byEnd = new Map();
   for (const c of f.comments) {
@@ -340,7 +335,12 @@ export function renderLines(indices, withSectionComments = false) {
   return h("table", { class: "lines" }, h("tbody", {}, rows));
 }
 
-export function renderComment(c, withRef) {
+// commentsBox renders a list of comments, or nothing when there are none.
+function commentsBox(comments, withRef) {
+  return comments.length ? h("div", { class: "comments" }, comments.map((c) => renderComment(c, withRef))) : null;
+}
+
+function renderComment(c, withRef) {
   const ref = lineRef(c);
   return h(
     "div",
@@ -357,7 +357,7 @@ export function renderComment(c, withRef) {
   );
 }
 
-export function renderCommentList() {
+function renderCommentList() {
   const list = ui.list;
   const comments = commentsOf(list.sectionId);
   return h(
@@ -392,7 +392,7 @@ export function renderCommentList() {
   );
 }
 
-export function renderEditor() {
+function renderEditor() {
   const e = ui.editor;
   const chips = (values, current, pick, show) =>
     h(
@@ -432,7 +432,7 @@ export function renderEditor() {
   );
 }
 
-export function renderPicker() {
+function renderPicker() {
   document.title = "commd — select files";
   const p = ui.picker;
   $("#app").replaceChildren(
@@ -470,7 +470,7 @@ export function renderPicker() {
   $("#modal-root").replaceChildren();
 }
 
-export function renderStatusBar() {
+function renderStatusBar() {
   const entry = (key, label) => h("span", { class: "entry" }, h("kbd", {}, key), " ", label);
   let entries = [];
   let indicator = "";
@@ -514,7 +514,7 @@ export function renderStatusBar() {
   return h("footer", { id: "statusbar" }, h("span", { class: "entries" }, entries), h("span", { class: "indicator" }, indicator));
 }
 
-export function renderModal() {
+function renderModal() {
   const root = $("#modal-root");
   if (ui.mode === "confirm") {
     root.replaceChildren(
@@ -548,7 +548,7 @@ export function renderModal() {
   }
 }
 
-export function confirmMessage() {
+function confirmMessage() {
   const n = file().comments.length;
   if (ui.confirm === "submit") {
     return st.multi ? `Finish reviewing this file? (${n} comments)` : `Submit review? (${n} comments)`;
@@ -557,7 +557,7 @@ export function confirmMessage() {
   return n ? "You have review comments.\n\nQuit without submitting?" : "Quit review?";
 }
 
-export function helpText() {
+function helpText() {
   return `  Navigation:
   j/k, Up/Down   Scroll (raw view: move the line cursor); at the end
                   or start of a section, move to the next / previous one
@@ -608,7 +608,7 @@ Press Esc, Enter, ? or q to close this help.`;
 }
 
 // afterRender restores focus and scroll positions that a re-render loses.
-export function afterRender() {
+function afterRender() {
   if (ui.mode === "comment") {
     const ta = $("#editor-body");
     if (ta && document.activeElement !== ta) {

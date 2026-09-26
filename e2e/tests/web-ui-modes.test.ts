@@ -146,13 +146,16 @@ describe("Web review UI modes (full)", () => {
       await page.keyboard.type("zzz");
       await eventually(async () => expect(await text(page!, "#sections")).toContain("No matches"));
       await press(page, "Backspace", "Backspace", "Backspace");
-      await page.keyboard.type("step");
+      await page.keyboard.type("routing");
+      // Like the TUI, a matching section shows with its subsections.
       await eventually(async () => expect(await count(page!, "#sections .item")).toBe(3));
+      expect(await text(page, "#sections")).toContain("2.2 Validation");
       await press(page, "ArrowDown", "ArrowDown", "ArrowUp");
-      await eventually(async () => expect(await activeSection(page!)).toContain("Step 2"));
+      await eventually(async () => expect(await activeSection(page!)).toContain("2.1 Endpoint Addition"));
       await press(page, "Tab");
       expect(await page.evaluate(() => document.activeElement?.id)).toBe("search");
-      await page.keyboard.type(" 3");
+      await page.locator("#search").fill("");
+      await page.keyboard.type("step 3");
       await eventually(async () => expect(await count(page!, "#sections .item")).toBe(1));
       await press(page, "Enter");
       await eventually(async () => expect(await activeSection(page!)).toContain("Step 3"));

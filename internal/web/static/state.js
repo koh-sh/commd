@@ -11,13 +11,13 @@ export function setState(state) {
   st = state;
 }
 
-export const ui = {
-  finished: false,
-  theme: "dark",
-  // file picker (phase "pick")
-  picker: { cursor: 0, selected: new Set() },
-  // per-file review state, reset for every file like a fresh TUI App
-  seq: -1,
+// hooks are calls into higher modules, set by main.js, so that lower modules
+// never import them (the modules form no import cycle).
+export const hooks = { render() {} };
+
+// fileUIDefaults returns the per-file view state, reset for every file like
+// a fresh TUI App.
+export const fileUIDefaults = () => ({
   mode: "normal", // normal | comment | commentList | confirm | help | search | lineSelect
   sidebarOpen: false, // narrow windows: the section list shown over the content
   cursor: null, // selected section id
@@ -26,18 +26,26 @@ export const ui = {
   lineCursor: 0, // index into file.lines
   anchor: -1, // visual selection anchor (index into file.lines)
   query: "",
+  matches: null, // Set of the section IDs the search shows (null: no filter)
   collapsed: new Set(),
   leftRatio: 20, // list : content = 2 : 8 (wider screens than the TUI)
   pendingG: false,
   editor: null, // { id, sectionId, startLine, endLine, side, label, deco, body, fromList }
   list: null, // { sectionId, cursor }
   confirm: null, // "submit" | "quit"
+});
+
+export const ui = {
+  finished: false,
+  theme: "dark",
+  // file picker (phase "pick")
+  picker: { cursor: 0, selected: new Set() },
+  seq: -1, // the file the per-file state belongs to
+  ...fileUIDefaults(),
   busy: false, // a request is in flight
   pendingScroll: null, // scroll to apply after the next render
   spyPaused: false, // the full view does not follow scrolling until the user scrolls
 };
-
-// ---------- derived state ----------
 
 export const file = () => st.file;
 export const section = (id) => file().sections.find((s) => s.id === id);
@@ -45,6 +53,7 @@ export const commentsOf = (id) => file().comments.filter((c) => c.sectionId === 
 export const isViewed = (id) => file().viewed.includes(id);
 // The overview cannot be marked viewed and is not counted, as in the TUI.
 export const isRealSection = (id) => id != null && id !== "overview";
+export const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
 
 export function lineRef(c) {
   if (!c.startLine) return "";
@@ -53,39 +62,40 @@ export function lineRef(c) {
 
 export const formatLabel = (label, deco) => (deco ? `${label} (${deco})` : label);
 
-// listSections returns the sections shown in the section list: all minus
-// collapsed subtrees, or the search matches and their ancestors.
-export function listSections() {
+// clearSearch drops the search filter.
+export function clearSearch() {
+  ui.query = "";
+  ui.matches = null;
+}
+
+// ancestorsOf returns the indices of the ancestors of file.sections[i],
+// nearest first.
+export function ancestorsOf(i) {
   const secs = file().sections;
-  const q = ui.query.toLowerCase();
-  let matched = null;
-  if (q) {
-    matched = new Set();
-    secs.forEach((s, i) => {
-      const hit =
-        s.id === "overview"
-          ? "overview".includes(q) // the TUI matches the overview by name only
-          : `${s.id} ${s.title} ${s.text}`.toLowerCase().includes(q);
-      if (!hit) return;
-      matched.add(i);
-      let depth = s.depth;
-      for (let j = i - 1; j >= 0 && depth > 0; j--) {
-        if (secs[j].depth < depth) {
-          matched.add(j);
-          depth = secs[j].depth;
-        }
-      }
-    });
+  const out = [];
+  let depth = secs[i].depth;
+  for (let j = i - 1; j >= 0 && depth > 0; j--) {
+    if (secs[j].depth < depth) {
+      out.push(j);
+      depth = secs[j].depth;
+    }
   }
+  return out;
+}
+
+// listSections returns the sections shown in the section list: all minus
+// collapsed subtrees, or those the search shows (matched by the server like
+// the TUI's filter: the matches with their ancestors and descendants).
+export function listSections() {
   const out = [];
   let hiddenBelow = Infinity; // depth of a collapsed ancestor
-  secs.forEach((s, i) => {
-    if (s.depth > hiddenBelow) return;
+  for (const s of file().sections) {
+    if (s.depth > hiddenBelow) continue;
     hiddenBelow = Infinity;
-    if (matched && !matched.has(i)) return;
+    if (ui.matches && !ui.matches.has(s.id)) continue;
     out.push(s);
     if (ui.collapsed.has(s.id)) hiddenBelow = s.depth;
-  });
+  }
   return out;
 }
 
