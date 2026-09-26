@@ -302,24 +302,16 @@ func (sl *SectionList) HasComments() bool {
 	return false
 }
 
-// BuildReviewResult creates a ReviewResult from all comments.
+// BuildReviewResult creates a ReviewResult from all comments, in document
+// order (see markdown.NewReviewResult).
 func (sl *SectionList) BuildReviewResult() *markdown.ReviewResult {
-	result := &markdown.ReviewResult{}
-
-	// Include overview comments first
-	for _, c := range sl.comments[markdown.OverviewSectionID] {
-		result.Comments = append(result.Comments, *c)
-	}
-
-	// Walk sections in order to maintain consistent ordering
-	allSections := sl.doc.AllSections()
-	for _, s := range allSections {
-		for _, c := range sl.comments[s.ID] {
-			result.Comments = append(result.Comments, *c)
+	var comments []markdown.ReviewComment
+	for _, list := range sl.comments {
+		for _, c := range list {
+			comments = append(comments, *c)
 		}
 	}
-
-	return result
+	return markdown.NewReviewResult(sl.doc, comments)
 }
 
 // Render renders the section list for display within the given height.

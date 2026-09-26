@@ -1,7 +1,9 @@
 package markdown
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/koh-sh/commd/internal/diff"
@@ -265,7 +267,36 @@ type ReviewResult struct {
 	Comments []ReviewComment
 }
 
-// Status is the exit status of a TUI review session.
+// NewReviewResult returns the comments in document order, which the output
+// follows: the overview first, then the sections depth-first, keeping the
+// given order within a section. Comments on unknown sections are dropped.
+func NewReviewResult(doc *Document, comments []ReviewComment) *ReviewResult {
+	rank := map[string]int{OverviewSectionID: 0}
+	for i, s := range doc.AllSections() {
+		rank[s.ID] = i + 1
+	}
+	var ordered []ReviewComment
+	for _, c := range comments {
+		if _, ok := rank[c.SectionID]; ok {
+			ordered = append(ordered, c)
+		}
+	}
+	slices.SortStableFunc(ordered, func(a, b ReviewComment) int {
+		return cmp.Compare(rank[a.SectionID], rank[b.SectionID])
+	})
+	return &ReviewResult{Comments: ordered}
+}
+
+// Status returns the status of a submitted review: approved when it has no
+// comments.
+func (r *ReviewResult) Status() Status {
+	if len(r.Comments) == 0 {
+		return StatusApproved
+	}
+	return StatusSubmitted
+}
+
+// Status is the exit status of a review session (TUI or browser).
 type Status string
 
 const (

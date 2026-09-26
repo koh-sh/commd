@@ -257,3 +257,62 @@ func parseDecorationString(s string) (string, bool) {
 	d, ok := ParseDecoration(s)
 	return string(d), ok
 }
+
+func TestNewReviewResult(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		comments []ReviewComment
+		want     []string // bodies in result order
+	}{
+		{
+			name: "document order, creation order within a section",
+			comments: []ReviewComment{
+				{SectionID: "S2", Body: "s2"},
+				{SectionID: "S1.1", Body: "child"},
+				{SectionID: "S1", Body: "s1 first"},
+				{SectionID: OverviewSectionID, Body: "overview"},
+				{SectionID: "S1", Body: "s1 second"},
+			},
+			want: []string{"overview", "s1 first", "s1 second", "child", "s2"},
+		},
+		{
+			name:     "unknown sections are dropped",
+			comments: []ReviewComment{{SectionID: "S9", Body: "gone"}, {SectionID: "S1", Body: "kept"}},
+			want:     []string{"kept"},
+		},
+		{name: "no comments", comments: nil, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, c := range NewReviewResult(doc, tt.comments).Comments {
+				got = append(got, c.Body)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("comments = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReviewResultStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ReviewResult
+		want   Status
+	}{
+		{name: "no comments", result: ReviewResult{}, want: StatusApproved},
+		{name: "with comments", result: ReviewResult{Comments: []ReviewComment{{Body: "b"}}}, want: StatusSubmitted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.result.Status(); got != tt.want {
+				t.Errorf("Status() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}

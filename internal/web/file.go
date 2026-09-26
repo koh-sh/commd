@@ -168,23 +168,14 @@ func (f *fileState) setViewed(sectionID string, viewed bool) error {
 	return nil
 }
 
-// buildReview returns the comments in document order (overview first, then
-// sections depth-first), keeping creation order within a section, like the
-// TUI.
+// buildReview returns the comments in document order, keeping creation order
+// within a section (see markdown.NewReviewResult).
 func (f *fileState) buildReview() *markdown.ReviewResult {
-	result := &markdown.ReviewResult{}
-	order := []string{markdown.OverviewSectionID}
-	for _, sec := range f.Doc.AllSections() {
-		order = append(order, sec.ID)
+	comments := make([]markdown.ReviewComment, len(f.comments))
+	for i, c := range f.comments {
+		comments[i] = c.ReviewComment
 	}
-	for _, id := range order {
-		for _, c := range f.comments {
-			if c.SectionID == id {
-				result.Comments = append(result.Comments, c.ReviewComment)
-			}
-		}
-	}
-	return result
+	return markdown.NewReviewResult(f.Doc, comments)
 }
 
 // search returns the IDs of the listed sections a search for query shows,

@@ -758,14 +758,8 @@ func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a *App) submitReview() (tea.Model, tea.Cmd) {
-	review := a.sectionList.BuildReviewResult()
-
-	if len(review.Comments) == 0 {
-		a.result.Status = markdown.StatusApproved
-	} else {
-		a.result.Status = markdown.StatusSubmitted
-	}
-	a.result.Review = review
+	a.result.Review = a.sectionList.BuildReviewResult()
+	a.result.Status = a.result.Review.Status()
 
 	return a, tea.Quit
 }

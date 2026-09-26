@@ -866,7 +866,7 @@ func TestConfirmModeAccept(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := initApp(t, makeLargeDoc(3, 0))
 			if tt.addComment {
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+				a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "test"})
 			}
 			a.confirmAction = tt.action
 			a.mode = ModeConfirm

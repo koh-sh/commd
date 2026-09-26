@@ -153,10 +153,7 @@ func (s *session) finish(seq int, submit bool) error {
 		res := FileResult{File: f.File, Status: markdown.StatusCancelled}
 		if submit {
 			res.Review = f.buildReview()
-			res.Status = markdown.StatusApproved
-			if len(res.Review.Comments) > 0 {
-				res.Status = markdown.StatusSubmitted
-			}
+			res.Status = res.Review.Status()
 		}
 		s.results = append(s.results, res)
 		s.advance()
