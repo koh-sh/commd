@@ -80,39 +80,28 @@ func newFileState(f File) *fileState {
 
 // sourceLines returns the full source, each line under its section.
 func sourceLines(doc *markdown.Document) []displayLine {
+	sections := doc.LineSections()
 	lines := make([]displayLine, len(doc.SourceLines))
 	for i, text := range doc.SourceLines {
-		lines[i] = displayLine{Text: text, Line: i + 1, SectionID: doc.SectionIDAtLine(i + 1)}
+		lines[i] = displayLine{Text: text, Line: i + 1, SectionID: sections[i]}
 	}
 	return lines
 }
 
-// diffLines returns the diff lines, each under a section. Added and context
-// lines belong to the section of their new-file line. Removed lines no longer
-// exist in the new file, so they follow the nearest preceding line that does
-// (or the next one at the start of the diff).
+// diffLines returns the diff lines, each under its section (see
+// markdown.Document.DiffLineSections). Removed lines are numbered by the old
+// file.
 func diffLines(doc *markdown.Document, info *diff.Info) []displayLine {
+	sections := doc.DiffLineSections(info)
 	lines := make([]displayLine, len(info.Lines))
-	current := ""
 	for i, dl := range info.Lines {
-		line := displayLine{Text: dl.Content, Type: dl.Type}
+		line := displayLine{Text: dl.Content, Type: dl.Type, SectionID: sections[i]}
 		if dl.Type == diff.Removed {
 			line.Line, line.Side = dl.OldLine, diff.SideLeft
 		} else {
 			line.Line, line.Side = dl.NewLine, diff.SideRight
-			current = doc.SectionIDAtLine(dl.NewLine)
 		}
-		line.SectionID = current
 		lines[i] = line
-	}
-	// Leading removed lines have no preceding new-file line.
-	next := markdown.OverviewSectionID
-	for i := len(lines) - 1; i >= 0; i-- {
-		if lines[i].SectionID == "" {
-			lines[i].SectionID = next
-		} else if lines[i].Side == diff.SideRight {
-			next = lines[i].SectionID
-		}
 	}
 	return lines
 }
@@ -196,6 +185,22 @@ func (f *fileState) buildReview() *markdown.ReviewResult {
 		}
 	}
 	return result
+}
+
+// search returns the IDs of the listed sections a search for query shows,
+// in list order (see markdown.Document.SearchSections).
+func (f *fileState) search(query string) []string {
+	shown := f.Doc.SearchSections(query)
+	ids := []string{} // never null in JSON
+	if f.sections[markdown.OverviewSectionID] && shown[markdown.OverviewSectionID] {
+		ids = append(ids, markdown.OverviewSectionID)
+	}
+	for _, sec := range f.Doc.AllSections() {
+		if shown[sec.ID] {
+			ids = append(ids, sec.ID)
+		}
+	}
+	return ids
 }
 
 func (f *fileState) commentIndex(id string) int {

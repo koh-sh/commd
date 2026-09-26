@@ -2003,19 +2003,24 @@ func TestNewDiffData(t *testing.T) {
 	}{
 		{name: "nil info yields nil", patch: "", want: nil},
 		{
-			name:  "maps lines, sides, and types",
-			patch: "@@ -1,2 +1,2 @@\n ctx\n-old\n+new",
+			name:  "maps lines, sides, types, and sections",
+			patch: "@@ -1,2 +1,2 @@\n ## A\n-old\n+new",
 			want: &DiffData{
-				DisplayLines: []string{"  ctx", "- old", "+ new"},
+				DisplayLines: []string{"  ## A", "- old", "+ new"},
 				LineMap:      []int{1, 2, 2},
 				SideMap:      []string{"RIGHT", "LEFT", "RIGHT"},
 				TypeMap:      []byte{' ', '-', '+'},
+				Sections:     []string{"S1", "S1", "S1"},
 			},
 		},
 	}
+	doc, err := markdown.Parse([]byte("## A\nnew\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NewDiffData(diff.ParsePatch(tt.patch))
+			got := NewDiffData(doc, diff.ParsePatch(tt.patch))
 			if tt.want == nil {
 				if got != nil {
 					t.Fatalf("expected nil, got %+v", got)
@@ -2028,7 +2033,8 @@ func TestNewDiffData(t *testing.T) {
 			if fmt.Sprint(got.DisplayLines) != fmt.Sprint(tt.want.DisplayLines) ||
 				fmt.Sprint(got.LineMap) != fmt.Sprint(tt.want.LineMap) ||
 				fmt.Sprint(got.SideMap) != fmt.Sprint(tt.want.SideMap) ||
-				string(got.TypeMap) != string(tt.want.TypeMap) {
+				string(got.TypeMap) != string(tt.want.TypeMap) ||
+				fmt.Sprint(got.Sections) != fmt.Sprint(tt.want.Sections) {
 				t.Errorf("NewDiffData() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -2269,7 +2275,7 @@ func TestDiffEmptySectionBlocksLineComment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewApp(doc, AppOptions{Diff: NewDiffData(diff.ParsePatch("@@ -3,1 +3,1 @@\n-a\n+b\n"))})
+			a := NewApp(doc, AppOptions{Diff: NewDiffData(doc, diff.ParsePatch("@@ -3,1 +3,1 @@\n-a\n+b\n"))})
 			a.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
 			a.Update(keyMsg("j")) // S1
 			a.Update(keyMsg("j")) // S2
@@ -2310,7 +2316,8 @@ func TestCtrlCQuitsFromEveryMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := initApp(t, makeLargeDoc(3, 0))
-			a.linePane = NewLinePane([]string{"a", "b"}, 0, 0, a.styles, a.doc.AllSections())
+			id := a.selectedSectionID()
+			a.linePane = NewLinePane([]string{"a", "b"}, 0, 0, a.styles, []string{id, id})
 			tt.enter(a)
 			if a.mode != tt.mode {
 				t.Fatalf("setup: mode = %d, want %d", a.mode, tt.mode)

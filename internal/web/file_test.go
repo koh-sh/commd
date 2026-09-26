@@ -34,37 +34,6 @@ func testFile(t *testing.T, withDiff bool) File {
 	return f
 }
 
-func TestDiffLinesSections(t *testing.T) {
-	doc := mustParse(t, testSource)
-	tests := []struct {
-		name  string
-		patch string
-		want  []string // section of each display line
-	}{
-		{
-			name:  "removed line follows the preceding line",
-			patch: testPatch,
-			want:  []string{"S1", "S1", "S1", "S1", "S1", "S1", "S2", "S2", "S2", "S2"},
-		},
-		{
-			name:  "leading removed line takes the next line's section",
-			patch: "@@ -5,2 +5,1 @@\n-gone\n ## First\n",
-			want:  []string{"S1", "S1"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var got []string
-			for _, l := range diffLines(doc, diff.ParsePatch(tt.patch)) {
-				got = append(got, l.SectionID)
-			}
-			if !slices.Equal(got, tt.want) {
-				t.Errorf("sections = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFileSections(t *testing.T) {
 	tests := []struct {
 		name string

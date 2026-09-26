@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/koh-sh/commd/internal/diff"
 )
@@ -53,17 +54,84 @@ func (d *Document) FindSection(id string) *Section {
 	return nil
 }
 
-// SectionIDAtLine returns the ID of the section containing the given 1-based
-// line: the last section whose heading starts at or before the line, or
-// OverviewSectionID when the line precedes every heading.
-func (d *Document) SectionIDAtLine(line int) string {
-	result := OverviewSectionID
-	for _, s := range d.AllSections() {
-		if s.StartLine > 0 && line >= s.StartLine {
-			result = s.ID
+// LineSections returns the ID of the section each source line belongs to
+// (index i is line i+1): the last section whose heading starts at or before
+// the line, or OverviewSectionID before the first heading.
+func (d *Document) LineSections() []string {
+	out := make([]string, len(d.SourceLines))
+	sections := d.AllSections() // document order: ascending StartLine
+	current := OverviewSectionID
+	next := 0
+	for i := range out {
+		for next < len(sections) && sections[next].StartLine <= i+1 {
+			if sections[next].StartLine > 0 {
+				current = sections[next].ID
+			}
+			next++
+		}
+		out[i] = current
+	}
+	return out
+}
+
+// DiffLineSections returns the ID of the section each diff line belongs to.
+// Added and context lines belong to the section of their new-file line.
+// Removed lines no longer exist in the new file, so they follow the nearest
+// preceding line that does (or the next one at the start of the diff). The
+// lines of a section are therefore contiguous in the diff.
+func (d *Document) DiffLineSections(info *diff.Info) []string {
+	bySource := d.LineSections()
+	out := make([]string, len(info.Lines))
+	current := ""
+	for i, dl := range info.Lines {
+		if dl.Type != diff.Removed && len(bySource) > 0 {
+			current = bySource[min(max(dl.NewLine, 1), len(bySource))-1]
+		}
+		out[i] = current
+	}
+	// Leading removed lines have no preceding new-file line.
+	next := OverviewSectionID
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i] == "" {
+			out[i] = next
+		} else {
+			next = out[i]
 		}
 	}
-	return result
+	return out
+}
+
+// SearchSections returns the IDs of the sections a search for query shows:
+// those whose ID, title or body contain it (ignoring case), with their
+// ancestors and descendants. The overview matches by name only. An empty
+// query matches nothing.
+func (d *Document) SearchSections(query string) map[string]bool {
+	shown := make(map[string]bool)
+	query = strings.ToLower(query)
+	if query == "" {
+		return shown
+	}
+	if strings.Contains("overview", query) { //nolint:gocritic // intentional: match when query is a substring of "overview"
+		shown[OverviewSectionID] = true
+	}
+	var showDescendants func(sections []*Section)
+	showDescendants = func(sections []*Section) {
+		for _, s := range sections {
+			shown[s.ID] = true
+			showDescendants(s.Children)
+		}
+	}
+	for _, s := range d.AllSections() {
+		if !strings.Contains(strings.ToLower(s.ID+" "+s.Title+" "+s.Body), query) {
+			continue
+		}
+		shown[s.ID] = true
+		for p := s.Parent; p != nil; p = p.Parent {
+			shown[p.ID] = true
+		}
+		showDescendants(s.Children)
+	}
+	return shown
 }
 
 // ReviewComment is a review comment on a single section.

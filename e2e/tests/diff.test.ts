@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import { launchCommd, TEST_TIMEOUT } from "../helpers/session";
-import { createRepo } from "../helpers/git-repo";
+import { createRepo, createRepoFrom, SECTION_REMOVAL } from "../helpers/git-repo";
 import type { Session } from "tuistory";
 
 describe("Diff Mode", () => {
@@ -68,6 +68,17 @@ describe("Diff Mode", () => {
     expect(text).toContain("why drop the old title");
     expect(text).toContain("> Added by diff test");
     expect(text).toContain("new trailing line");
+  }, TEST_TIMEOUT);
+
+  test("removed lines stay in the section they were removed from", async () => {
+    repo = createRepoFrom({ "doc.md": SECTION_REMOVAL.original }, { "doc.md": SECTION_REMOVAL.modified });
+    session = await launchCommd({ file: "doc.md", args: ["--diff"], cwd: repo.dir });
+    await session.press("j"); // section A
+    const text = await session.waitForText("- a3");
+    expect(text).toContain("- a1");
+    expect(text).toContain("- a2");
+    await session.press("j"); // section B
+    expect(await session.waitForText("## B")).not.toContain("- a");
   }, TEST_TIMEOUT);
 
   test("--diff without a file lists changed and untracked Markdown files", async () => {

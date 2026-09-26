@@ -453,67 +453,17 @@ func (sl *SectionList) FilterByQuery(query string) {
 		return
 	}
 
-	query = strings.ToLower(query)
-
-	// First pass: mark direct matches
-	matched := make(map[int]bool)
-	for i, item := range sl.items {
-		if item.IsOverview {
-			if strings.Contains("overview", query) { //nolint:gocritic // intentional: match when query is a substring of "overview"
-				matched[i] = true
-			}
-			continue
-		}
-		if item.Section == nil {
-			continue
-		}
-		text := strings.ToLower(item.Section.ID + " " + item.Section.Title + " " + item.Section.Body)
-		if strings.Contains(text, query) {
-			matched[i] = true
-		}
-	}
-
-	// Second pass: if a section matches, show its ancestors
-	ancestorVisible := make(map[*markdown.Section]bool)
-	for i, item := range sl.items {
-		if !matched[i] || item.Section == nil {
-			continue
-		}
-		parent := item.Section.Parent
-		for parent != nil {
-			ancestorVisible[parent] = true
-			parent = parent.Parent
-		}
-	}
-
-	// Third pass: if a section matches, show its descendants
-	descendantVisible := make(map[*markdown.Section]bool)
-	for i, item := range sl.items {
-		if !matched[i] || item.Section == nil {
-			continue
-		}
-		var markDescendants func(sections []*markdown.Section)
-		markDescendants = func(sections []*markdown.Section) {
-			for _, s := range sections {
-				descendantVisible[s] = true
-				markDescendants(s.Children)
-			}
-		}
-		markDescendants(item.Section.Children)
-	}
-
-	// Apply visibility
+	shown := sl.doc.SearchSections(query)
 	for i := range sl.items {
 		item := &sl.items[i]
-		if item.IsOverview {
-			item.Visible = matched[i]
-			continue
-		}
-		if item.Section == nil {
+		switch {
+		case item.IsOverview:
+			item.Visible = shown[markdown.OverviewSectionID]
+		case item.Section != nil:
+			item.Visible = shown[item.Section.ID]
+		default:
 			item.Visible = false
-			continue
 		}
-		item.Visible = matched[i] || ancestorVisible[item.Section] || descendantVisible[item.Section]
 	}
 
 	// Move cursor to first visible item if current is hidden

@@ -79,3 +79,13 @@ export function createRepoFrom(
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
+
+/**
+ * A change that removes the body of section A (a1-a3, old lines 7-9). In the
+ * new file, old lines 8 and 9 fall in section B, but the removed lines
+ * belong to A, where they were.
+ */
+export const SECTION_REMOVAL = {
+  original: ["# Doc", "", "Intro.", "", "## A", "", "a1", "a2", "a3", "", "## B", "", "b1", ""].join("\n"),
+  modified: ["# Doc", "", "Intro.", "", "## A", "", "", "## B", "", "b1", ""].join("\n"),
+};

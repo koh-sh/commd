@@ -102,6 +102,7 @@ func newHandler(s *session, token, theme string) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/state", api.getState)
+	mux.HandleFunc("GET /api/files/{seq}/search", api.search)
 	mux.HandleFunc("POST /api/pick", api.pick)
 	mux.HandleFunc("POST /api/files/{seq}/comments", api.addComment)
 	mux.HandleFunc("PATCH /api/files/{seq}/comments/{id}", api.updateComment)
@@ -146,6 +147,21 @@ type apiHandler struct {
 
 func (a *apiHandler) getState(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, a.s.state(a.theme, a.token))
+}
+
+// search returns the IDs of the sections a search for the q parameter shows
+// in the section list. It changes nothing, so it returns only the IDs.
+func (a *apiHandler) search(w http.ResponseWriter, r *http.Request) {
+	var ids []string
+	err := a.s.withFile(fileSeq(r), func(f *fileState) error {
+		ids = f.search(r.URL.Query().Get("q"))
+		return nil
+	})
+	if err != nil {
+		writeSessionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]string{"sections": ids})
 }
 
 func (a *apiHandler) pick(w http.ResponseWriter, r *http.Request) {

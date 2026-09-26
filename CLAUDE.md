@@ -62,7 +62,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 **Diff Review**: `cmd/review.go` (`--diff`) → `gitdiff.Open()` → `ChangedMarkdownFiles()` (when no file given) → file picker → for each file: `gitdiff.FilePatch()` → `diff.ParsePatch()` → `tui.NewDiffData()` → `tui.NewApp()` (diff view) → `markdown.FormatReview` / `FormatReviews` (multi-file) → clipboard/file/stdout
 
-**Web Review**: `cmd/review.go` (`--web`, with or without `--diff`) → `web.Serve(web.Review{Pick|Paths, Load})` → browser ↔ JSON API (`/api/state`, `/api/pick`, `/api/files/{seq}/comments[/{id}]`, `/api/files/{seq}/viewed/{section}`, `/api/files/{seq}/finish`; every call returns the full state) → `web.Result` (per-file status) → same output path as the TUI
+**Web Review**: `cmd/review.go` (`--web`, with or without `--diff`) → `web.Serve(web.Review{Pick|Paths, Load})` → browser ↔ JSON API (`/api/state`, `/api/pick`, `/api/files/{seq}/comments[/{id}]`, `/api/files/{seq}/viewed/{section}`, `/api/files/{seq}/finish`; every change returns the full state, while the read-only `/api/files/{seq}/search` returns the matching section IDs from `markdown.Document.SearchSections`, shared with the TUI) → `web.Result` (per-file status) → same output path as the TUI
 
 **PR Review**: `cmd/pr.go` → `PRCmd.Validate()` (parses URL) → `Run(client)` (client injected by Kong via `BindToProvider`) → `github.ListMDFiles()` → file picker (multi-select) → for each file: `github.FetchFileContent()` → `markdown.Parse()` → `tui.NewApp()` → `github.BuildPRReview()` → `github.SubmitReview()`
 

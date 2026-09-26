@@ -1,6 +1,12 @@
 package markdown
 
-import "testing"
+import (
+	"maps"
+	"slices"
+	"testing"
+
+	"github.com/koh-sh/commd/internal/diff"
+)
 
 func TestReviewCommentFormatLabel(t *testing.T) {
 	tests := []struct {
@@ -83,27 +89,135 @@ func TestReviewCommentFormatLineRef(t *testing.T) {
 	}
 }
 
-func TestDocumentSectionIDAtLine(t *testing.T) {
-	doc, err := Parse(readTestdata(t, "basic.md"))
+// sectionsDoc has the sections S1 (lines 5-8), its child S1.1 (9-12) and S2
+// (13-15), after a preamble (lines 1-4).
+const sectionsDoc = `# Title
+
+Preamble text
+
+## Alpha
+
+alpha body
+
+### Beta
+
+beta body
+
+## Gamma
+
+gamma body
+`
+
+func TestDocumentLineSections(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   []string
+	}{
+		{
+			name:   "preamble and nested sections",
+			source: sectionsDoc,
+			want: []string{
+				OverviewSectionID, OverviewSectionID, OverviewSectionID, OverviewSectionID,
+				"S1", "S1", "S1", "S1",
+				"S1.1", "S1.1", "S1.1", "S1.1",
+				"S2", "S2", "S2",
+			},
+		},
+		{
+			name:   "no headings",
+			source: "just text\nmore text\n",
+			want:   []string{OverviewSectionID, OverviewSectionID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(tt.source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := doc.LineSections(); !slices.Equal(got, tt.want) {
+				t.Errorf("LineSections() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentDiffLineSections(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
 	if err != nil {
 		t.Fatal(err)
 	}
 	tests := []struct {
-		name string
-		line int
-		want string
+		name  string
+		lines []diff.Line
+		want  []string
 	}{
-		{name: "title line", line: 1, want: OverviewSectionID},
-		{name: "preamble", line: 3, want: OverviewSectionID},
-		{name: "section heading", line: 5, want: "S1"},
-		{name: "section body before child", line: 8, want: "S1"},
-		{name: "child heading", line: 9, want: "S1.1"},
-		{name: "past last line", line: 999, want: "S3"},
+		{
+			name: "added and context lines use their new-file line",
+			lines: []diff.Line{
+				{Type: diff.Context, NewLine: 7, OldLine: 7},
+				{Type: diff.Added, NewLine: 13},
+			},
+			want: []string{"S1", "S2"},
+		},
+		{
+			// The old line number (14) would fall in S2 of the new file.
+			name: "removed lines follow the preceding line",
+			lines: []diff.Line{
+				{Type: diff.Context, NewLine: 11, OldLine: 13},
+				{Type: diff.Removed, OldLine: 14},
+				{Type: diff.Added, NewLine: 13},
+			},
+			want: []string{"S1.1", "S1.1", "S2"},
+		},
+		{
+			name: "leading removed lines take the next line's section",
+			lines: []diff.Line{
+				{Type: diff.Removed, OldLine: 1},
+				{Type: diff.Added, NewLine: 9},
+			},
+			want: []string{"S1.1", "S1.1"},
+		},
+		{
+			name:  "only removed lines belong to the overview",
+			lines: []diff.Line{{Type: diff.Removed, OldLine: 3}},
+			want:  []string{OverviewSectionID},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := doc.SectionIDAtLine(tt.line); got != tt.want {
-				t.Errorf("SectionIDAtLine(%d) = %q, want %q", tt.line, got, tt.want)
+			got := doc.DiffLineSections(&diff.Info{Lines: tt.lines})
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("DiffLineSections() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentSearchSections(t *testing.T) {
+	doc, err := Parse([]byte(sectionsDoc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{name: "match shows its descendants", query: "alpha", want: []string{"S1", "S1.1"}},
+		{name: "match shows its ancestors", query: "BETA body", want: []string{"S1", "S1.1"}},
+		{name: "match by ID", query: "s2", want: []string{"S2"}},
+		{name: "overview by name only", query: "over", want: []string{OverviewSectionID}},
+		{name: "preamble text does not match the overview", query: "preamble", want: nil},
+		{name: "no match", query: "nonexistent", want: nil},
+		{name: "empty query", query: "", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := slices.Sorted(maps.Keys(doc.SearchSections(tt.query)))
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("SearchSections(%q) = %v, want %v", tt.query, got, tt.want)
 			}
 		})
 	}

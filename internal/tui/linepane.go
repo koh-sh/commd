@@ -10,37 +10,31 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// sectionRange maps a line range to a section ID.
-type sectionRange struct {
-	startLine int // 1-based
-	endLine   int // 1-based
-	sectionID string
-}
-
 // LinePane renders raw source with line numbers for line-level commenting.
 type LinePane struct {
-	lines         []string
-	cursor        int // 0-based index into lines
-	selectAnchor  int // -1 = no selection
-	scrollOffset  int // first visible line index
-	viewStart     int // 0-based start of visible range (-1 = show all)
-	viewEnd       int // 0-based end of visible range (exclusive)
-	width         int
-	height        int
-	gutterWidth   int
-	styles        Styles
-	comments      []*markdown.ReviewComment
-	sectionRanges []sectionRange
+	lines        []string
+	cursor       int // 0-based index into lines
+	selectAnchor int // -1 = no selection
+	scrollOffset int // first visible line index
+	viewStart    int // 0-based start of visible range (-1 = show all)
+	viewEnd      int // 0-based end of visible range (exclusive)
+	width        int
+	height       int
+	gutterWidth  int
+	styles       Styles
+	comments     []*markdown.ReviewComment
+	lineSections []string // section ID of each display line
 
 	// Diff mode fields (set when reviewing PR diffs)
 	diffLineMap []int    // maps display line index → file line number (0 = not commentable)
 	diffSideMap []string // maps display line index → "RIGHT" or "LEFT"
 	diffTypeMap []byte   // maps display line index → diff line type ('+', '-', ' ')
-	emptyRange  bool     // true when SetViewRange found no matching diff lines
+	emptyRange  bool     // true when SetViewSection found no lines of the section
 }
 
-// NewLinePane creates a new LinePane.
-func NewLinePane(lines []string, width, height int, styles Styles, sections []*markdown.Section) *LinePane {
+// NewLinePane creates a new LinePane. lineSections holds the section ID of
+// each line (see markdown.Document.LineSections and DiffLineSections).
+func NewLinePane(lines []string, width, height int, styles Styles, lineSections []string) *LinePane {
 	lp := &LinePane{
 		lines:        lines,
 		selectAnchor: -1,
@@ -48,23 +42,10 @@ func NewLinePane(lines []string, width, height int, styles Styles, sections []*m
 		width:        width,
 		height:       height,
 		styles:       styles,
+		lineSections: lineSections,
 	}
 	lp.gutterWidth = len(fmt.Sprintf("%d", max(len(lines), 1))) + 1
-	lp.buildSectionRanges(sections)
 	return lp
-}
-
-func (lp *LinePane) buildSectionRanges(sections []*markdown.Section) {
-	lp.sectionRanges = nil
-	for _, s := range sections {
-		if s.StartLine > 0 {
-			lp.sectionRanges = append(lp.sectionRanges, sectionRange{
-				startLine: s.StartLine,
-				endLine:   s.EndLine,
-				sectionID: s.ID,
-			})
-		}
-	}
 }
 
 // SetSize updates the pane dimensions and keeps the cursor on screen, so a
@@ -78,42 +59,41 @@ func (lp *LinePane) SetSize(width, height int) {
 	}
 }
 
-// SetViewRange sets the visible line range (1-based file line numbers, inclusive).
-// In diff mode, maps file line numbers to diff display indices.
-// Pass 0, 0 to show all lines.
+// SetViewRange shows the source lines startLine..endLine (1-based,
+// inclusive). Pass 0, 0 to show all lines. Diff mode uses SetViewSection.
 func (lp *LinePane) SetViewRange(startLine, endLine int) {
 	if startLine <= 0 || endLine <= 0 {
-		lp.viewStart = -1
+		lp.ClearViewRange()
+		return
+	}
+	lp.viewStart = startLine - 1
+	lp.viewEnd = min(endLine, len(lp.lines))
+	lp.clampCursor()
+	lp.ensureVisible()
+}
+
+// SetViewSection shows only the diff lines of the given section, which are
+// contiguous (see markdown.Document.DiffLineSections). A section without
+// changes shows an empty range.
+func (lp *LinePane) SetViewSection(sectionID string) {
+	first, last := -1, -1
+	for i, id := range lp.lineSections {
+		if id == sectionID {
+			if first < 0 {
+				first = i
+			}
+			last = i
+		}
+	}
+	if first < 0 {
+		lp.emptyRange = true
+		lp.viewStart = 0
 		lp.viewEnd = 0
 		return
 	}
-
-	if lp.diffLineMap != nil {
-		// Diff mode: find display indices where the mapped file line
-		// falls within [startLine, endLine]. For removed lines (LEFT side),
-		// use the old-file line number which is also stored in diffLineMap.
-		first, last := -1, -1
-		for i, fileLine := range lp.diffLineMap {
-			if fileLine >= startLine && fileLine <= endLine {
-				if first < 0 {
-					first = i
-				}
-				last = i
-			}
-		}
-		if first < 0 {
-			lp.emptyRange = true
-			lp.viewStart = 0
-			lp.viewEnd = 0
-			return
-		}
-		lp.emptyRange = false
-		lp.viewStart = first
-		lp.viewEnd = last + 1
-	} else {
-		lp.viewStart = startLine - 1
-		lp.viewEnd = min(endLine, len(lp.lines))
-	}
+	lp.emptyRange = false
+	lp.viewStart = first
+	lp.viewEnd = last + 1
 	lp.clampCursor()
 	lp.ensureVisible()
 }
@@ -374,38 +354,33 @@ func (lp *LinePane) displayIndexForLine(line int) int {
 	return last
 }
 
-// SectionIDAtLine returns the section ID containing the given 1-based line number.
-// Assumes sectionRanges is sorted by startLine in ascending order.
-// Returns OverviewSectionID if the line is before any section.
-func (lp *LinePane) SectionIDAtLine(line int) string {
-	result := markdown.OverviewSectionID
-	for _, sr := range lp.sectionRanges {
-		if line >= sr.startLine {
-			result = sr.sectionID
-		} else {
-			break
-		}
-	}
-	return result
+// SectionIDAtCursor returns the section ID of the line under the cursor, or
+// "" when there is no such line.
+func (lp *LinePane) SectionIDAtCursor() string {
+	return lp.sectionAt(lp.cursor)
 }
 
-// SectionIDAtCursor returns the section ID for the line under the cursor.
-// In diff mode the cursor is a display index, so it is mapped through
-// diffLineMap to a file line before lookup; returns "" when the cursor is on
-// a non-commentable line (no file line mapping). In non-diff mode the cursor
-// index is the file line.
-func (lp *LinePane) SectionIDAtCursor() string {
-	if lp.diffLineMap != nil {
-		if lp.cursor >= len(lp.diffLineMap) {
-			return ""
-		}
-		fileLine := lp.diffLineMap[lp.cursor]
-		if fileLine == 0 {
-			return ""
-		}
-		return lp.SectionIDAtLine(fileLine)
+// SelectedSectionID returns the section of the first selected line (on the
+// cursor's diff side), which a line comment on the selection belongs to.
+func (lp *LinePane) SelectedSectionID() string {
+	if lp.selectAnchor < 0 {
+		return lp.SectionIDAtCursor()
 	}
-	return lp.SectionIDAtLine(lp.cursor + 1)
+	side := lp.CursorSide()
+	for i := min(lp.selectAnchor, lp.cursor); i <= max(lp.selectAnchor, lp.cursor); i++ {
+		if side == "" || (i < len(lp.diffSideMap) && lp.diffSideMap[i] == side) {
+			return lp.sectionAt(i)
+		}
+	}
+	return ""
+}
+
+// sectionAt returns the section ID of display line i, or "" when out of range.
+func (lp *LinePane) sectionAt(i int) string {
+	if i < 0 || i >= len(lp.lineSections) {
+		return ""
+	}
+	return lp.lineSections[i]
 }
 
 // Cursor returns the current 0-based cursor position.

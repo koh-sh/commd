@@ -268,7 +268,7 @@ func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []str
 			Theme:     r.Theme,
 			FilePath:  f.path,
 			MultiFile: len(paths) > 1,
-			Diff:      tui.NewDiffData(f.patch),
+			Diff:      tui.NewDiffData(f.doc, f.patch),
 		})
 		result, err := runReviewApp(app, r.teaOpts)
 		if err != nil {

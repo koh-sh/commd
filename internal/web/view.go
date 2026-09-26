@@ -49,7 +49,7 @@ type sectionJSON struct {
 	Depth int    `json:"depth"`
 	// Start and End are the source lines the section view of the raw source
 	// shows, as in the TUI (the overview spans the lines before the first
-	// heading).
+	// heading). Diff lines are shown by their section instead.
 	Start int    `json:"start"`
 	End   int    `json:"end"`
 	HTML  string `json:"html"` // rendered Markdown; raw HTML in the source is escaped
