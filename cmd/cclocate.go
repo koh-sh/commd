@@ -23,6 +23,8 @@ func (l *LocateCmd) Validate() error {
 
 // Run executes the locate subcommand.
 func (l *LocateCmd) Run() error {
+	fmt.Fprintln(os.Stderr, "commd: cclocate is deprecated and will be removed in a future release")
+
 	opts := cclocate.Options{
 		TranscriptPath: l.Transcript,
 		CWD:            l.CWD,

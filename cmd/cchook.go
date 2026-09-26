@@ -23,6 +23,10 @@ func (e ExitCodeError) Error() string {
 }
 
 // Run executes the hook subcommand.
+//
+// Deprecated as a subcommand, but unlike cclocate it prints no runtime
+// notice: Claude Code forwards the hook's stderr to Claude (as the denial
+// reason on exit 2), so a notice would pollute the review feedback.
 func (h *HookCmd) Run() error {
 	if code := h.runExit(os.Stdin); code != 0 {
 		return ExitCodeError{Code: code}

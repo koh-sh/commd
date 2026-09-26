@@ -41,14 +41,14 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Entry Point & CLI
 
-`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version). Cross-field constraints are enforced via `Validate()` methods on each command struct (called by Kong post-parse). The GitHub client is wired with `kong.BindToProvider(ghclient.NewClient)` and lazily injected only into commands that take `*ghclient.Client` in their `Run()` signature (currently `PRCmd`).
+`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version); `cclocate` and `cchook` are deprecated (hidden from `--help`, kept working until removal). Cross-field constraints are enforced via `Validate()` methods on each command struct (called by Kong post-parse). The GitHub client is wired with `kong.BindToProvider(ghclient.NewClient)` and lazily injected only into commands that take `*ghclient.Client` in their `Run()` signature (currently `PRCmd`).
 
 ### Package Layout
 
 - **`internal/markdown/`** — Core domain. Markdown parsing via goldmark AST (not regex, to avoid `#` in code blocks being misinterpreted as headings). Data models (`Document`, `Section`, `ReviewComment`), review output formatting.
 - **`internal/tui/`** — Bubble Tea TUI. 2-pane layout: `SectionList` (left) + `DetailPane` (right). Mode-based state machine: `ModeNormal` → `ModeComment` → `ModeCommentList` → `ModeConfirm` → `ModeHelp` → `ModeSearch` → `ModeLineSelect` (visual line selection in raw view).
-- **`internal/cclocate/`** — Plan file discovery from Claude Code transcript JSONL files. `plansDirectory` resolution chain: `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json` → `~/.claude/plans/`.
-- **`internal/cchook/`** — Claude Code hook orchestration. Parses stdin JSON, validates `permission_mode == "plan"`, resolves the plan file (`PreToolUse`/`ExitPlanMode`: injected `tool_input.planFilePath`; `PostToolUse`/`Write|Edit`: `file_path` under `plansDirectory`), spawns review in a pane, returns exit code 0 (continue) or 2 (feedback / deny ExitPlanMode).
+- **`internal/cclocate/`** (deprecated) — Plan file discovery from Claude Code transcript JSONL files. `plansDirectory` resolution chain: `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json` → `~/.claude/plans/`.
+- **`internal/cchook/`** (deprecated) — Claude Code hook orchestration. Parses stdin JSON, validates `permission_mode == "plan"`, resolves the plan file (`PreToolUse`/`ExitPlanMode`: injected `tool_input.planFilePath`; `PostToolUse`/`Write|Edit`: `file_path` under `plansDirectory`), spawns review in a pane, returns exit code 0 (continue) or 2 (feedback / deny ExitPlanMode).
 - **`internal/diff/`** — Unified diff parsing (`ParsePatch`, `StripHeader`, `AddedFilePatch`) shared by PR mode and local diff mode. Source-agnostic.
 - **`internal/gitdiff/`** — Local git queries for `review --diff`: changed/untracked `.md` listing and per-file patches via the `git` binary.
 - **`internal/github/`** — GitHub API client for PR operations via `google/go-github`. PR URL parsing (`ParsePRURL`), changed file listing (`ListMDFiles`), content fetching (`FetchFileContent`), and PR review submission (`SubmitReview`, `BuildPRReview`). Comment mapping from commd's `ReviewComment` to GitHub's `DraftReviewComment`.

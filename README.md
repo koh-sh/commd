@@ -237,7 +237,9 @@ Labels: `suggestion`, `issue`, `question` (default), `nitpick`, `todo`, `thought
 
 Decorations: `non-blocking`, `blocking`, `if-minor` — cycle with `Ctrl+D` in comment mode
 
-## Claude Code Integration
+## Claude Code Integration (Deprecated)
+
+> **Deprecated:** `commd cchook` and `commd cclocate` are deprecated and will be removed in a future release. They still work but are hidden from `commd --help`, and `cclocate` prints a deprecation notice. To review a plan or other Markdown file, run `commd review` on it directly.
 
 commd can be used as a Claude Code hook to review plan files interactively during plan mode.
 
