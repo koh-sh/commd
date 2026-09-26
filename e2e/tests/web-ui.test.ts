@@ -64,8 +64,9 @@ describe("Web Review UI (Basic)", () => {
       await page.keyboard.type("range");
       await press(page, "Control+s");
 
-      // At the bottom of the section, j moves on to the next section.
-      await press(page, "j");
+      // At the bottom of the section (its trailing blank line 8), j moves on
+      // to the next section.
+      await press(page, "j", "j");
       await eventually(async () => expect(await activeSection(page!)).toContain("1.1 JWT Verification"));
 
       await press(page, "s", "y");

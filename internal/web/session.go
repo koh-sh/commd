@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 
@@ -24,12 +22,12 @@ type Review struct {
 	Paths []string
 	// Load reads a file when its turn comes. ok=false skips it; Load reports
 	// the reason itself.
-	Load func(path string) (f File, ok bool)
+	Load func(path string) (f markdown.File, ok bool)
 }
 
 // FileResult is the outcome of reviewing one file.
 type FileResult struct {
-	File   File
+	File   markdown.File
 	Status markdown.Status
 	Review *markdown.ReviewResult // nil when the file was quit (skipped)
 }
@@ -74,10 +72,12 @@ type session struct {
 	seq     int // increments per reviewed file; requests carry it to detect stale pages
 	results []FileResult
 	done    chan Result // receives the result once when the session ends
+	token   string      // authenticates the API and the /assets/ URLs
+	theme   string      // initial color theme of the page
 }
 
-func newSession(review Review) *session {
-	s := &session{review: review, done: make(chan Result, 1)}
+func newSession(review Review, token, theme string) *session {
+	s := &session{review: review, done: make(chan Result, 1), token: token, theme: theme}
 	if len(review.Pick) > 0 {
 		s.phase = phasePick
 	} else {
@@ -101,8 +101,8 @@ func (s *session) advance() {
 		path := s.queue[0]
 		s.queue = s.queue[1:]
 		if f, ok := s.review.Load(path); ok {
-			s.current = newFileState(f)
 			s.seq++
+			s.current = newFileState(f, assetURL(s.seq, s.token))
 			s.phase = phaseReview
 			return
 		}
@@ -173,28 +173,4 @@ func newID() string {
 	var b [8]byte
 	_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error
 	return hex.EncodeToString(b[:])
-}
-
-// openAsset opens a file relative to the directory of the file under review.
-// os.Root keeps the lookup inside that directory, including through
-// symlinks and "..".
-func (s *session) openAsset(seq int, name string) (*os.File, error) {
-	var dir string
-	err := s.withFile(seq, func(f *fileState) error {
-		dir = filepath.Dir(f.Path)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, errNotFound)
-	}
-	defer root.Close()
-	f, err := root.Open(filepath.FromSlash(name))
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, errNotFound)
-	}
-	return f, nil
 }

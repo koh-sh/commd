@@ -15,7 +15,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +48,8 @@ type Options struct {
 // every file was finished or skipped in the browser (or the picker was
 // cancelled), or ctx is cancelled, which abandons the whole session.
 func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
-	s := newSession(review)
+	token := newID() + newID()
+	s := newSession(review, token, opts.Theme)
 	if s.phase == phaseDone {
 		return <-s.done, nil // nothing could be loaded; Load reported why
 	}
@@ -57,9 +57,8 @@ func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("starting web server: %w", err)
 	}
-	token := newID() + newID()
 	srv := &http.Server{
-		Handler:           newHandler(s, token, opts.Theme),
+		Handler:           newHandler(s),
 		ReadHeaderTimeout: 10 * time.Second,
 		// API requests and responses are small; images are local files.
 		ReadTimeout:  30 * time.Second,
@@ -97,12 +96,12 @@ func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
 
 // newHandler returns the HTTP handler: the embedded page plus the JSON API.
 // Every API call returns the whole session state, which the page renders.
-func newHandler(s *session, token, theme string) http.Handler {
+func newHandler(s *session) http.Handler {
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		panic(err) // the embedded directory always exists
 	}
-	api := &apiHandler{s: s, token: token, theme: theme}
+	api := &apiHandler{s: s}
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/state", api.getState)
@@ -114,7 +113,7 @@ func newHandler(s *session, token, theme string) http.Handler {
 	mux.HandleFunc("PUT /api/files/{seq}/viewed/{section}", api.setViewed)
 	mux.HandleFunc("POST /api/files/{seq}/finish", api.finish)
 	mux.HandleFunc("GET /assets/{seq}/{path...}", api.serveAsset)
-	return securityHeaders(requireToken(token, mux))
+	return securityHeaders(requireToken(s.token, mux))
 }
 
 // securityHeaders restricts the page to its own scripts and styles. Images
@@ -148,13 +147,11 @@ func validToken(got, want string) bool {
 }
 
 type apiHandler struct {
-	s     *session
-	token string
-	theme string
+	s *session
 }
 
 func (a *apiHandler) getState(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, a.s.state(a.theme, a.token))
+	writeJSON(w, http.StatusOK, a.s.state())
 }
 
 // search returns the IDs of the sections a search for the q parameter shows
@@ -189,8 +186,7 @@ func (a *apiHandler) addComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.respond(w, a.s.withFile(fileSeq(r), func(f *fileState) error {
-		_, err := f.addComment(in)
-		return err
+		return f.addComment(in)
 	}))
 }
 
@@ -200,8 +196,7 @@ func (a *apiHandler) updateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.respond(w, a.s.withFile(fileSeq(r), func(f *fileState) error {
-		_, err := f.updateComment(r.PathValue("id"), in)
-		return err
+		return f.updateComment(r.PathValue("id"), in)
 	}))
 }
 
@@ -243,7 +238,7 @@ func (a *apiHandler) respond(w http.ResponseWriter, err error) {
 		writeSessionError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, a.s.state(a.theme, a.token))
+	writeJSON(w, http.StatusOK, a.s.state())
 }
 
 // fileSeq returns the {seq} path value; an unparsable value never matches.
@@ -284,49 +279,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v) // the client is gone if this fails
-}
-
-// assetTypes are the files /assets/ serves: images referenced by the
-// reviewed document.
-var assetTypes = map[string]string{
-	".png":  "image/png",
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif":  "image/gif",
-	".webp": "image/webp",
-	".avif": "image/avif",
-	".svg":  "image/svg+xml",
-	".bmp":  "image/bmp",
-	".ico":  "image/x-icon",
-}
-
-// serveAsset serves an image referenced by a relative path in the document
-// under review, from the document's directory (never outside it). Images
-// cannot send the token header, so it comes in the t query parameter.
-func (a *apiHandler) serveAsset(w http.ResponseWriter, r *http.Request) {
-	if !validToken(r.URL.Query().Get("t"), a.token) {
-		writeError(w, http.StatusUnauthorized, errors.New("invalid session token"))
-		return
-	}
-	name := r.PathValue("path")
-	contentType, ok := assetTypes[strings.ToLower(path.Ext(name))]
-	if !ok {
-		writeError(w, http.StatusNotFound, fmt.Errorf("%s: not an image", name))
-		return
-	}
-	f, err := a.s.openAsset(fileSeq(r), name)
-	if err != nil {
-		writeSessionError(w, err)
-		return
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil || st.IsDir() {
-		writeError(w, http.StatusNotFound, fmt.Errorf("%s: %w", name, errNotFound))
-		return
-	}
-	w.Header().Set("Content-Type", contentType)
-	// An SVG opened on its own must not run scripts with this origin.
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
-	http.ServeContent(w, r, name, st.ModTime(), f)
 }

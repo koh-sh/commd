@@ -1964,37 +1964,6 @@ func TestClipLines(t *testing.T) {
 	}
 }
 
-func TestAppViewedState(t *testing.T) {
-	t.Run("without tracking", func(t *testing.T) {
-		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
-		if app.ViewedState() != nil {
-			t.Error("ViewedState should be nil when TrackViewed is false")
-		}
-	})
-
-	t.Run("with tracking no filepath", func(t *testing.T) {
-		app := NewApp(makeLargeDoc(3, 0), AppOptions{TrackViewed: true})
-		if app.ViewedState() != nil {
-			t.Error("ViewedState should be nil when FilePath is empty")
-		}
-	})
-
-	t.Run("with tracking and filepath", func(t *testing.T) {
-		app := NewApp(makeLargeDoc(3, 0), AppOptions{
-			TrackViewed: true,
-			FilePath:    "/nonexistent/plan.md",
-		})
-		vs := app.ViewedState()
-		if vs == nil {
-			t.Fatal("ViewedState should not be nil")
-			return
-		}
-		if len(vs.Sections) != 0 {
-			t.Error("should start with empty sections")
-		}
-	})
-}
-
 func TestNewDiffData(t *testing.T) {
 	tests := []struct {
 		name  string

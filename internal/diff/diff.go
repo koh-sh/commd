@@ -33,6 +33,16 @@ type Line struct {
 	OldLine int    // 1-based line number in the old file (0 for added lines)
 }
 
+// Position returns the file line number and side a comment on the line
+// targets: removed lines live on the LEFT side and are numbered by the old
+// file, the others on the RIGHT side numbered by the new file.
+func (l Line) Position() (line int, side string) {
+	if l.Type == Removed {
+		return l.OldLine, SideLeft
+	}
+	return l.NewLine, SideRight
+}
+
 // Info contains parsed diff data for a single file.
 type Info struct {
 	Lines []Line
@@ -158,13 +168,7 @@ func (d *Info) LineSideMap() (lineMap []int, sideMap []string, typeMap []byte) {
 	typeMap = make([]byte, len(d.Lines))
 	for i, dl := range d.Lines {
 		typeMap[i] = byte(dl.Type)
-		if dl.Type == Removed {
-			lineMap[i] = dl.OldLine
-			sideMap[i] = SideLeft
-		} else {
-			lineMap[i] = dl.NewLine
-			sideMap[i] = SideRight
-		}
+		lineMap[i], sideMap[i] = dl.Position()
 	}
 	return
 }

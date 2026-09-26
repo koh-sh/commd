@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"testing"
@@ -195,13 +196,46 @@ func TestDocumentDiffLineSections(t *testing.T) {
 	}
 }
 
-func TestDocumentSearchSections(t *testing.T) {
-	doc, err := Parse([]byte(sectionsDoc))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestDocumentQuote(t *testing.T) {
+	doc := &Document{SourceLines: []string{"one", "two", "three"}}
+	info := &diff.Info{Lines: []diff.Line{
+		{Type: diff.Context, Content: "ctx", NewLine: 1, OldLine: 1},
+		{Type: diff.Removed, Content: "old a", OldLine: 2},
+		{Type: diff.Removed, Content: "old b", OldLine: 3},
+		{Type: diff.Added, Content: "new a", NewLine: 2},
+		{Type: diff.Context, Content: "tail", NewLine: 3, OldLine: 4},
+	}}
 	tests := []struct {
 		name  string
+		info  *diff.Info
+		start int
+		end   int
+		side  string
+		want  []string
+	}{
+		{name: "source single line", start: 2, want: []string{"two"}},
+		{name: "source range", start: 1, end: 3, want: []string{"one", "two", "three"}},
+		{name: "source end clamped to file", start: 3, end: 9, want: []string{"three"}},
+		{name: "source start past end", start: 5, want: nil},
+		{name: "zero start", start: 0, want: nil},
+		{name: "diff right side", info: info, start: 2, end: 3, side: diff.SideRight, want: []string{"new a", "tail"}},
+		{name: "diff left side has the removed lines", info: info, start: 2, end: 3, side: diff.SideLeft, want: []string{"old a", "old b"}},
+		{name: "diff no lines on side", info: info, start: 1, side: diff.SideLeft, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := doc.Quote(tt.info, tt.start, tt.end, tt.side)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Quote(%d, %d, %q) = %v, want %v", tt.start, tt.end, tt.side, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDocumentSearchSections(t *testing.T) {
+	tests := []struct {
+		name  string
+		src   string // sectionsDoc when empty
 		query string
 		want  []string
 	}{
@@ -209,12 +243,17 @@ func TestDocumentSearchSections(t *testing.T) {
 		{name: "match shows its ancestors", query: "BETA body", want: []string{"S1", "S1.1"}},
 		{name: "match by ID", query: "s2", want: []string{"S2"}},
 		{name: "overview by name only", query: "over", want: []string{OverviewSectionID}},
+		{name: "no overview without a preamble", src: "# Title\n\n## A\n", query: "over", want: nil},
 		{name: "preamble text does not match the overview", query: "preamble", want: nil},
 		{name: "no match", query: "nonexistent", want: nil},
 		{name: "empty query", query: "", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			doc, err := Parse([]byte(cmp.Or(tt.src, sectionsDoc)))
+			if err != nil {
+				t.Fatal(err)
+			}
 			got := slices.Sorted(maps.Keys(doc.SearchSections(tt.query)))
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("SearchSections(%q) = %v, want %v", tt.query, got, tt.want)

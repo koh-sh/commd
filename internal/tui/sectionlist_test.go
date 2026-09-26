@@ -694,15 +694,6 @@ func TestToggleViewedSyncsState(t *testing.T) {
 	}
 }
 
-func TestViewedStateGetter(t *testing.T) {
-	state := markdown.NewViewedState()
-	sl := NewSectionList(makeDocWithChildren(), state)
-
-	if sl.ViewedState() != state {
-		t.Error("ViewedState() should return the same state pointer")
-	}
-}
-
 func TestSelectBySectionID(t *testing.T) {
 	sl := NewSectionList(makeDocWithChildren(), nil)
 
@@ -817,10 +808,6 @@ func TestViewedStateNil(t *testing.T) {
 	sl.ToggleViewed("S1")
 	if !sl.IsViewed("S1") {
 		t.Error("S1 should be viewed after toggle even with nil state")
-	}
-
-	if sl.ViewedState() != nil {
-		t.Error("ViewedState() should return nil when no state provided")
 	}
 }
 

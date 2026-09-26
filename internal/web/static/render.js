@@ -188,7 +188,7 @@ function renderSectionList() {
         },
         expandable ? (ui.collapsed.has(s.id) ? "▶" : "▼") : "",
       ),
-      s.id === "overview" ? null : h("span", { class: "sid" }, s.id),
+      s.id === st.overviewId ? null : h("span", { class: "sid" }, s.id),
       h("span", { class: "title", title: s.title }, s.title),
       n ? h("span", { class: "badge", title: plural(n, "comment") }, n) : null,
       h("span", { class: "check" }, viewed ? "✓" : ""),
@@ -206,7 +206,7 @@ function renderRight() {
   }
   const f = file();
   if (ui.rawView) {
-    main.append(...renderRawBlocks());
+    main.append(renderRawBlock());
   } else if (!f.sections.length) {
     main.append(h("div", { class: "empty" }, "This document is empty."));
   } else {
@@ -223,7 +223,7 @@ function blockHead(s) {
   return h(
     "div",
     { class: "block-head" },
-    s.id === "overview" ? null : h("span", { class: "sid" }, s.id),
+    s.id === st.overviewId ? null : h("span", { class: "sid" }, s.id),
     h("span", { class: "stitle" }, s.title),
     isRealSection(s.id)
       ? h(
@@ -273,27 +273,25 @@ function renderFullDocument() {
   );
 }
 
-// renderRawBlocks renders the raw view: one continuous listing in the full
+// renderRawBlock renders the raw view: one continuous listing in the full
 // view, like the TUI's, or the selected section's lines under its header.
-function renderRawBlocks() {
+function renderRawBlock() {
   const vis = visibleLines();
   const s = section(ui.cursor);
   if (!vis.length) {
     const msg = file().diff ? "No changes in this section." : "No lines.";
-    return [h("section", { class: "block" }, s ? blockHead(s) : null, h("div", { class: "empty" }, msg))];
+    return h("section", { class: "block" }, s ? blockHead(s) : null, h("div", { class: "empty" }, msg));
   }
   // In the full view, section comments follow the last line of their section.
-  if (ui.fullView) return [h("section", { class: "block document" }, renderLines(vis, true))];
+  if (ui.fullView) return h("section", { class: "block document" }, renderLines(vis, true));
   const sectionComments = s ? commentsOf(s.id).filter((c) => !c.startLine) : [];
-  return [
-    h(
-      "section",
-      { class: `block${s && isViewed(s.id) ? " viewed" : ""}`, dataset: { section: ui.cursor } },
-      s ? blockHead(s) : null,
-      renderLines(vis),
-      commentsBox(sectionComments, false),
-    ),
-  ];
+  return h(
+    "section",
+    { class: `block${s && isViewed(s.id) ? " viewed" : ""}`, dataset: { section: ui.cursor } },
+    s ? blockHead(s) : null,
+    renderLines(vis),
+    commentsBox(sectionComments, false),
+  );
 }
 
 function renderLines(indices, withSectionComments = false) {

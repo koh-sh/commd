@@ -25,9 +25,9 @@ func mustParse(t *testing.T, src string) *markdown.Document {
 	return doc
 }
 
-func testFile(t *testing.T, withDiff bool) File {
+func testFile(t *testing.T, withDiff bool) markdown.File {
 	t.Helper()
-	f := File{Path: "doc.md", Doc: mustParse(t, testSource)}
+	f := markdown.File{Path: "doc.md", Doc: mustParse(t, testSource)}
 	if withDiff {
 		f.Diff = diff.ParsePatch(testPatch)
 	}
@@ -46,9 +46,9 @@ func TestFileSections(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFileState(File{Path: "a.md", Doc: mustParse(t, tt.src)})
+			f := newFileState(markdown.File{Path: "a.md", Doc: mustParse(t, tt.src)}, nil)
 			var got []string
-			for _, s := range f.sectionsJSON(nil) {
+			for _, s := range f.rendered {
 				got = append(got, s.ID)
 			}
 			if !slices.Equal(got, tt.want) {
@@ -124,8 +124,8 @@ func TestFileAddComment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFileState(testFile(t, tt.diff))
-			c, err := f.addComment(tt.in)
+			f := newFileState(testFile(t, tt.diff), nil)
+			err := f.addComment(tt.in)
 			switch {
 			case tt.wantErr != nil:
 				if !errors.Is(err, tt.wantErr) {
@@ -140,6 +140,7 @@ func TestFileAddComment(t *testing.T) {
 			case err != nil:
 				t.Fatal(err)
 			}
+			c := f.comments[len(f.comments)-1]
 			if c.ID == "" {
 				t.Error("comment has no ID")
 			}
@@ -178,17 +179,16 @@ func TestFileUpdateComment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFileState(testFile(t, false))
-			c, err := f.addComment(commentInput{Action: "question", Body: "q", StartLine: 7})
-			if err != nil {
+			f := newFileState(testFile(t, false), nil)
+			if err := f.addComment(commentInput{Action: "question", Body: "q", StartLine: 7}); err != nil {
 				t.Fatal(err)
 			}
-			updated, err := f.updateComment(cmp.Or(tt.id, c.ID), tt.in)
-			if !errors.Is(err, tt.wantErr) {
+			c := f.comments[0]
+			if err := f.updateComment(cmp.Or(tt.id, c.ID), tt.in); !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 			if tt.wantErr == nil {
-				assertComment(t, updated.ReviewComment, tt.want)
+				assertComment(t, c.ReviewComment, tt.want)
 			}
 		})
 	}
@@ -208,12 +208,11 @@ func TestFileDeleteComment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFileState(testFile(t, false))
-			c, err := f.addComment(commentInput{SectionID: "S1", Action: "note", Body: "b"})
-			if err != nil {
+			f := newFileState(testFile(t, false), nil)
+			if err := f.addComment(commentInput{SectionID: "S1", Action: "note", Body: "b"}); err != nil {
 				t.Fatal(err)
 			}
-			id := cmp.Or(tt.id, c.ID)
+			id := cmp.Or(tt.id, f.comments[0].ID)
 			if tt.deleteTwice {
 				if err := f.deleteComment(id); err != nil {
 					t.Fatal(err)
@@ -250,7 +249,7 @@ func TestFileSetViewed(t *testing.T) {
 			if tt.initiallySeen {
 				state.MarkViewed(doc.FindSection("S1"))
 			}
-			f := newFileState(File{Path: "doc.md", Doc: doc, Viewed: state})
+			f := newFileState(markdown.File{Path: "doc.md", Doc: doc, Viewed: state}, nil)
 			if got := f.viewed["S1"]; got != tt.initiallySeen {
 				t.Fatalf("restored S1 viewed = %v, want %v", got, tt.initiallySeen)
 			}
@@ -265,14 +264,14 @@ func TestFileSetViewed(t *testing.T) {
 }
 
 func TestFileBuildReview(t *testing.T) {
-	f := newFileState(testFile(t, false))
+	f := newFileState(testFile(t, false), nil)
 	for _, in := range []commentInput{
 		{SectionID: "S2", Action: "note", Body: "s2"},
 		{Action: "note", Body: "s1 line", StartLine: 7},
 		{SectionID: "overview", Action: "note", Body: "overview"},
 		{SectionID: "S1", Action: "note", Body: "s1 section"},
 	} {
-		if _, err := f.addComment(in); err != nil {
+		if err := f.addComment(in); err != nil {
 			t.Fatal(err)
 		}
 	}

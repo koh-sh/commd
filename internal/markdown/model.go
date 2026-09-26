@@ -12,6 +12,9 @@ import (
 // OverviewSectionID is the virtual section ID used for file-level comments on the overview/preamble.
 const OverviewSectionID = "overview"
 
+// OverviewTitle is the name the overview is listed and searched by.
+const OverviewTitle = "Overview"
+
 // Document is the parsed structure of an entire Markdown file.
 type Document struct {
 	Title       string     // Leading H1 heading text ("" when the document has none)
@@ -30,6 +33,12 @@ type Section struct {
 	Parent    *Section   // Parent section (nil for top-level)
 	StartLine int        // 1-based line number of heading (0 = not set)
 	EndLine   int        // 1-based line number of last body line (0 = not set)
+}
+
+// HasOverview reports whether the section list starts with the overview
+// entry: only when there is a preamble to show.
+func (d *Document) HasOverview() bool {
+	return d.Preamble != ""
 }
 
 // AllSections returns a flat list of all sections in depth-first order.
@@ -103,17 +112,41 @@ func (d *Document) DiffLineSections(info *diff.Info) []string {
 	return out
 }
 
+// Quote returns the source text a line comment on start..end (1-based,
+// inclusive; end 0 means start only) quotes: the document's lines, or with
+// info the diff lines on side (see diff.Line.Position).
+func (d *Document) Quote(info *diff.Info, start, end int, side string) []string {
+	if start <= 0 {
+		return nil
+	}
+	end = max(end, start)
+	if info == nil {
+		if start > len(d.SourceLines) {
+			return nil
+		}
+		return slices.Clone(d.SourceLines[start-1 : min(end, len(d.SourceLines))])
+	}
+	var out []string
+	for _, dl := range info.Lines {
+		line, lineSide := dl.Position()
+		if lineSide == side && line >= start && line <= end {
+			out = append(out, dl.Content)
+		}
+	}
+	return out
+}
+
 // SearchSections returns the IDs of the sections a search for query shows:
 // those whose ID, title or body contain it (ignoring case), with their
-// ancestors and descendants. The overview matches by name only. An empty
-// query matches nothing.
+// ancestors and descendants. The overview, when listed, matches by name
+// only. An empty query matches nothing.
 func (d *Document) SearchSections(query string) map[string]bool {
 	shown := make(map[string]bool)
 	query = strings.ToLower(query)
 	if query == "" {
 		return shown
 	}
-	if strings.Contains("overview", query) { //nolint:gocritic // intentional: match when query is a substring of "overview"
+	if d.HasOverview() && strings.Contains(strings.ToLower(OverviewTitle), query) {
 		shown[OverviewSectionID] = true
 	}
 	var showDescendants func(sections []*Section)
@@ -155,10 +188,8 @@ func (c *ReviewComment) IsRemoved() bool {
 
 // ParseAction returns the ActionType for a label string.
 func ParseAction(s string) (ActionType, bool) {
-	for _, a := range ActionLabels {
-		if string(a) == s {
-			return a, true
-		}
+	if a := ActionType(s); slices.Contains(ActionLabels, a) {
+		return a, true
 	}
 	return "", false
 }
@@ -166,12 +197,18 @@ func ParseAction(s string) (ActionType, bool) {
 // ParseDecoration returns the Decoration for a label string; "" is
 // DecorationNone.
 func ParseDecoration(s string) (Decoration, bool) {
-	for _, d := range DecorationLabels {
-		if string(d) == s {
-			return d, true
-		}
+	if d := Decoration(s); slices.Contains(DecorationLabels, d) {
+		return d, true
 	}
 	return "", false
+}
+
+// File is a file to review, as the TUI and the browser receive it.
+type File struct {
+	Path   string
+	Doc    *Document
+	Diff   *diff.Info   // nil: review the full source instead of a diff
+	Viewed *ViewedState // nil: viewed marks live only for the session
 }
 
 // FileReview pairs a reviewed file with its parsed document and comments.

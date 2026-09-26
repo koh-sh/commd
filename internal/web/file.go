@@ -3,19 +3,13 @@ package web
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/koh-sh/commd/internal/diff"
 	"github.com/koh-sh/commd/internal/markdown"
 )
-
-// File is one document reviewed in the browser.
-type File struct {
-	Path   string
-	Doc    *markdown.Document
-	Diff   *diff.Info            // nil: review the full source instead of a diff
-	Viewed *markdown.ViewedState // nil: viewed marks live only for the session
-}
 
 // commentInput is what the browser sends to create or update a comment.
 type commentInput struct {
@@ -37,27 +31,29 @@ type comment struct {
 
 // fileState is the review state of the file under review.
 type fileState struct {
-	File
+	markdown.File
 	lines    []lineJSON      // the source (or diff) view
 	sections map[string]bool // valid section-level comment targets
 	comments []*comment      // in creation order
 	viewed   map[string]bool // section ID -> viewed
-	rendered []sectionJSON   // sections with HTML, built on first use (the source never changes)
+	rendered []sectionJSON   // sections with HTML (the source never changes)
 }
 
-func newFileState(f File) *fileState {
+// newFileState prepares f for review, rendering its sections once with image
+// destinations passed through imageURL (see renderHTML).
+func newFileState(f markdown.File, imageURL func(string) string) *fileState {
 	fs := &fileState{
 		File:     f,
 		sections: make(map[string]bool),
 		viewed:   make(map[string]bool),
+		rendered: renderSections(f.Doc, imageURL),
 	}
 	if f.Diff != nil {
 		fs.lines = diffLines(f.Doc, f.Diff)
 	} else {
 		fs.lines = sourceLines(f.Doc)
 	}
-	// Like the TUI, the overview is an entry only when there is a preamble.
-	if f.Doc.Preamble != "" {
+	if f.Doc.HasOverview() {
 		fs.sections[markdown.OverviewSectionID] = true
 	}
 	for _, sec := range f.Doc.AllSections() {
@@ -87,49 +83,40 @@ func diffLines(doc *markdown.Document, info *diff.Info) []lineJSON {
 	lines := make([]lineJSON, len(info.Lines))
 	for i, dl := range info.Lines {
 		line := lineJSON{Text: dl.Content, Type: string(dl.Type), Section: sections[i]}
-		if dl.Type == diff.Removed {
-			line.Line, line.Side = dl.OldLine, diff.SideLeft
-		} else {
-			line.Line, line.Side = dl.NewLine, diff.SideRight
-		}
+		line.Line, line.Side = dl.Position()
 		lines[i] = line
 	}
 	return lines
 }
 
 // addComment validates and stores a new comment.
-func (f *fileState) addComment(in commentInput) (*comment, error) {
+func (f *fileState) addComment(in commentInput) error {
 	c := &comment{ID: newID()}
 	if err := setLabel(&c.ReviewComment, in); err != nil {
-		return nil, err
+		return err
 	}
 	if in.StartLine > 0 {
 		if err := f.setLineTarget(&c.ReviewComment, in); err != nil {
-			return nil, err
+			return err
 		}
 	} else {
 		if !f.sections[in.SectionID] {
-			return nil, fmt.Errorf("section %q: %w", in.SectionID, errNotFound)
+			return fmt.Errorf("section %q: %w", in.SectionID, errNotFound)
 		}
 		c.SectionID = in.SectionID
 	}
 	f.comments = append(f.comments, c)
-	return c, nil
+	return nil
 }
 
 // updateComment changes the label, decoration, and body of a comment. The
-// target lines never change.
-func (f *fileState) updateComment(id string, in commentInput) (*comment, error) {
+// target lines never change. setLabel changes nothing when it fails.
+func (f *fileState) updateComment(id string, in commentInput) error {
 	i := f.commentIndex(id)
 	if i < 0 {
-		return nil, fmt.Errorf("comment %q: %w", id, errNotFound)
+		return fmt.Errorf("comment %q: %w", id, errNotFound)
 	}
-	updated := *f.comments[i]
-	if err := setLabel(&updated.ReviewComment, in); err != nil {
-		return nil, err
-	}
-	*f.comments[i] = updated
-	return &updated, nil
+	return setLabel(&f.comments[i].ReviewComment, in)
 }
 
 func (f *fileState) deleteComment(id string) error {
@@ -169,18 +156,12 @@ func (f *fileState) buildReview() *markdown.ReviewResult {
 	return markdown.NewReviewResult(f.Doc, comments)
 }
 
-// search returns the IDs of the listed sections a search for query shows,
-// in list order (see markdown.Document.SearchSections).
+// search returns the IDs of the sections a search for query shows (see
+// markdown.Document.SearchSections).
 func (f *fileState) search(query string) []string {
-	shown := f.Doc.SearchSections(query)
-	ids := []string{} // never null in JSON
-	if f.sections[markdown.OverviewSectionID] && shown[markdown.OverviewSectionID] {
-		ids = append(ids, markdown.OverviewSectionID)
-	}
-	for _, sec := range f.Doc.AllSections() {
-		if shown[sec.ID] {
-			ids = append(ids, sec.ID)
-		}
+	ids := slices.Sorted(maps.Keys(f.Doc.SearchSections(query)))
+	if ids == nil {
+		return []string{} // never null in JSON
 	}
 	return ids
 }
@@ -207,7 +188,6 @@ func (f *fileState) setLineTarget(c *markdown.ReviewComment, in commentInput) er
 		}
 	}
 	first, last := -1, -1
-	var quote []string
 	for i, l := range f.lines {
 		if l.Side != side || l.Line < in.StartLine || l.Line > end {
 			continue
@@ -216,7 +196,6 @@ func (f *fileState) setLineTarget(c *markdown.ReviewComment, in commentInput) er
 			first = i
 		}
 		last = i
-		quote = append(quote, l.Text)
 	}
 	if first < 0 || f.lines[first].Line != in.StartLine || f.lines[last].Line != end {
 		return fmt.Errorf("lines %s are not in the view", markdown.FormatLineRef(in.StartLine, end))
@@ -227,7 +206,7 @@ func (f *fileState) setLineTarget(c *markdown.ReviewComment, in commentInput) er
 		c.EndLine = end
 	}
 	c.Side = side
-	c.Quote = quote
+	c.Quote = f.Doc.Quote(f.Diff, c.StartLine, c.EndLine, side)
 	return nil
 }
 

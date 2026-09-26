@@ -40,7 +40,7 @@ func NewSectionList(doc *markdown.Document, state *markdown.ViewedState) *Sectio
 	}
 
 	// Add overview entry if there's a preamble
-	if doc.Preamble != "" {
+	if doc.HasOverview() {
 		sl.items = append(sl.items, SectionListItem{
 			Visible:    true,
 			IsOverview: true,
@@ -277,11 +277,6 @@ func (sl *SectionList) ToggleViewed(sectionID string) {
 	}
 }
 
-// ViewedState returns the underlying ViewedState for persistence.
-func (sl *SectionList) ViewedState() *markdown.ViewedState {
-	return sl.viewedState
-}
-
 // IsViewed returns whether a section is marked as viewed.
 func (sl *SectionList) IsViewed(sectionID string) bool {
 	return sl.viewed[sectionID]
@@ -359,7 +354,7 @@ func (sl *SectionList) Render(width, height int, styles Styles) string {
 		var line string
 		if item.IsOverview {
 			badge := sl.renderBadge(markdown.OverviewSectionID, styles)
-			line = "  Overview" + badge
+			line = "  " + markdown.OverviewTitle + badge
 		} else if item.Section != nil {
 			indent := strings.Repeat("  ", item.Depth)
 			prefix := " "

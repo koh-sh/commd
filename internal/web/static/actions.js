@@ -215,9 +215,13 @@ export function scrollHorizontal(fn) {
   for (const el of document.querySelectorAll("#content pre, #content .markdown table")) fn(el);
 }
 
+// The section list takes 10-50% of the width, as in the TUI.
+const minLeftRatio = 10;
+const maxLeftRatio = 50;
+
 export function resizeLeft(delta) {
   const next = ui.leftRatio + delta;
-  if (window.innerWidth < 720 || next < 10 || next > 50) return;
+  if (window.innerWidth < 720 || next < minLeftRatio || next > maxLeftRatio) return;
   ui.leftRatio = next;
 }
 
@@ -227,7 +231,7 @@ export function startResize(ev) {
   const resizer = ev.currentTarget;
   resizer.classList.add("dragging");
   const move = (e) => {
-    ui.leftRatio = clamp((e.clientX / window.innerWidth) * 100, 10, 50);
+    ui.leftRatio = clamp((e.clientX / window.innerWidth) * 100, minLeftRatio, maxLeftRatio);
     $("#sidebar").style.width = `${ui.leftRatio}%`;
   };
   const up = () => {
@@ -244,9 +248,11 @@ export function toggleViewed(id) {
   send(() => fileAPI("PUT", `/viewed/${encodeURIComponent(id)}`, { viewed: !isViewed(id) }));
 }
 
+// openSectionEditor opens the editor for a section comment; it is offered in
+// the rendered view only, as in the TUI.
 export function openSectionEditor(id) {
-  if (ui.rawView || !id) return; // section comments come from the rendered view
-  openEditor({ sectionId: id }, null);
+  if (!id) return;
+  openEditor({ sectionId: id });
 }
 
 export function openLineEditor() {
@@ -256,22 +262,22 @@ export function openLineEditor() {
   const start = f.lines[r.first].line;
   const end = f.lines[r.last].line;
   ui.anchor = -1;
-  openEditor({ sectionId: f.lines[r.first].section, startLine: start, endLine: end > start ? end : 0, side: r.side }, null);
+  openEditor({ sectionId: f.lines[r.first].section, startLine: start, endLine: end, side: r.side });
 }
 
-// openEditor opens the editor for a new comment (existing = null) or an
-// existing one.
-function openEditor(target, existing) {
+// openEditor opens the editor for an existing comment (c has an id, and it
+// was opened from the comment list) or a new one on c's target.
+function openEditor(c) {
   ui.editor = {
-    id: existing ? existing.id : null,
-    sectionId: target.sectionId,
-    startLine: target.startLine || 0,
-    endLine: target.endLine || 0,
-    side: target.side || "",
-    label: Math.max(st.labels.indexOf(existing ? existing.action : st.defaultLabel), 0),
-    deco: Math.max(st.decorations.indexOf(existing ? existing.decoration : ""), 0),
-    body: existing ? existing.body : "",
-    fromList: Boolean(existing),
+    id: c.id || null,
+    sectionId: c.sectionId,
+    startLine: c.startLine || 0,
+    endLine: c.endLine || 0,
+    side: c.side || "",
+    label: Math.max(st.labels.indexOf(c.action || st.defaultLabel), 0),
+    deco: Math.max(st.decorations.indexOf(c.decoration || ""), 0),
+    body: c.body || "",
+    fromList: Boolean(c.id),
   };
   ui.mode = "comment";
 }
@@ -313,7 +319,6 @@ export function cycle(n, delta, len) {
   return (n + delta + len) % len;
 }
 
-
 export function openList(sectionId) {
   if (!sectionId || !commentsOf(sectionId).length) return;
   ui.list = { sectionId, cursor: 0 };
@@ -337,7 +342,7 @@ function reopenList(sectionId) {
 export function editFromList() {
   const c = commentsOf(ui.list.sectionId)[ui.list.cursor];
   if (!c) return;
-  openEditor({ sectionId: c.sectionId, startLine: c.startLine, endLine: c.endLine, side: c.side }, c);
+  openEditor(c);
   hooks.render();
 }
 
@@ -348,7 +353,6 @@ export async function deleteFromList() {
   if (await send(() => fileAPI("DELETE", `/comments/${encodeURIComponent(c.id)}`))) reopenList(sectionId);
   hooks.render();
 }
-
 
 export function openConfirm(kind) {
   ui.confirm = kind;
@@ -390,7 +394,6 @@ export function closeSearch(keep) {
   clampCursorToList();
   moveCursorTo(ui.cursor);
 }
-
 
 export function togglePick(i) {
   const sel = ui.picker.selected;

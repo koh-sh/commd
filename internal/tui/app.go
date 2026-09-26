@@ -85,6 +85,7 @@ type DiffData struct {
 	SideMap      []string // maps display index → "RIGHT" or "LEFT"
 	TypeMap      []byte   // maps display index → diff line type ('+', '-', ' ')
 	Sections     []string // maps display index → section ID
+	Info         *diff.Info
 }
 
 // NewDiffData converts a parsed patch into the display data the raw view
@@ -101,28 +102,27 @@ func NewDiffData(doc *markdown.Document, info *diff.Info) *DiffData {
 		SideMap:      sideMap,
 		TypeMap:      typeMap,
 		Sections:     doc.DiffLineSections(info),
+		Info:         info,
 	}
 }
 
 // AppOptions configures the TUI appearance.
 type AppOptions struct {
-	Theme       string    // "dark" or "light"
-	FilePath    string    // file path (displayed in title bar)
-	TrackViewed bool      // persist viewed state to sidecar file
-	MultiFile   bool      // part of a multi-file flow: dialogs say "finish/skip this file" instead of "submit/quit"
-	Diff        *DiffData // when set, raw view shows diff instead of full source
+	Theme    string // "dark" or "light"
+	FilePath string // file path (displayed in title bar)
+	// Viewed restores the viewed marks and is updated in place as sections
+	// are marked, for the caller to persist. nil keeps marks for the session.
+	Viewed    *markdown.ViewedState
+	MultiFile bool      // part of a multi-file flow: dialogs say "finish/skip this file" instead of "submit/quit"
+	Diff      *DiffData // when set, raw view shows diff instead of full source
 }
 
 // NewApp creates a new App model.
 func NewApp(doc *markdown.Document, opts AppOptions) *App {
-	var state *markdown.ViewedState
-	if opts.TrackViewed && opts.FilePath != "" {
-		state = markdown.LoadViewedState(markdown.StatePath(opts.FilePath))
-	}
 	styles := stylesForTheme(opts.Theme)
 	a := &App{
 		doc:            doc,
-		sectionList:    NewSectionList(doc, state),
+		sectionList:    NewSectionList(doc, opts.Viewed),
 		comment:        NewCommentEditor(),
 		commentList:    NewCommentList(),
 		search:         NewSearchBar(),
@@ -164,11 +164,6 @@ func (a *App) Result() AppResult {
 // isRawMode returns true when raw source view is active.
 func (a *App) isRawMode() bool {
 	return a.rawView && a.linePane != nil
-}
-
-// ViewedState returns the current viewed state for persistence.
-func (a *App) ViewedState() *markdown.ViewedState {
-	return a.sectionList.ViewedState()
 }
 
 // Init implements tea.Model.
@@ -584,8 +579,12 @@ func (a *App) handleCommentMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			// Line-level comments carry the commented source text so the
 			// review output can quote it; line numbers alone go stale once
 			// the file is edited, and removed diff lines exist nowhere else.
-			if result.StartLine > 0 && a.linePane != nil {
-				result.Quote = a.linePane.SourceText(result.StartLine, result.EndLine, result.Side)
+			if result.StartLine > 0 {
+				var info *diff.Info
+				if a.opts.Diff != nil {
+					info = a.opts.Diff.Info
+				}
+				result.Quote = a.doc.Quote(info, result.StartLine, result.EndLine, result.Side)
 			}
 			if a.editCommentIdx >= 0 {
 				a.sectionList.UpdateComment(a.comment.SectionID(), a.editCommentIdx, result)
@@ -867,32 +866,8 @@ func (a *App) updateLinePaneViewRange() {
 		return
 	}
 	// Section view: show only the selected section's lines
-	if a.opts.Diff != nil {
-		// Diff lines are assigned to sections (removed lines have no place in
-		// the new file's line ranges).
-		if id := a.selectedSectionID(); id != "" {
-			a.linePane.SetViewSection(id)
-			return
-		}
-		a.linePane.ClearViewRange()
-		return
-	}
-	if a.sectionList.IsOverviewSelected() {
-		// Overview: show from line 1 to the start of the first section
-		sections := a.doc.AllSections()
-		if len(sections) > 0 && sections[0].StartLine > 1 {
-			a.linePane.SetViewRange(1, sections[0].StartLine-1)
-		} else {
-			a.linePane.SetViewRange(1, a.linePane.LineCount())
-		}
-		return
-	}
-	if section := a.sectionList.Selected(); section != nil {
-		endLine := section.EndLine
-		if endLine <= 0 {
-			endLine = a.linePane.LineCount()
-		}
-		a.linePane.SetViewRange(section.StartLine, endLine)
+	if id := a.selectedSectionID(); id != "" {
+		a.linePane.SetViewSection(id)
 		return
 	}
 	a.linePane.ClearViewRange()

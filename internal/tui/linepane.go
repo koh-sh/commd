@@ -59,22 +59,9 @@ func (lp *LinePane) SetSize(width, height int) {
 	}
 }
 
-// SetViewRange shows the source lines startLine..endLine (1-based,
-// inclusive). Pass 0, 0 to show all lines. Diff mode uses SetViewSection.
-func (lp *LinePane) SetViewRange(startLine, endLine int) {
-	if startLine <= 0 || endLine <= 0 {
-		lp.ClearViewRange()
-		return
-	}
-	lp.viewStart = startLine - 1
-	lp.viewEnd = min(endLine, len(lp.lines))
-	lp.clampCursor()
-	lp.ensureVisible()
-}
-
-// SetViewSection shows only the diff lines of the given section, which are
-// contiguous (see markdown.Document.DiffLineSections). A section without
-// changes shows an empty range.
+// SetViewSection shows only the lines of the given section, which are
+// contiguous (see markdown.Document.LineSections and DiffLineSections). A
+// section without diff lines shows an empty range.
 func (lp *LinePane) SetViewSection(sectionID string) {
 	first, last := -1, -1
 	for i, id := range lp.lineSections {
@@ -293,38 +280,6 @@ func (lp *LinePane) CanComment() bool {
 		return lp.diffLineMap[lp.cursor] > 0
 	}
 	return false
-}
-
-// SourceText returns the source text of the given 1-based file line range.
-// In diff mode, only lines on the given side are returned (removed lines
-// live on the LEFT side and are numbered by the old file), and the "+ "/"- "
-// display prefix is stripped. endLine 0 means a single line.
-func (lp *LinePane) SourceText(startLine, endLine int, side string) []string {
-	if startLine <= 0 {
-		return nil
-	}
-	if endLine < startLine {
-		endLine = startLine
-	}
-	if lp.diffLineMap == nil {
-		if startLine > len(lp.lines) {
-			return nil
-		}
-		return lp.lines[startLine-1 : min(endLine, len(lp.lines))]
-	}
-	var out []string
-	for i, line := range lp.diffLineMap {
-		if line < startLine || line > endLine || lp.diffSideMap[i] != side {
-			continue
-		}
-		// FormatDiffLines renders "<type> <content>"; drop the 2-cell prefix.
-		text := lp.lines[i]
-		if len(text) >= 2 {
-			text = text[2:]
-		}
-		out = append(out, text)
-	}
-	return out
 }
 
 // ScrollToLine scrolls the viewport so the given 1-based file line is

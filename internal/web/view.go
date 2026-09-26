@@ -2,8 +2,6 @@ package web
 
 import (
 	"bytes"
-	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/koh-sh/commd/internal/markdown"
@@ -31,6 +29,8 @@ type stateJSON struct {
 	Labels       []string `json:"labels"`
 	Decorations  []string `json:"decorations"`
 	DefaultLabel string   `json:"defaultLabel"`
+	// OverviewID is the section ID of the overview, which is not a heading.
+	OverviewID string `json:"overviewId"`
 }
 
 type fileJSON struct {
@@ -47,11 +47,6 @@ type sectionJSON struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Depth int    `json:"depth"`
-	// Start and End are the source lines the section view of the raw source
-	// shows, as in the TUI (the overview spans the lines before the first
-	// heading). Diff lines are shown by their section instead.
-	Start int    `json:"start"`
-	End   int    `json:"end"`
 	HTML  string `json:"html"` // rendered Markdown; raw HTML in the source is escaped
 }
 
@@ -101,20 +96,6 @@ func renderHTML(md string, imageURL func(dest string) string) string {
 	return buf.String()
 }
 
-// assetURL returns the imageURL function for a file under review: relative
-// image paths are served from the file's directory by /assets/ (see
-// serveAsset), authenticated by the token in the query since images cannot
-// send headers. Other destinations (URLs, absolute paths) are kept.
-func assetURL(seq int, token string) func(string) string {
-	return func(dest string) string {
-		u, err := url.Parse(dest)
-		if err != nil || u.Scheme != "" || u.Host != "" || u.Path == "" || strings.HasPrefix(u.Path, "/") {
-			return dest
-		}
-		return fmt.Sprintf("/assets/%d/%s?t=%s", seq, u.EscapedPath(), url.QueryEscape(token))
-	}
-}
-
 // labelsJSON and decorationsJSON are the comment labels the editor cycles
 // through, in the TUI's order.
 var (
@@ -131,34 +112,35 @@ func labelStrings[T ~string](labels []T) []string {
 }
 
 // state returns the session state for the browser.
-func (s *session) state(theme, token string) stateJSON {
+func (s *session) state() stateJSON {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := stateJSON{
 		Phase:        s.phase,
 		Seq:          s.seq,
 		Multi:        s.multi,
-		Theme:        theme,
+		Theme:        s.theme,
 		Labels:       labelsJSON,
 		Decorations:  decorationsJSON,
 		DefaultLabel: string(markdown.DefaultAction),
+		OverviewID:   markdown.OverviewSectionID,
 	}
 	switch s.phase {
 	case phasePick:
 		out.Pick = s.review.Pick
 	case phaseReview:
-		f := s.current.toJSON(assetURL(s.seq, token))
+		f := s.current.toJSON()
 		out.File = &f
 	}
 	return out
 }
 
-func (f *fileState) toJSON(imageURL func(string) string) fileJSON {
+func (f *fileState) toJSON() fileJSON {
 	out := fileJSON{
 		Path:     f.Path,
 		Title:    f.Doc.Title,
 		Diff:     f.Diff != nil,
-		Sections: f.sectionsJSON(imageURL),
+		Sections: f.rendered,
 		Lines:    f.lines,
 		Comments: f.commentsJSON(),
 		Viewed:   []string{},
@@ -171,49 +153,37 @@ func (f *fileState) toJSON(imageURL func(string) string) fileJSON {
 	return out
 }
 
-// sectionsJSON returns the sections in display order, the overview first.
+// renderSections returns the sections in display order, the overview first.
 // Each section is rendered from its own source lines, so headings keep their
-// inline formatting and setext style. They are rendered once per file: the
-// source never changes, and neither does imageURL, which only depends on the
-// file's seq.
-func (f *fileState) sectionsJSON(imageURL func(string) string) []sectionJSON {
-	if f.rendered != nil {
-		return f.rendered
-	}
+// inline formatting and setext style.
+func renderSections(doc *markdown.Document, imageURL func(string) string) []sectionJSON {
 	out := []sectionJSON{} // never null in JSON: the page reads .length
-	doc := f.Doc
 	all := doc.AllSections()
-	if f.sections[markdown.OverviewSectionID] {
+	if doc.HasOverview() {
+		// The overview is the preamble: the lines before the first heading.
 		end := len(doc.SourceLines)
 		if len(all) > 0 {
 			end = all[0].StartLine - 1
 		}
-		md := sourceRange(doc, 1, end)
 		out = append(out, sectionJSON{
 			ID:    markdown.OverviewSectionID,
-			Title: "Overview",
-			Start: 1,
-			End:   end,
-			HTML:  renderHTML(md, imageURL),
+			Title: markdown.OverviewTitle,
+			HTML:  renderHTML(sourceRange(doc, 1, end), imageURL),
 		})
 	}
 	var walk func(sections []*markdown.Section, depth int)
 	walk = func(sections []*markdown.Section, depth int) {
 		for _, sec := range sections {
-			md := sourceRange(doc, sec.StartLine, sec.EndLine)
 			out = append(out, sectionJSON{
 				ID:    sec.ID,
 				Title: sec.Title,
 				Depth: depth,
-				Start: sec.StartLine,
-				End:   sec.EndLine,
-				HTML:  renderHTML(md, imageURL),
+				HTML:  renderHTML(sourceRange(doc, sec.StartLine, sec.EndLine), imageURL),
 			})
 			walk(sec.Children, depth+1)
 		}
 	}
 	walk(doc.Sections, 0)
-	f.rendered = out
 	return out
 }
 

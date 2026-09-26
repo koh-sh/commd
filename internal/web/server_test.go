@@ -33,11 +33,11 @@ func do(t *testing.T, h http.Handler, method, path, token, body string) (int, st
 
 func singleFileSession(t *testing.T) *session {
 	t.Helper()
-	return newSession(Review{Paths: []string{"doc.md"}, Load: func(string) (File, bool) { return testFile(t, false), true }})
+	return newSession(Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, bool) { return testFile(t, false), true }}, testToken, "light")
 }
 
 func TestHandlerToken(t *testing.T) {
-	h := newHandler(singleFileSession(t), testToken, "dark")
+	h := newHandler(singleFileSession(t))
 	tests := []struct {
 		name   string
 		path   string
@@ -61,7 +61,7 @@ func TestHandlerToken(t *testing.T) {
 
 func TestHandlerAPI(t *testing.T) {
 	s := singleFileSession(t)
-	h := newHandler(s, testToken, "light")
+	h := newHandler(s)
 
 	// Create a comment first so later steps can address it by ID.
 	status, body := do(t, h, http.MethodPost, "/api/files/1/comments", testToken,
@@ -116,8 +116,8 @@ func TestHandlerAPI(t *testing.T) {
 
 func TestHandlerPick(t *testing.T) {
 	loader := &testLoader{t: t, known: []string{"a.md", "b.md"}}
-	s := newSession(Review{Pick: []string{"a.md", "b.md"}, Load: loader.load})
-	h := newHandler(s, testToken, "dark")
+	s := newSession(Review{Pick: []string{"a.md", "b.md"}, Load: loader.load}, testToken, "light")
+	h := newHandler(s)
 
 	status, body := do(t, h, http.MethodGet, "/api/state", testToken, "")
 	if status != http.StatusOK || !strings.Contains(body, `"phase":"pick"`) || !strings.Contains(body, `"pick":["a.md","b.md"]`) {
@@ -134,7 +134,7 @@ func TestHandlerPick(t *testing.T) {
 
 func TestStateEscapesRawHTML(t *testing.T) {
 	doc := mustParse(t, "## A\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))\n")
-	html := newFileState(File{Path: "a.md", Doc: doc}).sectionsJSON(nil)[0].HTML
+	html := newFileState(markdown.File{Path: "a.md", Doc: doc}, nil).rendered[0].HTML
 	for _, bad := range []string{"<script>", "javascript:"} {
 		if strings.Contains(html, bad) {
 			t.Errorf("rendered HTML contains %q:\n%s", bad, html)
@@ -144,7 +144,7 @@ func TestStateEscapesRawHTML(t *testing.T) {
 
 func TestStateSectionHTML(t *testing.T) {
 	doc := mustParse(t, "Title\n=====\n\nIntro.\n\n## Use `commd`\n\nBody.\n\n### Child\n\nChild body.\n")
-	sections := newFileState(File{Path: "a.md", Doc: doc}).sectionsJSON(nil)
+	sections := newFileState(markdown.File{Path: "a.md", Doc: doc}, nil).rendered
 	tests := []struct {
 		id      string
 		want    []string
@@ -199,7 +199,7 @@ func TestServe(t *testing.T) {
 			}
 			done := make(chan served, 1)
 			go func() {
-				review := Review{Paths: []string{"doc.md"}, Load: func(string) (File, bool) { return testFile(t, false), true }}
+				review := Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, bool) { return testFile(t, false), true }}
 				res, err := Serve(ctx, review, Options{
 					Log:  logW,
 					Open: func(url string) error { opened <- url; return nil },
@@ -256,7 +256,7 @@ func TestServe(t *testing.T) {
 
 func TestServeNothingToReview(t *testing.T) {
 	var log bytes.Buffer
-	review := Review{Paths: []string{"gone.md"}, Load: func(string) (File, bool) { return File{}, false }}
+	review := Review{Paths: []string{"gone.md"}, Load: func(string) (markdown.File, bool) { return markdown.File{}, false }}
 	res, err := Serve(context.Background(), review, Options{Log: &log, Open: func(string) error {
 		t.Error("no browser should open when nothing can be reviewed")
 		return nil
@@ -285,8 +285,8 @@ func readLine(r io.Reader) (string, error) {
 }
 
 func TestStateEmptyDocument(t *testing.T) {
-	f := newFileState(File{Path: "empty.md", Doc: mustParse(t, "")})
-	body, err := json.Marshal(f.toJSON(nil))
+	f := newFileState(markdown.File{Path: "empty.md", Doc: mustParse(t, "")}, nil)
+	body, err := json.Marshal(f.toJSON())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,10 +341,10 @@ func TestServeAsset(t *testing.T) {
 		}
 	}
 	docPath := filepath.Join(dir, "docs", "doc.md")
-	s := newSession(Review{Paths: []string{docPath}, Load: func(string) (File, bool) {
-		return File{Path: docPath, Doc: mustParse(t, "![demo](img/demo.gif)\n")}, true
-	}})
-	h := newHandler(s, testToken, "dark")
+	s := newSession(Review{Paths: []string{docPath}, Load: func(string) (markdown.File, bool) {
+		return markdown.File{Path: docPath, Doc: mustParse(t, "![demo](img/demo.gif)\n")}, true
+	}}, testToken, "light")
+	h := newHandler(s)
 
 	// The rendered document points at the asset route.
 	_, body := do(t, h, http.MethodGet, "/api/state", testToken, "")

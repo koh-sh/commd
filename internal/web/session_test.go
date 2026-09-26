@@ -16,12 +16,12 @@ type testLoader struct {
 	loaded []string
 }
 
-func (l *testLoader) load(path string) (File, bool) {
+func (l *testLoader) load(path string) (markdown.File, bool) {
 	l.loaded = append(l.loaded, path)
 	if !slices.Contains(l.known, path) {
-		return File{}, false
+		return markdown.File{}, false
 	}
-	return File{Path: path, Doc: mustParse(l.t, testSource)}, true
+	return markdown.File{Path: path, Doc: mustParse(l.t, testSource)}, true
 }
 
 // step is one action in a session flow test.
@@ -112,7 +112,7 @@ func TestSessionFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			loader := &testLoader{t: t, known: tt.known}
 			tt.review.Load = loader.load
-			s := newSession(tt.review)
+			s := newSession(tt.review, testToken, "light")
 			for _, st := range tt.steps {
 				var err error
 				switch {
@@ -120,8 +120,7 @@ func TestSessionFlow(t *testing.T) {
 					err = s.pick(st.pick, st.cancel)
 				case st.comment:
 					err = s.withFile(s.seq, func(f *fileState) error {
-						_, err := f.addComment(commentInput{SectionID: "S1", Action: "note", Body: "b"})
-						return err
+						return f.addComment(commentInput{SectionID: "S1", Action: "note", Body: "b"})
 					})
 				case st.stale:
 					if err := s.finish(s.seq-1, true); !errors.Is(err, errStale) {
@@ -162,10 +161,10 @@ func TestSessionFlow(t *testing.T) {
 
 func TestSessionPhaseErrors(t *testing.T) {
 	picking := func(t *testing.T) *session {
-		return newSession(Review{Pick: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load})
+		return newSession(Review{Pick: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, "light")
 	}
 	reviewing := func(t *testing.T) *session {
-		return newSession(Review{Paths: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load})
+		return newSession(Review{Paths: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, "light")
 	}
 	tests := []struct {
 		name  string

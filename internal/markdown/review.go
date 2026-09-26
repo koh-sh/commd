@@ -72,7 +72,7 @@ func writeComments(sb *strings.Builder, result *ReviewResult, d *Document, headi
 		if !ok {
 			var title string
 			if c.SectionID == OverviewSectionID {
-				title = "Overview"
+				title = OverviewTitle
 			} else {
 				section := d.FindSection(c.SectionID)
 				title = c.SectionID

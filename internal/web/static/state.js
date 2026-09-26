@@ -52,7 +52,7 @@ export const section = (id) => file().sections.find((s) => s.id === id);
 export const commentsOf = (id) => file().comments.filter((c) => c.sectionId === id);
 export const isViewed = (id) => file().viewed.includes(id);
 // The overview cannot be marked viewed and is not counted, as in the TUI.
-export const isRealSection = (id) => id != null && id !== "overview";
+export const isRealSection = (id) => id != null && id !== st.overviewId;
 export const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
 
 export function lineRef(c) {
@@ -106,16 +106,14 @@ export function hasChildren(s) {
 }
 
 // visibleLines returns the indices of file.lines the raw view shows: every
-// line in the full view; in the section view, the selected section's lines
-// (its source range, or its diff lines in diff mode).
+// line in the full view; in the section view, the selected section's lines.
 export function visibleLines() {
   const f = file();
   const all = f.lines.map((_, i) => i);
   if (ui.fullView) return all;
   const s = section(ui.cursor);
   if (!s) return [];
-  if (f.diff) return all.filter((i) => f.lines[i].section === s.id);
-  return all.filter((i) => f.lines[i].line >= s.start && f.lines[i].line <= s.end);
+  return all.filter((i) => f.lines[i].section === s.id);
 }
 
 // selectionRange returns the lines a line comment would cover: the cursor
