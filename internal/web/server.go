@@ -134,13 +134,17 @@ func securityHeaders(next http.Handler) http.Handler {
 // carry no review data and are served without it.
 func requireToken(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") &&
-			subtle.ConstantTimeCompare([]byte(r.Header.Get(tokenHeader)), []byte(token)) != 1 {
+		if strings.HasPrefix(r.URL.Path, "/api/") && !validToken(r.Header.Get(tokenHeader), token) {
 			writeError(w, http.StatusUnauthorized, errors.New("invalid session token"))
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// validToken compares tokens in constant time.
+func validToken(got, want string) bool {
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
 type apiHandler struct {
@@ -300,7 +304,7 @@ var assetTypes = map[string]string{
 // under review, from the document's directory (never outside it). Images
 // cannot send the token header, so it comes in the t query parameter.
 func (a *apiHandler) serveAsset(w http.ResponseWriter, r *http.Request) {
-	if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("t")), []byte(a.token)) != 1 {
+	if !validToken(r.URL.Query().Get("t"), a.token) {
 		writeError(w, http.StatusUnauthorized, errors.New("invalid session token"))
 		return
 	}

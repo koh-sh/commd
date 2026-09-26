@@ -61,7 +61,7 @@ type lineJSON struct {
 	Line    int    `json:"line"`
 	Side    string `json:"side,omitempty"`
 	Type    string `json:"type,omitempty"` // "+", "-", " " in diff mode
-	Section string `json:"section"`
+	Section string `json:"section"`        // section the line belongs to
 }
 
 type commentJSON struct {
@@ -116,6 +116,21 @@ func assetURL(seq int, token string) func(string) string {
 	}
 }
 
+// labelsJSON and decorationsJSON are the comment labels the editor cycles
+// through, in the TUI's order.
+var (
+	labelsJSON      = labelStrings(markdown.ActionLabels)
+	decorationsJSON = labelStrings(markdown.DecorationLabels)
+)
+
+func labelStrings[T ~string](labels []T) []string {
+	out := make([]string, len(labels))
+	for i, l := range labels {
+		out[i] = string(l)
+	}
+	return out
+}
+
 // state returns the session state for the browser.
 func (s *session) state(theme, token string) stateJSON {
 	s.mu.Lock()
@@ -125,15 +140,9 @@ func (s *session) state(theme, token string) stateJSON {
 		Seq:          s.seq,
 		Multi:        s.multi,
 		Theme:        theme,
-		Labels:       make([]string, len(markdown.ActionLabels)),
-		Decorations:  make([]string, len(markdown.DecorationLabels)),
+		Labels:       labelsJSON,
+		Decorations:  decorationsJSON,
 		DefaultLabel: string(markdown.DefaultAction),
-	}
-	for i, a := range markdown.ActionLabels {
-		out.Labels[i] = string(a)
-	}
-	for i, d := range markdown.DecorationLabels {
-		out.Decorations[i] = string(d)
 	}
 	switch s.phase {
 	case phasePick:
@@ -150,16 +159,10 @@ func (f *fileState) toJSON(imageURL func(string) string) fileJSON {
 		Path:     f.Path,
 		Title:    f.Doc.Title,
 		Diff:     f.Diff != nil,
-		Sections: f.renderedSections(imageURL),
-		Lines:    make([]lineJSON, len(f.lines)),
+		Sections: f.sectionsJSON(imageURL),
+		Lines:    f.lines,
 		Comments: f.commentsJSON(),
 		Viewed:   []string{},
-	}
-	for i, l := range f.lines {
-		out.Lines[i] = lineJSON{Text: l.Text, Line: l.Line, Side: l.Side, Section: l.SectionID}
-		if l.Type != 0 {
-			out.Lines[i].Type = string(l.Type)
-		}
 	}
 	for _, sec := range out.Sections {
 		if f.viewed[sec.ID] {
@@ -171,8 +174,13 @@ func (f *fileState) toJSON(imageURL func(string) string) fileJSON {
 
 // sectionsJSON returns the sections in display order, the overview first.
 // Each section is rendered from its own source lines, so headings keep their
-// inline formatting and setext style.
+// inline formatting and setext style. They are rendered once per file: the
+// source never changes, and neither does imageURL, which only depends on the
+// file's seq.
 func (f *fileState) sectionsJSON(imageURL func(string) string) []sectionJSON {
+	if f.rendered != nil {
+		return f.rendered
+	}
 	out := []sectionJSON{} // never null in JSON: the page reads .length
 	doc := f.Doc
 	all := doc.AllSections()
@@ -207,6 +215,7 @@ func (f *fileState) sectionsJSON(imageURL func(string) string) []sectionJSON {
 		}
 	}
 	walk(doc.Sections, 0)
+	f.rendered = out
 	return out
 }
 
@@ -240,12 +249,4 @@ func (c *comment) toJSON() commentJSON {
 		Side:       c.Side,
 		Quote:      c.Quote,
 	}
-}
-
-// renderedSections returns sectionsJSON, rendering it only once per file.
-func (f *fileState) renderedSections(imageURL func(string) string) []sectionJSON {
-	if f.rendered == nil {
-		f.rendered = f.sectionsJSON(imageURL)
-	}
-	return f.rendered
 }

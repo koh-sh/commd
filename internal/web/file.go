@@ -35,19 +35,10 @@ type comment struct {
 	markdown.ReviewComment
 }
 
-// displayLine is one line of the source (or diff) view.
-type displayLine struct {
-	Text      string
-	Line      int    // file line number: new file, or old file for removed lines
-	Side      string // diff.SideRight / diff.SideLeft; "" outside diff mode
-	Type      diff.LineType
-	SectionID string // section the line belongs to
-}
-
 // fileState is the review state of the file under review.
 type fileState struct {
 	File
-	lines    []displayLine
+	lines    []lineJSON      // the source (or diff) view
 	sections map[string]bool // valid section-level comment targets
 	comments []*comment      // in creation order
 	viewed   map[string]bool // section ID -> viewed
@@ -79,11 +70,11 @@ func newFileState(f File) *fileState {
 }
 
 // sourceLines returns the full source, each line under its section.
-func sourceLines(doc *markdown.Document) []displayLine {
+func sourceLines(doc *markdown.Document) []lineJSON {
 	sections := doc.LineSections()
-	lines := make([]displayLine, len(doc.SourceLines))
+	lines := make([]lineJSON, len(doc.SourceLines))
 	for i, text := range doc.SourceLines {
-		lines[i] = displayLine{Text: text, Line: i + 1, SectionID: sections[i]}
+		lines[i] = lineJSON{Text: text, Line: i + 1, Section: sections[i]}
 	}
 	return lines
 }
@@ -91,11 +82,11 @@ func sourceLines(doc *markdown.Document) []displayLine {
 // diffLines returns the diff lines, each under its section (see
 // markdown.Document.DiffLineSections). Removed lines are numbered by the old
 // file.
-func diffLines(doc *markdown.Document, info *diff.Info) []displayLine {
+func diffLines(doc *markdown.Document, info *diff.Info) []lineJSON {
 	sections := doc.DiffLineSections(info)
-	lines := make([]displayLine, len(info.Lines))
+	lines := make([]lineJSON, len(info.Lines))
 	for i, dl := range info.Lines {
-		line := displayLine{Text: dl.Content, Type: dl.Type, SectionID: sections[i]}
+		line := lineJSON{Text: dl.Content, Type: string(dl.Type), Section: sections[i]}
 		if dl.Type == diff.Removed {
 			line.Line, line.Side = dl.OldLine, diff.SideLeft
 		} else {
@@ -230,7 +221,7 @@ func (f *fileState) setLineTarget(c *markdown.ReviewComment, in commentInput) er
 	if first < 0 || f.lines[first].Line != in.StartLine || f.lines[last].Line != end {
 		return fmt.Errorf("lines %s are not in the view", markdown.FormatLineRef(in.StartLine, end))
 	}
-	c.SectionID = f.lines[first].SectionID
+	c.SectionID = f.lines[first].Section
 	c.StartLine = in.StartLine
 	if end > in.StartLine {
 		c.EndLine = end
