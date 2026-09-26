@@ -1,6 +1,6 @@
 # commd
 
-Interactive Markdown reviewer with TUI.
+Interactive Markdown reviewer in the terminal (TUI) or a web browser.
 Add review comments at section level or line level using [Conventional Comments](https://conventionalcomments.org/) and output structured feedback.
 
 > Formerly **ccplan** — see [Migration from ccplan](#migration-from-ccplan) for upgrade instructions.
@@ -49,6 +49,10 @@ commd review --diff document.md
 
 # Pick from all changed/untracked .md files, comparing against a branch
 commd review --diff --base main
+
+# Review in a web browser instead of the TUI
+commd review --web document.md
+commd review --web --diff
 ```
 
 | Flag | Description |
@@ -59,6 +63,9 @@ commd review --diff --base main
 | `--track-viewed` | Persist viewed state to sidecar file (`.reviewed.json`) for change detection across sessions |
 | `--diff` | Review local git changes in diff view. Without a file, pick from changed `.md` files |
 | `--base` | Git ref to diff against (default: `HEAD`; requires `--diff`) |
+| `--web` | Review in a web browser instead of the TUI (see [Web review](#web-review)) |
+| `--port` | Port for `--web` (default: a free port) |
+| `--no-open` | With `--web`, print the URL instead of opening a browser |
 
 When `--track-viewed` is enabled, commd saves which sections you've marked as viewed in a `.reviewed.json` sidecar file. On subsequent runs, viewed marks are restored automatically. If a section's content has changed, its viewed mark is cleared (detected via content hash).
 
@@ -71,6 +78,20 @@ When `--track-viewed` is enabled, commd saves which sections you've marked as vi
 - Without a file argument, all changed and untracked `.md` files under the current directory are offered in a file picker and reviewed one by one; comments are combined into a single output
 - Untracked files are shown as entirely added; unchanged files are skipped
 - `--track-viewed` is not available in diff mode
+
+#### Web review
+
+`--web` opens the same review in your browser. commd serves the page on `127.0.0.1`, prints the URL, opens it, and waits for the review to finish; the result is output exactly as from the TUI (`--output` applies).
+
+- The page works like the TUI: the same modes, dialogs, status bar, and [key bindings](#tui-key-bindings), including the raw view line cursor, `V` selection, the `C` comment list, and `/` search. `--theme` sets the initial colors
+- Unlike the TUI there is no pane focus (`Tab` does nothing): `j`/`k`/`↑`/`↓` and the page keys scroll the content (in the raw view, move the line cursor), and pressing on at the end or start of a section moves to the next or previous one; `gg`/`G` go to the top or end of the whole document. In the full view the document reads as one page
+- The mouse works too: click a section, a line number (drag or shift+click for a range), a label chip, or a button; drag the pane border to resize. Scrolling runs on across sections: past the end or start of a section it continues into the next or previous one. On narrow windows the ☰ button shows the section list
+- With `--diff` and no file argument, the changed files are offered in a picker first and then reviewed one by one, as in the TUI (`s` finishes a file, `q` or `Ctrl+C` skips it)
+- `Ctrl+S` saves a comment (`Ctrl+Enter` / `⌘+Enter` also work); `Ctrl+C` copies instead of quitting while text is selected
+- Pressing `Ctrl+C` in the terminal abandons the whole review without output
+- Reloading the page is safe: the review lives in commd, so comments and progress are kept (only a comment being typed is lost)
+- The URL carries a random token that the page needs to read or change the review, so other web pages cannot access it and other local users need the token. Treat the URL like a password: it is printed to the terminal, passed to the browser launcher (briefly visible in the process list), and kept in the browser history. Besides the page, only images referenced by relative paths in the document are served, and only from the document's directory
+- To review on a remote machine, run with `--port` and forward the port (e.g. `ssh -L 8080:127.0.0.1:8080 host`), then open the printed URL locally
 
 ### `commd pr`
 
@@ -316,7 +337,7 @@ mise run e2e        # Run all E2E tests (full suite)
 mise run e2e-basic  # Run basic E2E tests (critical path only, included in ci)
 ```
 
-E2E tests use [tuistory](https://github.com/remorses/tuistory) to drive the TUI in a virtual terminal.
+E2E tests use [tuistory](https://github.com/remorses/tuistory) to drive the TUI in a virtual terminal and [Playwright](https://playwright.dev/) to drive the `--web` page in headless Chromium (installed by the e2e tasks).
 
 ## Migration from ccplan
 

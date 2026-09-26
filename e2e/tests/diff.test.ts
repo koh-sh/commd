@@ -1,65 +1,7 @@
 import { describe, test, expect, afterEach } from "bun:test";
 import { launchCommd, TEST_TIMEOUT } from "../helpers/session";
+import { createRepo, createRepoFrom, SECTION_REMOVAL } from "../helpers/git-repo";
 import type { Session } from "tuistory";
-import { mkdirSync, writeFileSync, appendFileSync, rmSync } from "fs";
-import { resolve, join } from "path";
-
-const PROJECT_ROOT = resolve(import.meta.dir, "../..");
-
-const ORIGINAL_DOC = [
-  "# Diff Doc",
-  "",
-  "Intro paragraph.",
-  "",
-  "## Step 1: Alpha",
-  "",
-  "Alpha body line.",
-  "",
-  "## Step 2: Beta",
-  "",
-  "Beta body.",
-  "",
-].join("\n");
-
-function git(dir: string, ...args: string[]): void {
-  const r = Bun.spawnSync(["git", ...args], {
-    cwd: dir,
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: "test",
-      GIT_AUTHOR_EMAIL: "test@example.com",
-      GIT_COMMITTER_NAME: "test",
-      GIT_COMMITTER_EMAIL: "test@example.com",
-    },
-  });
-  if (r.exitCode !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${r.stderr.toString()}`);
-  }
-}
-
-/**
- * Create a throwaway git repo under e2e/tests with doc.md committed.
- * With modify=true the title line is replaced (one removed + one added line)
- * and a line is appended, and an untracked new.md is added.
- */
-function createRepo(modify: boolean): { dir: string; cleanup: () => void } {
-  const name = `.tmp-git-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const dir = join(PROJECT_ROOT, "e2e/tests", name);
-  mkdirSync(dir);
-  git(dir, "init", "-q");
-  writeFileSync(join(dir, "doc.md"), ORIGINAL_DOC);
-  git(dir, "add", "-A");
-  git(dir, "commit", "-q", "--no-verify", "-m", "chore: init");
-  if (modify) {
-    writeFileSync(join(dir, "doc.md"), ORIGINAL_DOC.replace("# Diff Doc", "# Diff Doc v2"));
-    appendFileSync(join(dir, "doc.md"), "Added by diff test\n");
-    writeFileSync(join(dir, "new.md"), "# New Doc\n\nFresh file\n");
-  }
-  return {
-    dir,
-    cleanup: () => rmSync(dir, { recursive: true, force: true }),
-  };
-}
 
 describe("Diff Mode", () => {
   let session: Session;
@@ -126,6 +68,17 @@ describe("Diff Mode", () => {
     expect(text).toContain("why drop the old title");
     expect(text).toContain("> Added by diff test");
     expect(text).toContain("new trailing line");
+  }, TEST_TIMEOUT);
+
+  test("removed lines stay in the section they were removed from", async () => {
+    repo = createRepoFrom({ "doc.md": SECTION_REMOVAL.original }, { "doc.md": SECTION_REMOVAL.modified });
+    session = await launchCommd({ file: "doc.md", args: ["--diff"], cwd: repo.dir });
+    await session.press("j"); // section A
+    const text = await session.waitForText("- a3");
+    expect(text).toContain("- a1");
+    expect(text).toContain("- a2");
+    await session.press("j"); // section B
+    expect(await session.waitForText("## B")).not.toContain("- a");
   }, TEST_TIMEOUT);
 
   test("--diff without a file lists changed and untracked Markdown files", async () => {

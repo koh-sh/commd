@@ -12,6 +12,7 @@ import (
 	glamourStyles "charm.land/glamour/v2/styles"
 	"charm.land/lipgloss/v2"
 	"github.com/koh-sh/commd/internal/markdown"
+	"github.com/koh-sh/commd/internal/mermaid"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -171,7 +172,7 @@ func (d *DetailPane) ShowAll(doc *markdown.Document, getComments func(string) []
 // renderMarkdown renders Markdown to a styled string without setting viewport content.
 func (d *DetailPane) renderMarkdown(md string) string {
 	wrapWidth := d.viewport.Width() - glamourHorizontalOverhead
-	md = renderMermaidBlocks(md)
+	md = mermaid.RenderBlocks(md)
 	md = wrapProse(md, wrapWidth)
 	if d.renderer != nil {
 		if r, err := d.renderer.Render(md); err == nil {

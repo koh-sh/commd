@@ -89,7 +89,7 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 			Theme:     p.Theme,
 			FilePath:  path,
 			MultiFile: true,
-			Diff:      tui.NewDiffData(diff.ParsePatch(patches[path])),
+			Diff:      tui.NewDiffData(doc, diff.ParsePatch(patches[path])),
 		})
 		appResult, err := runReviewApp(app, p.teaOpts)
 		if err != nil {

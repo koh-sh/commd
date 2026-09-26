@@ -31,6 +31,9 @@ type ReviewCmd struct {
 	TrackViewed bool     `help:"Persist viewed state to sidecar file for change detection across sessions"`
 	Diff        bool     `help:"Review local git changes in diff view; with no file, pick from changed .md files"`
 	Base        string   `help:"Git ref to diff against (default: HEAD; requires --diff)"`
+	Web         bool     `help:"Review in a web browser instead of the TUI (served on 127.0.0.1)"`
+	Port        int      `help:"Port for --web (default: a free port)"`
+	NoOpen      bool     `help:"With --web, print the URL instead of opening a browser"`
 
 	teaOpts []tea.ProgramOption // for testing: override tea.NewProgram options
 }

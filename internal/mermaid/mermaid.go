@@ -1,4 +1,5 @@
-package tui
+// Package mermaid converts fenced mermaid code blocks in Markdown to ASCII art.
+package mermaid
 
 import (
 	"strings"
@@ -7,10 +8,10 @@ import (
 	"github.com/AlexanderGrooff/mermaid-ascii/pkg/render"
 )
 
-// renderMermaidBlocks scans Markdown for ```mermaid fenced code blocks and
+// RenderBlocks scans Markdown for ```mermaid fenced code blocks and
 // replaces each with its ASCII art rendering. On conversion failure the
 // original block is kept unchanged.
-func renderMermaidBlocks(md string) string {
+func RenderBlocks(md string) string {
 	lines := strings.Split(md, "\n")
 	var result []string
 	var buf []string

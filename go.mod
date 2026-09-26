@@ -1,6 +1,6 @@
 module github.com/koh-sh/commd
 
-go 1.26.3
+go 1.27.1
 
 require (
 	charm.land/bubbles/v2 v2.2.1

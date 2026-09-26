@@ -84,12 +84,13 @@ type DiffData struct {
 	LineMap      []int    // maps display index → file line number for commenting
 	SideMap      []string // maps display index → "RIGHT" or "LEFT"
 	TypeMap      []byte   // maps display index → diff line type ('+', '-', ' ')
+	Sections     []string // maps display index → section ID
 }
 
 // NewDiffData converts a parsed patch into the display data the raw view
-// needs. Returns nil when info is nil so callers can pass it straight to
-// AppOptions.Diff.
-func NewDiffData(info *diff.Info) *DiffData {
+// needs; doc is the new file the patch applies to. Returns nil when info is
+// nil so callers can pass it straight to AppOptions.Diff.
+func NewDiffData(doc *markdown.Document, info *diff.Info) *DiffData {
 	if info == nil {
 		return nil
 	}
@@ -99,6 +100,7 @@ func NewDiffData(info *diff.Info) *DiffData {
 		LineMap:      lineMap,
 		SideMap:      sideMap,
 		TypeMap:      typeMap,
+		Sections:     doc.DiffLineSections(info),
 	}
 }
 
@@ -135,7 +137,7 @@ func NewApp(doc *markdown.Document, opts AppOptions) *App {
 	}
 	if opts.Diff != nil {
 		// PR mode: use diff lines, start in raw view with section filtering
-		a.linePane = NewLinePane(opts.Diff.DisplayLines, 0, 0, styles, doc.AllSections())
+		a.linePane = NewLinePane(opts.Diff.DisplayLines, 0, 0, styles, opts.Diff.Sections)
 		a.linePane.diffLineMap = opts.Diff.LineMap
 		a.linePane.diffSideMap = opts.Diff.SideMap
 		a.linePane.diffTypeMap = opts.Diff.TypeMap
@@ -149,7 +151,7 @@ func NewApp(doc *markdown.Document, opts AppOptions) *App {
 		a.linePane.gutterWidth = len(fmt.Sprintf("%d", maxLine)) + 1
 		a.rawView = true
 	} else if len(doc.SourceLines) > 0 {
-		a.linePane = NewLinePane(doc.SourceLines, 0, 0, styles, doc.AllSections())
+		a.linePane = NewLinePane(doc.SourceLines, 0, 0, styles, doc.LineSections())
 	}
 	return a
 }
@@ -514,7 +516,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		startLine, endLine := a.linePane.SelectedRange()
-		sectionID := a.linePane.SectionIDAtLine(startLine)
+		sectionID := a.linePane.SelectedSectionID()
 		a.editCommentIdx = -1
 		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
 		a.mode = ModeComment
@@ -549,7 +551,7 @@ func (a *App) handleLineSelectMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if startLine == 0 {
 			return a, nil // no valid diff line selected
 		}
-		sectionID := a.linePane.SectionIDAtLine(startLine)
+		sectionID := a.linePane.SelectedSectionID()
 		a.linePane.CancelVisualSelect()
 		a.editCommentIdx = -1
 		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
@@ -756,14 +758,8 @@ func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a *App) submitReview() (tea.Model, tea.Cmd) {
-	review := a.sectionList.BuildReviewResult()
-
-	if len(review.Comments) == 0 {
-		a.result.Status = markdown.StatusApproved
-	} else {
-		a.result.Status = markdown.StatusSubmitted
-	}
-	a.result.Review = review
+	a.result.Review = a.sectionList.BuildReviewResult()
+	a.result.Status = a.result.Review.Status()
 
 	return a, tea.Quit
 }
@@ -871,6 +867,16 @@ func (a *App) updateLinePaneViewRange() {
 		return
 	}
 	// Section view: show only the selected section's lines
+	if a.opts.Diff != nil {
+		// Diff lines are assigned to sections (removed lines have no place in
+		// the new file's line ranges).
+		if id := a.selectedSectionID(); id != "" {
+			a.linePane.SetViewSection(id)
+			return
+		}
+		a.linePane.ClearViewRange()
+		return
+	}
 	if a.sectionList.IsOverviewSelected() {
 		// Overview: show from line 1 to the start of the first section
 		sections := a.doc.AllSections()

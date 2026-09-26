@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "tuistory": "0.11.0",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "playwright": "1.63.0",
+    "tuistory": "0.11.0"
   }
 }

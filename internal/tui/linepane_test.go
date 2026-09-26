@@ -9,9 +9,9 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-func newTestLinePane(lines []string, sections []*markdown.Section) *LinePane {
+func newTestLinePane(lines []string, lineSections []string) *LinePane {
 	styles := stylesForTheme(ThemeDark)
-	return NewLinePane(lines, 40, 10, styles, sections)
+	return NewLinePane(lines, 40, 10, styles, lineSections)
 }
 
 func TestLinePaneCursorMovement(t *testing.T) {
@@ -106,69 +106,51 @@ func TestLinePaneSelectedRange(t *testing.T) {
 	}
 }
 
-func TestLinePaneSectionIDAtLine(t *testing.T) {
-	sections := []*markdown.Section{
-		{ID: "S1", StartLine: 5, EndLine: 10},
-		{ID: "S2", StartLine: 12, EndLine: 20},
-	}
-	lp := newTestLinePane(make([]string, 25), sections)
-
+func TestLinePaneSectionIDAtCursor(t *testing.T) {
 	tests := []struct {
-		line int
-		want string
+		name   string
+		cursor int
+		want   string
 	}{
-		{1, markdown.OverviewSectionID},
-		{4, markdown.OverviewSectionID},
-		{5, "S1"},
-		{10, "S1"},
-		{11, "S1"},
-		{12, "S2"},
-		{20, "S2"},
-		{25, "S2"},
+		{name: "line before any section", cursor: 0, want: markdown.OverviewSectionID},
+		{name: "line in a section", cursor: 2, want: "S1"},
+		{name: "cursor past the lines", cursor: 9, want: ""},
 	}
-
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("line_%d", tt.line), func(t *testing.T) {
-			got := lp.SectionIDAtLine(tt.line)
-			if got != tt.want {
-				t.Errorf("SectionIDAtLine(%d) = %q, want %q", tt.line, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(make([]string, 4), []string{markdown.OverviewSectionID, "S1", "S1", "S2"})
+			lp.cursor = tt.cursor
+			if got := lp.SectionIDAtCursor(); got != tt.want {
+				t.Errorf("SectionIDAtCursor() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestLinePaneSectionIDAtCursor(t *testing.T) {
-	sections := []*markdown.Section{
-		{ID: "S1", StartLine: 5, EndLine: 10},
-		{ID: "S2", StartLine: 12, EndLine: 20},
-	}
-
+func TestLinePaneSelectedSectionID(t *testing.T) {
+	// A removed line (LEFT) of S1 followed by added lines (RIGHT) of S1 and S2.
+	sides := []string{"RIGHT", "LEFT", "RIGHT", "RIGHT"}
+	sections := []string{"S1", "S1", "S1", "S2"}
 	tests := []struct {
-		name        string
-		diffLineMap []int // nil = non-diff mode
-		cursor      int
-		want        string
+		name   string
+		anchor int // -1 = no selection
+		cursor int
+		want   string
 	}{
-		{name: "non-diff uses cursor+1 as file line", diffLineMap: nil, cursor: 4, want: "S1"},
-		{name: "non-diff before any section", diffLineMap: nil, cursor: 0, want: markdown.OverviewSectionID},
-		// In diff mode the cursor is a display index; the file line comes from
-		// diffLineMap. Display index 3 maps to file line 12 (S2), proving the
-		// display index is no longer used directly as a file line.
-		{name: "diff maps display index to file line", diffLineMap: []int{1, 5, 0, 12}, cursor: 3, want: "S2"},
-		{name: "diff maps to first section", diffLineMap: []int{1, 5, 0, 12}, cursor: 1, want: "S1"},
-		{name: "diff non-commentable line returns empty", diffLineMap: []int{1, 5, 0, 12}, cursor: 2, want: ""},
-		{name: "diff cursor past map returns empty", diffLineMap: []int{1, 5}, cursor: 9, want: ""},
+		{name: "cursor line without selection", anchor: -1, cursor: 3, want: "S2"},
+		{name: "first selected line", anchor: 0, cursor: 3, want: "S1"},
+		{name: "first line on the cursor's side", anchor: 1, cursor: 3, want: "S1"},
+		{name: "selection upwards", anchor: 3, cursor: 2, want: "S1"},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lp := newTestLinePane(make([]string, 25), sections)
-			lp.diffLineMap = tt.diffLineMap
+			lp := newTestLinePane(make([]string, 4), sections)
+			lp.diffLineMap = []int{1, 2, 2, 5}
+			lp.diffSideMap = sides
+			lp.selectAnchor = tt.anchor
 			lp.cursor = tt.cursor
-
-			got := lp.SectionIDAtCursor()
-			if got != tt.want {
-				t.Errorf("SectionIDAtCursor() = %q, want %q", got, tt.want)
+			if got := lp.SelectedSectionID(); got != tt.want {
+				t.Errorf("SelectedSectionID() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -397,40 +379,43 @@ func TestLinePaneDiffMode(t *testing.T) {
 	}
 }
 
-func TestLinePaneDiffModeSetViewRange(t *testing.T) {
-	lines := []string{" ctx1", "+add", "-del", " ctx2", " ctx3", "+add2"}
-	lp := newTestLinePane(lines, nil)
-	lp.diffLineMap = []int{1, 2, 0, 5, 6, 10}
-	lp.diffSideMap = []string{"RIGHT", "RIGHT", "LEFT", "RIGHT", "RIGHT", "RIGHT"}
-
-	// Set view range to file lines 5-6 (should show diff indices 3-4)
-	lp.SetViewRange(5, 6)
-	if lp.rangeStart() != 3 {
-		t.Errorf("rangeStart() = %d, want 3", lp.rangeStart())
+func TestLinePaneSetViewSection(t *testing.T) {
+	// Diff lines: a removed line follows the preceding line's section (S1).
+	sections := []string{markdown.OverviewSectionID, "S1", "S1", "S1", "S2", "S2"}
+	tests := []struct {
+		name      string
+		section   string
+		wantStart int
+		wantEnd   int
+		wantEmpty bool
+	}{
+		{name: "section with a removed line", section: "S1", wantStart: 1, wantEnd: 4},
+		{name: "last section", section: "S2", wantStart: 4, wantEnd: 6},
+		{name: "section without lines", section: "S3", wantEmpty: true},
 	}
-	if lp.rangeEnd() != 5 {
-		t.Errorf("rangeEnd() = %d, want 5", lp.rangeEnd())
-	}
-
-	// Set range that has no diff lines — should clear view range
-	lp.SetViewRange(20, 30)
-
-	// Clear view range
-	lp.ClearViewRange()
-	if lp.rangeStart() != 0 || lp.rangeEnd() != len(lines) {
-		t.Errorf("after clear: start=%d end=%d, want 0-%d", lp.rangeStart(), lp.rangeEnd(), len(lines))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lp := newTestLinePane(make([]string, len(sections)), sections)
+			lp.SetViewSection(tt.section)
+			if lp.emptyRange != tt.wantEmpty {
+				t.Fatalf("emptyRange = %v, want %v", lp.emptyRange, tt.wantEmpty)
+			}
+			if !tt.wantEmpty && (lp.rangeStart() != tt.wantStart || lp.rangeEnd() != tt.wantEnd) {
+				t.Errorf("range = [%d,%d), want [%d,%d)", lp.rangeStart(), lp.rangeEnd(), tt.wantStart, tt.wantEnd)
+			}
+		})
 	}
 }
 
 func TestLinePaneDiffEmptyRange(t *testing.T) {
 	lines := []string{" ctx"}
-	lp := newTestLinePane(lines, nil)
+	lp := newTestLinePane(lines, []string{"S2"})
 	lp.diffLineMap = []int{10}
 	lp.diffSideMap = []string{"RIGHT"}
 	lp.SetSize(40, 5)
 
-	// Set range that has no diff lines
-	lp.SetViewRange(1, 5)
+	// A section with no diff lines
+	lp.SetViewSection("S1")
 	if !lp.emptyRange {
 		t.Error("expected emptyRange to be true")
 	}
@@ -730,11 +715,11 @@ func TestSetSizeKeepsCursorVisible(t *testing.T) {
 }
 
 func TestLinePaneEmptyRangeBlocksCommenting(t *testing.T) {
-	lp := newTestLinePane([]string{"+a", "+b"}, nil)
+	lp := newTestLinePane([]string{"+a", "+b"}, []string{"S1", "S1"})
 	lp.diffLineMap = []int{3, 4}
 	lp.diffSideMap = []string{"RIGHT", "RIGHT"}
 	lp.SetSize(40, 5)
-	lp.SetViewRange(10, 20) // no diff lines in this section
+	lp.SetViewSection("S2") // no diff lines in this section
 
 	if lp.CanComment() {
 		t.Error("CanComment() = true in an empty range, want false")
