@@ -4,7 +4,7 @@ import { resolve } from "path";
 import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo, createRepoFrom } from "../helpers/git-repo";
-import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
+import { launchWeb, finished, stopWeb, COMMD_BIN, PROJECT_ROOT, type WebSession } from "../helpers/web";
 import {
   useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
 } from "../helpers/browser";
@@ -260,6 +260,21 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
     repo?.cleanup();
     repo = undefined;
   });
+
+  test(
+    "a --port already in use fails to start",
+    async () => {
+      web = await launchWeb([FIXTURE_BASIC]);
+      const port = new URL(web.base).port;
+      const second = Bun.spawnSync([COMMD_BIN, "review", FIXTURE_BASIC, "--web", "--no-open", "--port", port], {
+        cwd: PROJECT_ROOT,
+        stdin: "ignore",
+      });
+      expect(second.exitCode).not.toBe(0);
+      expect(second.stderr.toString()).toContain("starting web server");
+    },
+    TEST_TIMEOUT,
+  );
 
   test(
     "API errors show a toast; a failed or refused state load ends the page",
