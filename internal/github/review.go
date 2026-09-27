@@ -9,9 +9,6 @@ import (
 	"github.com/koh-sh/commd/internal/markdown"
 )
 
-// FileReviewResult holds the review result for a single file.
-type FileReviewResult = markdown.FileReview
-
 // PRReviewComment represents a single inline comment on a PR.
 type PRReviewComment struct {
 	Path      string
@@ -65,7 +62,7 @@ func MapComment(c markdown.ReviewComment, path string, doc *markdown.Document) *
 }
 
 // BuildPRReview builds a GitHub PR review request from file review results.
-func BuildPRReview(results []FileReviewResult, event, body string) *gh.PullRequestReviewRequest {
+func BuildPRReview(results []markdown.FileResult, event, body string) *gh.PullRequestReviewRequest {
 	var comments []*gh.DraftReviewComment
 
 	for _, fr := range results {

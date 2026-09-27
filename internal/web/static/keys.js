@@ -1,10 +1,10 @@
 // Key bindings per mode, mirroring the TUI key handlers.
 
 import { $ } from "./dom.js";
-import { st, ui, file, commentsOf, clamp, visibleLines, selectionRange } from "./state.js";
+import { st, ui, file, commentsOf, clamp, visibleLines } from "./state.js";
 import { inputDeferred, deferInput } from "./api.js";
 import { render, updateEditorChrome } from "./render.js";
-import { moveCursorBy, jumpToEdge, toggleExpand, toggleFull, toggleRaw, moveLineCursor, verticalMove, lineHeight, pageRows, scrollHorizontal, resizeLeft, toggleViewed, openSectionEditor, openLineEditor, saveEditor, closeEditor, cycle, openList, editFromList, deleteFromList, openConfirm, closeModal, executeConfirm, finish, openSearch, closeSearch, togglePick, confirmPick, cancelPick } from "./actions.js";
+import { moveCursorBy, jumpToEdge, toggleExpand, toggleFull, toggleRaw, moveLineCursor, verticalMove, lineHeight, pageRows, scrollHorizontal, resizeLeft, toggleViewed, openSectionEditor, startLineSelect, exitLineSelect, openLineEditor, saveEditor, closeEditor, cycle, openList, closeList, editFromList, deleteFromList, openHelp, closeHelp, openConfirm, closeModal, executeConfirm, finish, openSearch, closeSearch, togglePick, toggleAllPicks, confirmPick, cancelPick } from "./actions.js";
 
 function onPickerKey(ev) {
   const p = ui.picker;
@@ -16,10 +16,8 @@ function onPickerKey(ev) {
   else if (k === "j" || k === "ArrowDown") p.cursor = clamp(p.cursor + 1, 0, n - 1);
   else if (k === "k" || k === "ArrowUp") p.cursor = clamp(p.cursor - 1, 0, n - 1);
   else if (k === " ") togglePick(p.cursor);
-  else if (k === "a") {
-    const all = p.selected.size === n;
-    p.selected = all ? new Set() : new Set(st.pick.map((_, i) => i));
-  } else return;
+  else if (k === "a") toggleAllPicks();
+  else return;
   ev.preventDefault();
   render();
 }
@@ -110,8 +108,7 @@ function onListKey(k) {
   const n = commentsOf(list.sectionId).length;
   switch (k) {
     case "esc":
-      ui.list = null;
-      ui.mode = "normal";
+      closeList();
       break;
     case "k":
     case "up":
@@ -138,7 +135,7 @@ function onConfirmKey(k) {
 }
 
 function onHelpKey(k) {
-  if (["esc", "?", "enter", "q"].includes(k)) ui.mode = "normal";
+  if (["esc", "?", "enter", "q"].includes(k)) closeHelp();
   return true;
 }
 
@@ -174,11 +171,10 @@ function onLineSelectKey(k) {
       moveLineCursor(1);
       break;
     case "c":
-      if (selectionRange()) openLineEditor();
+      openLineEditor();
       break;
     case "esc":
-      ui.anchor = -1;
-      ui.mode = "normal";
+      exitLineSelect();
       break;
   }
   return true;
@@ -206,7 +202,7 @@ function onNormalKey(k) {
       openConfirm("quit");
       return true;
     case "?":
-      ui.mode = "help";
+      openHelp();
       return true;
     case "tab":
       return true; // no panes to switch in the browser
@@ -289,16 +285,12 @@ function sectionAction(k) {
 
 // onLineKey handles the raw view's line comment keys.
 function onLineKey(k) {
-  const canComment = visibleLines().length > 0;
   switch (k) {
     case "c":
-      if (canComment) openLineEditor();
+      openLineEditor();
       return true;
     case "V":
-      if (canComment) {
-        ui.anchor = ui.lineCursor;
-        ui.mode = "lineSelect";
-      }
+      if (visibleLines().length) startLineSelect(ui.lineCursor, ui.lineCursor);
       return true;
     case "C": {
       const l = file().lines[ui.lineCursor];

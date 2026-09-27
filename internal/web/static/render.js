@@ -1,9 +1,10 @@
 // Rendering: builds the DOM from the server state and the view state.
 
-import { $, h, plural } from "./dom.js";
-import { st, ui, file, section, commentsOf, isViewed, isRealSection, lineRef, formatLabel, listSections, hasChildren, visibleLines, selectionRange, inSelection, clampCursorToList } from "./state.js";
-import { searchSections } from "./api.js";
-import { guarded, toggleTheme, moveCursorTo, toggleExpand, toggleFull, toggleRaw, toggleViewed, openSectionEditor, editFromList, deleteFromList, openConfirm, closeModal, executeConfirm, openSearch, togglePick, confirmPick, cancelPick, startResize } from "./actions.js";
+import { $, h, button, plural } from "./dom.js";
+import { st, ui, file, section, commentsOf, isViewed, isRealSection, lineRef, formatLabel, listSections, parentIds, visibleLines, selectionRange, inSelection } from "./state.js";
+import { confirmMessage, statusKeys, statusIndicator, helpText } from "./text.js";
+import { guarded, toggleTheme, moveCursorTo, toggleExpand, toggleFull, toggleRaw, toggleViewed, openSectionEditor, editFromList, deleteFromList, openHelp, openConfirm, closeModal, executeConfirm, openSearch, runSearch, startResize } from "./actions.js";
+import { renderPicker } from "./picker.js";
 
 export function render() {
   if (ui.finished || !st) return;
@@ -78,7 +79,7 @@ export function refreshCursor() {
 // refreshPanes re-renders the section list, the right pane and the status
 // bar but not the search input, so typing (including IME composition) in
 // it is not interrupted.
-function refreshPanes() {
+export function refreshPanes() {
   const contentTop = $("#content")?.scrollTop ?? 0;
   replaceSectionList();
   $("#right").replaceWith(renderRight());
@@ -90,8 +91,7 @@ function refreshPanes() {
 function renderTitleBar(title) {
   const f = file();
   // Icon-only buttons get their title as accessible name.
-  const btn = (label, titleText, onclick, cls = "btn") =>
-    h("button", { type: "button", class: cls, title: titleText, "aria-label": cls.includes("icon") ? titleText : null, onclick }, label);
+  const btn = (label, titleText, onclick, cls = "btn") => button(label, { class: cls, title: titleText, "aria-label": cls.includes("icon") ? titleText : null, onclick });
   return h(
     "header",
     { id: "topbar" },
@@ -102,14 +102,15 @@ function renderTitleBar(title) {
     h(
       "div",
       { class: "segmented", role: "group", "aria-label": "View" },
-      h("button", { type: "button", "aria-pressed": String(!ui.rawView), title: "Rendered view (r)", onclick: () => guarded(() => ui.rawView && toggleRaw()) }, "Rendered"),
-      h("button", { type: "button", "aria-pressed": String(ui.rawView), title: "Raw source view (r)", onclick: () => guarded(() => !ui.rawView && toggleRaw()) }, f.diff ? "Diff" : "Raw"),
+      button("Rendered", { "aria-pressed": String(!ui.rawView), title: "Rendered view (r)", onclick: () => guarded(() => ui.rawView && toggleRaw()) }),
+      button(f.diff ? "Diff" : "Raw", { "aria-pressed": String(ui.rawView), title: "Raw source view (r)", onclick: () => guarded(() => !ui.rawView && toggleRaw()) }),
     ),
-    h("button", { type: "button", class: "btn", "aria-pressed": String(ui.fullView), title: "Full / section view (f)", onclick: () => guarded(toggleFull) }, "Full view"),
+    button("Full view", { class: "btn", "aria-pressed": String(ui.fullView), title: "Full / section view (f)", onclick: () => guarded(toggleFull) }),
+    // Only the look changes, so the theme can be switched in every mode.
     btn("◐", "Toggle theme", toggleTheme, "btn icon"),
-    btn("?", "Help (?)", () => guarded(() => (ui.mode = "help"), true), "btn icon"),
-    btn(st.multi ? "Skip file" : "Quit", "Quit (q)", () => guarded(() => openConfirm("quit"), true)),
-    btn(st.multi ? "Finish file" : "Submit", "Submit (s)", () => guarded(() => openConfirm("submit"), true), "btn primary"),
+    btn("?", "Help (?)", () => guarded(openHelp, true), "btn icon"),
+    btn(st.multiFile ? "Skip file" : "Quit", "Quit (q)", () => guarded(() => openConfirm("quit"), true)),
+    btn(st.multiFile ? "Finish file" : "Submit", "Submit (s)", () => guarded(() => openConfirm("submit"), true), "btn primary"),
   );
 }
 
@@ -141,25 +142,13 @@ function renderSidebar() {
   return h("aside", { id: "sidebar" }, search, renderSectionList());
 }
 
-// runSearch filters the section list by the query typed so far. The server
-// matches the sections, as the TUI's filter does; a response that arrives
-// after the query changed again is dropped.
-async function runSearch() {
-  const query = ui.query;
-  const matches = query ? await searchSections(query) : null;
-  if (ui.query !== query || (query && !matches)) return;
-  ui.matches = matches && new Set(matches);
-  clampCursorToList();
-  moveCursorTo(ui.cursor);
-  refreshPanes();
-}
-
 function renderSectionList() {
+  const parents = parentIds();
   const items = listSections().map((s) => {
     const n = commentsOf(s.id).length;
     const viewed = isViewed(s.id);
     const active = s.id === ui.cursor;
-    const expandable = hasChildren(s);
+    const expandable = parents.has(s.id);
     return h(
       "li",
       {
@@ -188,7 +177,7 @@ function renderSectionList() {
         },
         expandable ? (ui.collapsed.has(s.id) ? "▶" : "▼") : "",
       ),
-      s.id === st.overviewId ? null : h("span", { class: "sid" }, s.id),
+      sidBadge(s.id),
       h("span", { class: "title", title: s.title }, s.title),
       n ? h("span", { class: "badge", title: plural(n, "comment") }, n) : null,
       h("span", { class: "check" }, viewed ? "✓" : ""),
@@ -223,7 +212,7 @@ function blockHead(s) {
   return h(
     "div",
     { class: "block-head" },
-    s.id === st.overviewId ? null : h("span", { class: "sid" }, s.id),
+    sidBadge(s.id),
     h("span", { class: "stitle" }, s.title),
     isRealSection(s.id)
       ? h(
@@ -234,14 +223,13 @@ function blockHead(s) {
         )
       : null,
     // Section comments are made from the rendered view, as in the TUI.
-    ui.rawView
-      ? null
-      : h(
-          "button",
-          { class: "btn small", type: "button", title: "Comment on this section (c)", onclick: () => guarded(() => openSectionEditor(s.id)) },
-          "Comment",
-        ),
+    ui.rawView ? null : button("Comment", { class: "btn small", title: "Comment on this section (c)", onclick: () => guarded(() => openSectionEditor(s.id)) }),
   );
+}
+
+// sidBadge shows a section's ID; the overview has none.
+function sidBadge(id) {
+  return isRealSection(id) ? h("span", { class: "sid" }, id) : null;
 }
 
 function renderRenderedBlock(s) {
@@ -303,7 +291,7 @@ function renderLines(indices, withSectionComments = false) {
     if (!byEnd.has(key)) byEnd.set(key, []);
     byEnd.get(key).push(c);
   }
-  const range = ui.mode === "lineSelect" || ui.anchor >= 0 ? selectionRange() : null;
+  const range = ui.mode === "lineSelect" ? selectionRange() : null;
   const rows = [];
   let lastNew = 0; // new-file line of the previous added/context line
   indices.forEach((i, pos) => {
@@ -339,7 +327,6 @@ function commentsBox(comments, withRef) {
 }
 
 function renderComment(c, withRef) {
-  const ref = lineRef(c);
   return h(
     "div",
     { class: "comment" },
@@ -348,7 +335,7 @@ function renderComment(c, withRef) {
       { class: "comment-head" },
       h("span", { class: `label label-${c.action}` }, c.action),
       c.decoration ? h("span", { class: "deco" }, `(${c.decoration})`) : null,
-      withRef && ref ? h("span", { class: "ref" }, c.side === "LEFT" ? `${ref} (removed)` : ref) : null,
+      withRef && c.outputRef ? h("span", { class: "ref" }, c.outputRef) : null,
     ),
     withRef && c.quote && c.quote.length ? h("div", { class: "quote" }, c.quote.join("\n")) : null,
     h("div", { class: "comment-body" }, c.body),
@@ -362,9 +349,8 @@ function renderCommentList() {
     "div",
     { class: "comment-list" },
     h("h2", {}, `Comments on ${list.sectionId}`),
-    comments.map((c, i) => {
-      const ref = lineRef(c);
-      return h(
+    comments.map((c, i) =>
+      h(
         "div",
         {
           class: `list-item${i === list.cursor ? " active" : ""}`,
@@ -376,17 +362,17 @@ function renderCommentList() {
         h(
           "div",
           { class: "list-head" },
-          `${i === list.cursor ? "> " : "  "}#${i + 1} [${formatLabel(c.action, c.decoration)}]${ref ? ` (${ref})` : ""}`,
+          `${i === list.cursor ? "> " : "  "}#${i + 1} [${c.label}]${c.ref ? ` (${c.ref})` : ""}`,
           h(
             "span",
             { class: "actions" },
-            h("button", { class: "btn small", type: "button", onclick: (e) => (e.stopPropagation(), (list.cursor = i), editFromList()) }, "Edit (e)"),
-            h("button", { class: "btn small danger", type: "button", onclick: (e) => (e.stopPropagation(), (list.cursor = i), deleteFromList()) }, "Delete (d)"),
+            button("Edit (e)", { class: "btn small", onclick: (e) => (e.stopPropagation(), (list.cursor = i), editFromList()) }),
+            button("Delete (d)", { class: "btn small danger", onclick: (e) => (e.stopPropagation(), (list.cursor = i), deleteFromList()) }),
           ),
         ),
         h("div", { class: "list-body" }, c.body.split("\n")[0]),
-      );
-    }),
+      ),
+    ),
   );
 }
 
@@ -397,21 +383,16 @@ function renderEditor() {
       "div",
       { class: "chips" },
       values.map((v, i) =>
-        h(
-          "button",
-          {
-            type: "button",
-            class: `chip label-${v || "none"}`,
-            "aria-pressed": String(i === current),
-            tabindex: "-1",
-            onmousedown: (ev) => ev.preventDefault(), // keep the textarea focused
-            onclick: () => {
-              pick(i);
-              updateEditorChrome();
-            },
+        button(show(v), {
+          class: `chip label-${v || "none"}`,
+          "aria-pressed": String(i === current),
+          tabindex: "-1",
+          onmousedown: (ev) => ev.preventDefault(), // keep the textarea focused
+          onclick: () => {
+            pick(i);
+            updateEditorChrome();
           },
-          show(v),
-        ),
+        }),
       ),
     );
   const textarea = h("textarea", { id: "editor-body", placeholder: "Enter review comment... (Ctrl+S to save, Esc to cancel)", "aria-label": "Comment body" });
@@ -430,86 +411,10 @@ function renderEditor() {
   );
 }
 
-function renderPicker() {
-  document.title = "commd — select files";
-  const p = ui.picker;
-  $("#app").replaceChildren(
-    h(
-      "div",
-      { class: "picker" },
-      h("h1", {}, "Select Markdown files to review"),
-      h("hr"),
-      h(
-        "ul",
-        {},
-        st.pick.map((path, i) =>
-          h(
-            "li",
-            {
-              class: i === p.cursor ? "active" : "",
-              onclick: () => {
-                p.cursor = i;
-                togglePick(i);
-              },
-            },
-            `${i === p.cursor ? "▸ " : "  "}${p.selected.has(i) ? "[✓]" : "[ ]"} ${path}`,
-          ),
-        ),
-      ),
-      h("p", { class: "hint" }, "↑/↓ navigate • space toggle • a all • enter confirm • q cancel"),
-      h(
-        "div",
-        { class: "buttons" },
-        h("button", { type: "button", class: "btn", onclick: cancelPick }, "Cancel"),
-        h("button", { type: "button", class: "btn primary", onclick: confirmPick }, "Confirm"),
-      ),
-    ),
-  );
-  $("#modal-root").replaceChildren();
-}
-
 function renderStatusBar() {
-  const entry = (key, label) => h("span", { class: "entry" }, h("kbd", {}, key), " ", label);
-  let entries = [];
-  let indicator = "";
-  switch (ui.mode) {
-    case "comment":
-      entries = [entry("tab/S-tab", "label"), entry("ctrl+d", "deco"), entry("ctrl+s", "save"), entry("esc", "cancel")];
-      break;
-    case "commentList":
-      entries = [entry("j/k", "navigate"), entry("e", "edit"), entry("d", "delete"), entry("esc", "back")];
-      break;
-    case "lineSelect": {
-      const r = selectionRange();
-      entries = [h("span", { class: "visual" }, "VISUAL"), entry("j/k", "extend"), entry("c", "comment"), entry("esc", "cancel")];
-      if (r) indicator = lineRef({ startLine: file().lines[r.first].line, endLine: file().lines[r.last].line });
-      break;
-    }
-    case "search":
-      entries = [entry("↑/↓", "navigate results"), entry("enter", "confirm"), entry("esc", "cancel")];
-      break;
-    default: {
-      const viewMode = ui.fullView ? "section" : "full";
-      const n = file().comments.length;
-      const progress = n ? ` [${plural(n, "comment")}]` : "";
-      if (ui.rawView) {
-        entries = [
-          entry("r", "render"), entry("f", viewMode), entry("c", "comment"), entry("V", "select"),
-          entry("C", "comments"), entry("s", "submit"), entry("?", "help"), entry("q", "quit"),
-        ];
-        // As in the TUI: the cursor position among all lines of the view.
-        indicator = `L${ui.lineCursor + 1}/${file().lines.length}${progress}`;
-      } else {
-        entries = [
-          entry("enter", "toggle"), entry("f", viewMode), entry("r", "raw"), entry("c", "comment"), entry("C", "comments"),
-          entry("v", "viewed"), entry("/", "search"), entry("s", "submit"), entry("?", "help"), entry("q", "quit"),
-        ];
-        const real = file().sections.filter((s) => isRealSection(s.id));
-        indicator = `[${real.filter((s) => isViewed(s.id)).length}/${real.length} viewed]${progress}`;
-      }
-    }
-  }
-  return h("footer", { id: "statusbar" }, h("span", { class: "entries" }, entries), h("span", { class: "indicator" }, indicator));
+  const entries = statusKeys().map(([key, label]) => h("span", { class: "entry" }, h("kbd", {}, key), " ", label));
+  if (ui.mode === "lineSelect") entries.unshift(h("span", { class: "visual" }, "VISUAL"));
+  return h("footer", { id: "statusbar" }, h("span", { class: "entries" }, entries), h("span", { class: "indicator" }, statusIndicator()));
 }
 
 function renderModal() {
@@ -526,9 +431,9 @@ function renderModal() {
           h(
             "div",
             { class: "buttons" },
-            h("button", { type: "button", class: "btn primary", onclick: executeConfirm }, h("kbd", {}, "y"), " yes"),
-            h("button", { type: "button", class: "btn", onclick: closeModal }, h("kbd", {}, "n"), " no"),
-            h("button", { type: "button", class: "btn", onclick: closeModal }, h("kbd", {}, "esc"), " cancel"),
+            button([h("kbd", {}, "y"), " yes"], { class: "btn primary", onclick: executeConfirm }),
+            button([h("kbd", {}, "n"), " no"], { class: "btn", onclick: closeModal }),
+            button([h("kbd", {}, "esc"), " cancel"], { class: "btn", onclick: closeModal }),
           ),
         ),
       ),
@@ -544,65 +449,6 @@ function renderModal() {
   } else {
     root.replaceChildren();
   }
-}
-
-function confirmMessage() {
-  const n = file().comments.length;
-  if (ui.confirm === "submit") {
-    return st.multi ? `Finish reviewing this file? (${n} comments)` : `Submit review? (${n} comments)`;
-  }
-  if (st.multi) return "Skip this file?";
-  return n ? "You have review comments.\n\nQuit without submitting?" : "Quit review?";
-}
-
-function helpText() {
-  return `  Navigation:
-  j/k, Up/Down   Scroll (raw view: move the line cursor); at the end
-                  or start of a section, move to the next / previous one
-  gg              Go to the top of the document
-  G               Go to the end of the document
-  Enter           Toggle expand/collapse
-  f               Toggle full/section view
-  r               Toggle raw source/rendered view
-  h/l, Left/Right Scroll detail pane left/right
-  H/L             Scroll detail to start/end
-  Ctrl+D/Ctrl+U   Half page down/up
-  Ctrl+F/Ctrl+B   Full page down/up
-  >/<             Resize left pane
-
-Review:
-  c               Add comment on selected section
-  C               Manage comments (edit/delete)
-  v               Toggle viewed mark
-  /               Search sections
-  s               Submit review
-
-Raw Source View (r to toggle):
-  j/k             Move line cursor
-  c               Add line comment at cursor
-  V               Start visual line selection
-  V + j/k + c     Comment on selected range
-  Esc             Cancel visual selection
-  C               Manage comments for section at cursor
-
-Comment Editor:
-  Tab             Cycle label (forward)
-  Shift+Tab       Cycle label (reverse)
-  Ctrl+D          Cycle decoration
-  Ctrl+S          Save comment (also Ctrl/⌘+Enter)
-  Esc             Cancel editing
-
-Mouse (browser only):
-  Click a section, line number, label or button; drag line
-  numbers (or shift+click) to select a range; drag the pane
-  border to resize. Scrolling runs on across sections: past the
-  end (or start) of one it continues into the next (or previous).
-
-Other:
-  ?               Toggle this help
-  q, Ctrl+C       Quit
-
-Press Esc, Enter, ? or q to close this help.`;
 }
 
 // afterRender restores focus and scroll positions that a re-render loses.

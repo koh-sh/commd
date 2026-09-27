@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
-import { useBrowser, openPage, closePage, press, eventually, text, count, activeSection } from "../helpers/browser";
+import { useBrowser, openPage, closePage, press, addWebComment, eventually, text, count, activeSection } from "../helpers/browser";
 
 // Basic tier: the critical paths of the `commd review --web` page in a real
 // browser, checked against the TUI's behavior. web-ui-*.test.ts cover the
@@ -28,7 +28,7 @@ describe("Web Review UI (Basic)", () => {
   test(
     "section comment with label and decoration keys, then submit",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       await eventually(async () => expect(await text(page!, "#statusbar")).toContain("[0/7 viewed]"));
 
@@ -53,7 +53,7 @@ describe("Web Review UI (Basic)", () => {
   test(
     "raw view: line cursor, visual selection and line comment",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await press(page, "j", "r"); // the overview fits, so j moves on to S1; raw view
@@ -79,7 +79,7 @@ describe("Web Review UI (Basic)", () => {
   test(
     "comment list: edit to empty deletes, then approve",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await press(page, "j", "c");
@@ -106,7 +106,7 @@ describe("Web Review UI (Basic)", () => {
   test(
     "tree toggle, search, viewed and quit",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await press(page, "j", "Enter"); // collapse S1
@@ -139,7 +139,7 @@ describe("Web Review UI (Basic)", () => {
   test(
     "mouse: drag line numbers to comment; other actions wait for the editor",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await page.getByRole("button", { name: "Raw" }).click();
@@ -165,7 +165,7 @@ describe("Web Review UI (Basic)", () => {
     "--diff: picker, then finish or skip each file in order",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff"], repo.dir);
+      web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
       page = await openPage(web);
 
       await eventually(async () => expect(await text(page!, ".picker")).toContain("Select Markdown files to review"));
@@ -174,9 +174,8 @@ describe("Web Review UI (Basic)", () => {
       // Files come in sorted order. Finish doc.md with a comment on the
       // removed title line, then skip new.md with ctrl+c.
       await eventually(async () => expect(await text(page!, ".doc-title")).toContain("(doc.md)"));
-      await press(page, "c"); // the diff view opens on the removed title line
-      await page.keyboard.type("why rename?");
-      await press(page, "Control+s", "s");
+      await addWebComment(page, "why rename?"); // the diff view opens on the removed title line
+      await press(page, "s");
       await eventually(async () => expect(await text(page!, ".modal")).toContain("Finish reviewing this file? (1 comments)"));
       await press(page, "y");
       await eventually(async () => expect(await text(page!, ".doc-title")).toContain("(new.md)"));

@@ -154,7 +154,7 @@ func TestBuildPRReview(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		results      []FileReviewResult
+		results      []markdown.FileResult
 		event        string
 		body         string
 		wantComments int
@@ -162,9 +162,8 @@ func TestBuildPRReview(t *testing.T) {
 	}{
 		{
 			name: "line and section comments become inline",
-			results: []FileReviewResult{{
-				Path: "README.md",
-				Doc:  doc,
+			results: []markdown.FileResult{{
+				Path: "README.md", Doc: doc,
 				Review: &markdown.ReviewResult{
 					Comments: []markdown.ReviewComment{
 						{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "Fix", StartLine: 5},
@@ -177,9 +176,8 @@ func TestBuildPRReview(t *testing.T) {
 		},
 		{
 			name: "overview comments are skipped",
-			results: []FileReviewResult{{
-				Path: "README.md",
-				Doc:  doc,
+			results: []markdown.FileResult{{
+				Path: "README.md", Doc: doc,
 				Review: &markdown.ReviewResult{
 					Comments: []markdown.ReviewComment{
 						{SectionID: markdown.OverviewSectionID, Action: markdown.ActionNote, Body: "General"},
@@ -191,9 +189,8 @@ func TestBuildPRReview(t *testing.T) {
 		},
 		{
 			name: "multi-line comment sets StartLine and StartSide",
-			results: []FileReviewResult{{
-				Path: "README.md",
-				Doc:  doc,
+			results: []markdown.FileResult{{
+				Path: "README.md", Doc: doc,
 				Review: &markdown.ReviewResult{
 					Comments: []markdown.ReviewComment{
 						{SectionID: "S1", Action: markdown.ActionIssue, Body: "Fix range", StartLine: 5, EndLine: 8},
@@ -205,7 +202,7 @@ func TestBuildPRReview(t *testing.T) {
 		},
 		{
 			name: "nil review in result is skipped",
-			results: []FileReviewResult{{
+			results: []markdown.FileResult{{
 				Path:   "README.md",
 				Doc:    doc,
 				Review: nil,

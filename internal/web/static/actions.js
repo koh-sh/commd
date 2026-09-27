@@ -1,8 +1,8 @@
 // Actions: what keys and clicks do, mirroring the TUI App methods.
 
 import { $, toast } from "./dom.js";
-import { st, ui, hooks, file, section, commentsOf, isViewed, isRealSection, clamp, ancestorsOf, clearSearch, listSections, visibleLines, selectionRange, clampCursorToList } from "./state.js";
-import { api, fileAPI, send, inputDeferred, deferInput } from "./api.js";
+import { st, ui, hooks, file, section, commentsOf, isViewed, isRealSection, clamp, ancestorsOf, clearSearch, listSections, visibleLines, edgeLine, selectionRange, clampCursorToList } from "./state.js";
+import { api, fileAPI, send, inputDeferred, deferInput, searchSections } from "./api.js";
 
 // guarded runs a mouse action only in the modes where the TUI would
 // accept the equivalent key, then re-renders. Like keys, a click during a
@@ -44,21 +44,29 @@ export function moveCursorBy(delta) {
 // (refreshAfterCursorMove in the TUI).
 export function moveCursorTo(id) {
   ui.cursor = id;
-  if (ui.rawView) {
-    if (ui.fullView) {
-      const idx = file().lines.findIndex((l) => l.section === id);
-      if (idx >= 0) ui.lineCursor = idx;
-    } else {
-      ui.lineCursor = visibleLines()[0] ?? 0;
-    }
-    return;
-  }
-  if (ui.fullView) {
+  if (!ui.fullView) {
+    showSectionEdge(false);
+  } else if (ui.rawView) {
+    const idx = file().lines.findIndex((l) => l.section === id);
+    if (idx >= 0) ui.lineCursor = idx;
+  } else {
     ui.pendingScroll = () => document.querySelector(`#content [data-section="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "start" });
     ui.spyPaused = true;
-  } else {
-    ui.pendingScroll = () => ($("#content").scrollTop = 0);
   }
+}
+
+// showSectionEdge shows the start (or with atEnd the end) of what the right
+// pane shows: the line cursor goes to the first or last visible line in the
+// raw view, the rendered view scrolls to its top or bottom.
+function showSectionEdge(atEnd) {
+  if (ui.rawView) {
+    ui.lineCursor = edgeLine(atEnd);
+    return;
+  }
+  ui.pendingScroll = () => {
+    const el = $("#content");
+    el.scrollTop = atEnd ? el.scrollHeight : 0;
+  };
 }
 
 export function toggleExpand() {
@@ -76,7 +84,7 @@ export function toggleFull() {
 export function toggleRaw() {
   ui.rawView = !ui.rawView;
   ui.anchor = -1;
-  if (ui.rawView) ui.lineCursor = visibleLines()[0] ?? 0;
+  if (ui.rawView) showSectionEdge(false);
 }
 
 // syncLineCursorIntoView keeps the line cursor on a visible line.
@@ -128,19 +136,13 @@ export function jumpToEdge(dir) {
     moveCursorTo(target.id);
   }
   if (ui.rawView) {
-    const vis = visibleLines();
-    ui.lineCursor = (dir < 0 ? vis[0] : vis.at(-1)) ?? 0;
+    showSectionEdge(dir > 0);
     syncSectionFromLineCursor();
-    return;
-  }
-  const el = $("#content");
-  if (ui.fullView) {
+  } else if (ui.fullView) {
+    const el = $("#content");
     scrollDetail(el, dir < 0 ? -el.scrollHeight : el.scrollHeight);
   } else {
-    ui.pendingScroll = () => {
-      const c = $("#content");
-      c.scrollTop = dir < 0 ? 0 : c.scrollHeight;
-    };
+    showSectionEdge(dir > 0);
   }
 }
 
@@ -166,16 +168,7 @@ export function atScrollEdge(el, dy) {
 export function stepSection(dir) {
   const prev = ui.cursor;
   moveCursorBy(dir);
-  if (ui.cursor === prev) return;
-  if (ui.rawView) {
-    const vis = visibleLines();
-    ui.lineCursor = (dir > 0 ? vis[0] : vis.at(-1)) ?? 0;
-  } else if (dir < 0) {
-    ui.pendingScroll = () => {
-      const el = $("#content");
-      el.scrollTop = el.scrollHeight;
-    };
-  }
+  if (ui.cursor !== prev) showSectionEdge(dir < 0);
 }
 
 export const lineHeight = 20; // .lines line-height in style.css
@@ -225,22 +218,30 @@ export function resizeLeft(delta) {
   ui.leftRatio = next;
 }
 
-// startResize lets the pane border be dragged (mouse only).
+// startResize lets the pane border be dragged (mouse only). The drag ends on
+// mouseup, and also when the window loses focus or a move arrives with the
+// button already released (a mouseup outside the window), so its listeners
+// never outlive it.
 export function startResize(ev) {
   ev.preventDefault();
   const resizer = ev.currentTarget;
   resizer.classList.add("dragging");
+  const drag = new AbortController();
+  const end = () => {
+    resizer.classList.remove("dragging");
+    drag.abort();
+  };
   const move = (e) => {
+    if (e.buttons === 0) {
+      end();
+      return;
+    }
     ui.leftRatio = clamp((e.clientX / window.innerWidth) * 100, minLeftRatio, maxLeftRatio);
     $("#sidebar").style.width = `${ui.leftRatio}%`;
   };
-  const up = () => {
-    resizer.classList.remove("dragging");
-    document.removeEventListener("mousemove", move);
-    document.removeEventListener("mouseup", up);
-  };
-  document.addEventListener("mousemove", move);
-  document.addEventListener("mouseup", up);
+  document.addEventListener("mousemove", move, { signal: drag.signal });
+  document.addEventListener("mouseup", end, { signal: drag.signal });
+  window.addEventListener("blur", end, { signal: drag.signal });
 }
 
 export function toggleViewed(id) {
@@ -253,6 +254,19 @@ export function toggleViewed(id) {
 export function openSectionEditor(id) {
   if (!id) return;
   openEditor({ sectionId: id });
+}
+
+// startLineSelect starts a visual line selection from anchor to cursor
+// (indices into file.lines).
+export function startLineSelect(anchor, cursor) {
+  ui.anchor = anchor;
+  ui.lineCursor = cursor;
+  ui.mode = "lineSelect";
+}
+
+export function exitLineSelect() {
+  ui.anchor = -1;
+  ui.mode = "normal";
 }
 
 export function openLineEditor() {
@@ -277,33 +291,26 @@ function openEditor(c) {
     label: Math.max(st.labels.indexOf(c.action || st.defaultLabel), 0),
     deco: Math.max(st.decorations.indexOf(c.decoration || ""), 0),
     body: c.body || "",
-    fromList: Boolean(c.id),
   };
   ui.mode = "comment";
 }
 
 export async function saveEditor() {
   const e = ui.editor;
-  const body = e.body.trim();
   const payload = {
     sectionId: e.sectionId,
     action: st.labels[e.label],
     decoration: st.decorations[e.deco],
-    body,
+    body: e.body,
     startLine: e.startLine,
     endLine: e.endLine,
     side: e.side,
   };
-  // As in the TUI: an empty new comment is dropped, and emptying an
-  // existing one deletes it.
-  let ok = true;
-  if (e.id) {
-    ok = await send(() =>
-      body ? fileAPI("PATCH", `/comments/${encodeURIComponent(e.id)}`, payload) : fileAPI("DELETE", `/comments/${encodeURIComponent(e.id)}`),
-    );
-  } else if (body) {
-    ok = await send(() => fileAPI("POST", "/comments", payload));
-  }
+  // The server applies the rule the TUI shares: an empty new comment is
+  // dropped, and emptying an existing one deletes it.
+  const ok = await send(() =>
+    e.id ? fileAPI("PATCH", `/comments/${encodeURIComponent(e.id)}`, payload) : fileAPI("POST", "/comments", payload),
+  );
   if (ok) closeEditor();
   hooks.render();
 }
@@ -311,7 +318,7 @@ export async function saveEditor() {
 export function closeEditor() {
   const e = ui.editor;
   ui.editor = null;
-  if (e && e.fromList) reopenList(e.sectionId);
+  if (e && e.id) reopenList(e.sectionId);
   else ui.mode = "normal";
 }
 
@@ -325,13 +332,17 @@ export function openList(sectionId) {
   ui.mode = "commentList";
 }
 
+export function closeList() {
+  ui.list = null;
+  ui.mode = "normal";
+}
+
 // reopenList shows the list after its comments changed, or returns to
 // normal mode when none remain.
 function reopenList(sectionId) {
   const n = commentsOf(sectionId).length;
   if (!n) {
-    ui.list = null;
-    ui.mode = "normal";
+    closeList();
     return;
   }
   const cursor = ui.list && ui.list.sectionId === sectionId ? Math.min(ui.list.cursor, n - 1) : 0;
@@ -352,6 +363,14 @@ export async function deleteFromList() {
   const sectionId = ui.list.sectionId;
   if (await send(() => fileAPI("DELETE", `/comments/${encodeURIComponent(c.id)}`))) reopenList(sectionId);
   hooks.render();
+}
+
+export function openHelp() {
+  ui.mode = "help";
+}
+
+export function closeHelp() {
+  ui.mode = "normal";
 }
 
 export function openConfirm(kind) {
@@ -385,6 +404,20 @@ export function openSearch() {
   clampCursorToList();
 }
 
+// runSearch filters the section list by the query typed so far. The server
+// matches the sections, as the TUI's filter does; a response that arrives
+// after the query changed again is dropped. The search input is not
+// re-rendered, so typing (including IME composition) is not interrupted.
+export async function runSearch() {
+  const query = ui.query;
+  const matches = query ? await searchSections(query) : null;
+  if (ui.query !== query || (query && !matches)) return;
+  ui.matches = matches && new Set(matches);
+  clampCursorToList();
+  moveCursorTo(ui.cursor);
+  hooks.refreshPanes();
+}
+
 // closeSearch leaves search mode: keep=true keeps the filter (Enter),
 // otherwise it is cleared (Esc).
 export function closeSearch(keep) {
@@ -402,11 +435,18 @@ export function togglePick(i) {
   hooks.render();
 }
 
+// toggleAllPicks selects every file, or none when all are selected.
+export function toggleAllPicks() {
+  const p = ui.picker;
+  p.selected = p.selected.size === st.pick.length ? new Set() : new Set(st.pick.map((_, i) => i));
+}
+
 export function confirmPick() {
   send(() => api("POST", "/api/pick", { paths: st.pick.filter((_, i) => ui.picker.selected.has(i)) }));
 }
 
 export function cancelPick() {
-  send(() => api("POST", "/api/pick", { cancel: true }));
+  // Choosing nothing ends the session, as cancelling the TUI picker does.
+  send(() => api("POST", "/api/pick", { paths: [] }));
 }
 

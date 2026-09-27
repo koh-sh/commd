@@ -25,20 +25,6 @@ type Review struct {
 	Load func(path string) (f markdown.File, ok bool)
 }
 
-// FileResult is the outcome of reviewing one file.
-type FileResult struct {
-	File   markdown.File
-	Status markdown.Status
-	Review *markdown.ReviewResult // nil when the file was quit (skipped)
-}
-
-// Result is the outcome of a browser session: one entry per file that was
-// loaded, in review order. It is empty when the picker was cancelled or the
-// session was interrupted.
-type Result struct {
-	Files []FileResult
-}
-
 // Session phases, as reported to the browser.
 const (
 	phasePick   = "pick"
@@ -48,9 +34,6 @@ const (
 
 // errFinished is returned for any change after the session ended.
 var errFinished = errors.New("review already finished")
-
-// errNotFound marks lookups of unknown comments or sections.
-var errNotFound = errors.New("not found")
 
 // errStale rejects a request for a file that is no longer under review, e.g.
 // from a second tab that missed a finish.
@@ -63,21 +46,23 @@ var errPhase = errors.New("not possible in the current phase")
 // session holds the state of a browser review. All methods are safe for
 // concurrent use by HTTP handlers.
 type session struct {
-	mu      sync.Mutex
-	review  Review
-	phase   string
-	multi   bool     // several files were chosen: dialogs say finish/skip this file
-	queue   []string // files still to review after the current one
-	current *fileState
-	seq     int // increments per reviewed file; requests carry it to detect stale pages
-	results []FileResult
-	done    chan Result // receives the result once when the session ends
-	token   string      // authenticates the API and the /assets/ URLs
-	theme   string      // initial color theme of the page
+	mu        sync.Mutex
+	review    Review
+	phase     string
+	multiFile bool     // several files were chosen: dialogs say finish/skip this file
+	queue     []string // files still to review after the current one
+	current   *fileState
+	seq       int // increments per reviewed file; requests carry it to detect stale pages
+	results   []markdown.FileResult
+	// done receives the results once when the session ends: one per file
+	// that was loaded, in review order.
+	done  chan []markdown.FileResult
+	token string // authenticates the API and the /assets/ URLs
+	theme string // initial color theme of the page
 }
 
 func newSession(review Review, token, theme string) *session {
-	s := &session{review: review, done: make(chan Result, 1), token: token, theme: theme}
+	s := &session{review: review, done: make(chan []markdown.FileResult, 1), token: token, theme: theme}
 	if len(review.Pick) > 0 {
 		s.phase = phasePick
 	} else {
@@ -88,7 +73,7 @@ func newSession(review Review, token, theme string) *session {
 
 // start begins reviewing paths in order.
 func (s *session) start(paths []string) {
-	s.multi = len(paths) > 1
+	s.multiFile = len(paths) > 1
 	s.queue = paths
 	s.advance()
 }
@@ -108,12 +93,13 @@ func (s *session) advance() {
 		}
 	}
 	s.phase = phaseDone
-	s.done <- Result{Files: s.results}
+	s.done <- s.results
 }
 
 // pick starts the review of the chosen files, keeping the picker's order.
-// Choosing nothing or cancelling ends the session without reviews.
-func (s *session) pick(paths []string, cancel bool) error {
+// Choosing nothing (which is how the picker is cancelled) ends the session
+// without reviews.
+func (s *session) pick(paths []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.phase != phasePick {
@@ -124,9 +110,6 @@ func (s *session) pick(paths []string, cancel bool) error {
 		if slices.Contains(paths, p) {
 			chosen = append(chosen, p)
 		}
-	}
-	if cancel {
-		chosen = nil
 	}
 	s.start(chosen)
 	return nil
@@ -150,9 +133,9 @@ func (s *session) withFile(seq int, fn func(f *fileState) error) error {
 // loaded, or the session ends.
 func (s *session) finish(seq int, submit bool) error {
 	return s.withFile(seq, func(f *fileState) error {
-		res := FileResult{File: f.File, Status: markdown.StatusCancelled}
+		res := markdown.FileResult{File: f.File, Status: markdown.StatusCancelled}
 		if submit {
-			res.Review = f.buildReview()
+			res.Review = f.Result()
 			res.Status = res.Review.Status()
 		}
 		s.results = append(s.results, res)

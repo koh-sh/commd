@@ -50,6 +50,23 @@ describe("Comment List", () => {
     expect(text).not.toContain("[*]");
   }, TEST_TIMEOUT);
 
+  test("saving an emptied comment deletes it", async () => {
+    session = await launchCommd({ file: FIXTURE_BASIC });
+    await session.press("j");
+    await addComment(session, "gone");
+    await session.press("C");
+    await session.waitForText("Comments on");
+    await session.press("e");
+    await session.waitForText("save");
+    for (let i = 0; i < "gone".length; i++) await session.press("backspace");
+    await session.press(["ctrl", "s"]);
+    // No comment is left, so the list closes back to normal mode.
+    await session.waitForText("quit");
+    const text = await session.text();
+    expect(text).not.toContain("[*]");
+    expect(text).not.toContain("Comments on");
+  }, TEST_TIMEOUT);
+
   test("multiple comments shown in list", async () => {
     session = await launchCommd({ file: FIXTURE_BASIC });
     await session.press("j");

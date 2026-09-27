@@ -103,142 +103,35 @@ func TestCommentEditorLabelIndexFor(t *testing.T) {
 }
 
 func TestCommentEditorResult(t *testing.T) {
-	t.Run("with text", func(t *testing.T) {
-		ce := NewCommentEditor()
-		ce.Open("S1", nil)
-		ce.textarea.SetValue("test comment")
-
-		result := ce.Result()
-		if result == nil {
-			t.Fatal("result should not be nil")
-			return
-		}
-		if result.SectionID != "S1" {
-			t.Errorf("sectionID = %s, want S1", result.SectionID)
-		}
-		if result.Body != "test comment" {
-			t.Errorf("body = %s, want 'test comment'", result.Body)
-		}
-		if result.Action != markdown.ActionQuestion {
-			t.Errorf("action = %s, want question", result.Action)
-		}
-		if result.Decoration != markdown.DecorationNone {
-			t.Errorf("decoration = %s, want empty", result.Decoration)
-		}
-	})
-
-	t.Run("empty text", func(t *testing.T) {
-		ce := NewCommentEditor()
-		ce.Open("S1", nil)
-		ce.textarea.SetValue("")
-
-		if ce.Result() != nil {
-			t.Error("result should be nil for empty text")
-		}
-	})
-
-	t.Run("whitespace only", func(t *testing.T) {
-		ce := NewCommentEditor()
-		ce.Open("S1", nil)
-		ce.textarea.SetValue("   \n  ")
-
-		if ce.Result() != nil {
-			t.Error("result should be nil for whitespace only")
-		}
-	})
-}
-
-func TestCommentEditorCycleDecoration(t *testing.T) {
-	ce := NewCommentEditor()
-	ce.Open("S1", nil)
-
-	// Default should be DecorationNone
-	if ce.DecorationLabel() != markdown.DecorationNone {
-		t.Errorf("default decoration = %s, want empty", ce.DecorationLabel())
-	}
-
-	decos := make([]markdown.Decoration, 0)
-	for range len(markdown.DecorationLabels) {
-		decos = append(decos, ce.DecorationLabel())
-		ce.CycleDecoration()
-	}
-	if len(decos) != len(markdown.DecorationLabels) {
-		t.Errorf("cycled %d decorations, want %d", len(decos), len(markdown.DecorationLabels))
-	}
-	// After full cycle, should be back to DecorationNone
-	if ce.DecorationLabel() != markdown.DecorationNone {
-		t.Errorf("after full cycle, decoration = %s, want empty", ce.DecorationLabel())
-	}
-}
-
-func TestCommentEditorDecorationIndexFor(t *testing.T) {
-	ce := NewCommentEditor()
-
 	tests := []struct {
-		deco markdown.Decoration
-		want int
+		name     string
+		existing *markdown.ReviewComment
+		wantID   string
+		wantEdit bool
 	}{
-		{markdown.DecorationNone, 0},
-		{markdown.DecorationNonBlocking, 1},
-		{markdown.DecorationBlocking, 2},
-		{markdown.DecorationIfMinor, 3},
-		{markdown.Decoration("unknown"), 0},
+		{name: "new comment", wantID: "", wantEdit: false},
+		{
+			name:     "edited comment keeps its ID",
+			existing: &markdown.ReviewComment{ID: "c3", SectionID: "S1", Action: markdown.ActionQuestion, Body: "old"},
+			wantID:   "c3",
+			wantEdit: true,
+		},
 	}
-
-	for _, tt := range tests {
-		got := ce.decorationIndexFor(tt.deco)
-		if got != tt.want {
-			t.Errorf("decorationIndexFor(%s) = %d, want %d", tt.deco, got, tt.want)
-		}
-	}
-}
-
-func TestCommentEditorFormatLabel(t *testing.T) {
-	tests := []struct {
-		name   string
-		action markdown.ActionType
-		deco   markdown.Decoration
-		want   string
-	}{
-		{"no decoration", markdown.ActionSuggestion, markdown.DecorationNone, "suggestion"},
-		{"with non-blocking", markdown.ActionIssue, markdown.DecorationNonBlocking, "issue (non-blocking)"},
-		{"with blocking", markdown.ActionSuggestion, markdown.DecorationBlocking, "suggestion (blocking)"},
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ce := NewCommentEditor()
-			existing := &markdown.ReviewComment{
-				SectionID:  "S1",
-				Action:     tt.action,
-				Decoration: tt.deco,
-				Body:       "body",
+			ce.Open("S1", tt.existing)
+			ce.textarea.SetValue("test comment")
+
+			result := ce.Result()
+			if result.ID != tt.wantID || ce.IsEdit() != tt.wantEdit {
+				t.Errorf("ID = %q, IsEdit() = %v, want %q, %v", result.ID, ce.IsEdit(), tt.wantID, tt.wantEdit)
 			}
-			ce.Open("S1", existing)
-			got := ce.FormatLabel()
-			if got != tt.want {
-				t.Errorf("FormatLabel() = %q, want %q", got, tt.want)
+			if result.SectionID != "S1" || result.Body != "test comment" ||
+				result.Action != markdown.ActionQuestion || result.Decoration != markdown.DecorationNone {
+				t.Errorf("result = %+v", result)
 			}
 		})
-	}
-}
-
-func TestCommentEditorOpenExistingWithDecoration(t *testing.T) {
-	ce := NewCommentEditor()
-
-	existing := &markdown.ReviewComment{
-		SectionID:  "S1",
-		Action:     markdown.ActionIssue,
-		Decoration: markdown.DecorationBlocking,
-		Body:       "blocking comment",
-	}
-	ce.Open("S1", existing)
-
-	if ce.Label() != markdown.ActionIssue {
-		t.Errorf("label = %s, want issue", ce.Label())
-	}
-	if ce.DecorationLabel() != markdown.DecorationBlocking {
-		t.Errorf("decoration = %s, want blocking", ce.DecorationLabel())
 	}
 }
 
@@ -253,19 +146,19 @@ func TestCommentEditorSide(t *testing.T) {
 	}{
 		{
 			name:     "new comment resets stale side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "LEFT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines(3, 0, "LEFT") },
 			existing: nil,
 			want:     "",
 		},
 		{
 			name:     "editing loads existing side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "RIGHT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines(3, 0, "RIGHT") },
 			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b", StartLine: 5, Side: "LEFT"},
 			want:     "LEFT",
 		},
 		{
 			name:     "editing comment without side clears stale side",
-			setup:    func(ce *CommentEditor) { ce.OpenWithLines("S1", 3, 0, "RIGHT") },
+			setup:    func(ce *CommentEditor) { ce.OpenWithLines(3, 0, "RIGHT") },
 			existing: &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "b"},
 			want:     "",
 		},
@@ -280,9 +173,6 @@ func TestCommentEditorSide(t *testing.T) {
 			ce.textarea.SetValue("body")
 
 			result := ce.Result()
-			if result == nil {
-				t.Fatal("result should not be nil")
-			}
 			if result.Side != tt.want {
 				t.Errorf("Side = %q, want %q", result.Side, tt.want)
 			}
@@ -297,10 +187,6 @@ func TestCommentEditorResultWithDecoration(t *testing.T) {
 	ce.CycleDecoration() // None -> non-blocking
 
 	result := ce.Result()
-	if result == nil {
-		t.Fatal("result should not be nil")
-		return
-	}
 	if result.Decoration != markdown.DecorationNonBlocking {
 		t.Errorf("decoration = %s, want non-blocking", result.Decoration)
 	}

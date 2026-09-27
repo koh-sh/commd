@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
-import { useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine } from "../helpers/browser";
+import { useBrowser, openPage, closePage, press, addWebComment, eventually, consistently, text, count, activeSection, cursorLine } from "../helpers/browser";
 
 // Full suite: the modes of the web page (comment editor, comment list,
 // confirm dialog, search, visual selection, file picker) and their keys.
@@ -29,7 +29,7 @@ describe("Web Review UI Modes (Full)", () => {
   test(
     "comment editor: label and decoration cycling, chips, cancel and Ctrl+Enter",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       // Esc cancels without a comment; an empty save adds nothing.
@@ -65,13 +65,11 @@ describe("Web Review UI Modes (Full)", () => {
   test(
     "comment list: navigate, edit, delete by key and by button",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       for (const body of ["one", "two", "three"]) {
-        await press(page, "c");
-        await page.keyboard.type(body);
-        await press(page, "Control+s");
+        await addWebComment(page, body);
       }
       await eventually(async () => expect((await stateOf(web!)).file.comments.length).toBe(3));
 
@@ -112,7 +110,7 @@ describe("Web Review UI Modes (Full)", () => {
   test(
     "confirm dialog: n, N, q and Esc cancel; buttons work",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       for (const cancel of ["n", "N", "q", "Escape"]) {
         await press(page, "s");
@@ -125,9 +123,9 @@ describe("Web Review UI Modes (Full)", () => {
       await page.locator(".modal button", { hasText: "no" }).click();
       await eventually(async () => expect(await count(page!, ".modal")).toBe(0));
 
-      await press(page, "c");
-      await page.keyboard.type("keep");
-      await press(page, "Control+s", "q");
+      await addWebComment(page, "keep");
+
+      await press(page, "q");
       await eventually(async () => expect(await text(page!, ".modal")).toContain("You have review comments.\n\nQuit without submitting?"));
       await press(page, "Y");
       const { stdout } = await finished(web);
@@ -139,7 +137,7 @@ describe("Web Review UI Modes (Full)", () => {
   test(
     "search: arrow keys, no match, Tab stays in the input, click to reopen",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await press(page, "/");
@@ -182,7 +180,7 @@ describe("Web Review UI Modes (Full)", () => {
     "visual selection: Esc cancels, the range keeps to the cursor's diff side, C at the cursor",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff", "doc.md"], repo.dir);
+      web = await launchWeb({ args: ["--diff", "doc.md"], cwd: repo.dir });
       page = await openPage(web);
 
       await eventually(async () => expect(await cursorLine(page!)).toBe("1"));
@@ -218,7 +216,7 @@ describe("Web Review UI Modes (Full)", () => {
     "picker: keys, clicks and buttons; nothing selected reviews nothing",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff"], repo.dir);
+      web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
       page = await openPage(web);
 
       await eventually(async () => expect(await text(page!, ".picker li.active")).toContain("[✓] doc.md"));
@@ -249,7 +247,7 @@ describe("Web Review UI Modes (Full)", () => {
     async () => {
       for (const cancel of ["q", "button"]) {
         repo = createRepo(true);
-        web = await launchWeb(["--diff"], repo.dir);
+        web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
         page = await openPage(web);
         await eventually(async () => expect(await count(page!, ".picker")).toBe(1));
         if (cancel === "q") await press(page, "q");
@@ -268,7 +266,7 @@ describe("Web Review UI Modes (Full)", () => {
   test(
     "Ctrl+C copies selected text and otherwise quits (skips in multi-file)",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await page.locator("#content .markdown p").first().selectText();

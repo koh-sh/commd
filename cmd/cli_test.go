@@ -534,9 +534,8 @@ func TestPRCmdSubmitReviewComment(t *testing.T) {
 			{ID: "S1", Title: "Intro", StartLine: 3, EndLine: 10},
 		},
 	}
-	results := []ghclient.FileReviewResult{{
-		Path: "README.md",
-		Doc:  doc,
+	results := []markdown.FileResult{{
+		Path: "README.md", Doc: doc,
 		Review: &markdown.ReviewResult{
 			Comments: []markdown.ReviewComment{
 				{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "Fix typo", StartLine: 5},
@@ -580,9 +579,8 @@ func TestPRCmdSubmitReviewError(t *testing.T) {
 			{ID: "S1", Title: "Intro", StartLine: 3},
 		},
 	}
-	results := []ghclient.FileReviewResult{{
-		Path: "README.md",
-		Doc:  doc,
+	results := []markdown.FileResult{{
+		Path: "README.md", Doc: doc,
 		Review: &markdown.ReviewResult{
 			Comments: []markdown.ReviewComment{
 				{SectionID: "S1", Action: markdown.ActionNote, Body: "note"},

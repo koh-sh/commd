@@ -7,7 +7,7 @@ import { createRepo, createRepoFrom } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
 import { COMMD_BIN, PROJECT_ROOT } from "../helpers/paths";
 import {
-  useBrowser, openPage, closePage, press, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
+  useBrowser, openPage, closePage, press, addWebComment, eventually, consistently, text, count, activeSection, cursorLine, writeFixture,
 } from "../helpers/browser";
 
 // Full suite: session edge cases (the command going away, a second tab),
@@ -44,7 +44,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
   test(
     "the page ends when commd is stopped",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       const page = await open(web);
       await stopWeb(web);
       await press(page, "j", "v");
@@ -60,7 +60,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
     "a second tab catches up when the first finishes a file",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff", "doc.md", "new.md"], repo.dir);
+      web = await launchWeb({ args: ["--diff", "doc.md", "new.md"], cwd: repo.dir });
       const a = await open(web);
       const b = await open(web);
       await eventually(async () => expect(await text(b, ".doc-title")).toContain("(doc.md)"));
@@ -85,7 +85,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
   test(
     "narrow windows show the content, with the section list on demand",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       const page = await open(web, { width: 600, height: 700 });
       await eventually(async () => expect(await page.locator("#right").isVisible()).toBe(true));
       expect(await page.locator("#sidebar").isVisible()).toBe(false);
@@ -113,7 +113,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
     "unusual documents: empty, title only, lines before the first heading",
     async () => {
       fixture = writeFixture("");
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       let page = await open(web);
       await eventually(async () => expect(await text(page, "#content")).toContain("This document is empty."));
       await press(page, "c", "C", "v", "r"); // nothing to act on
@@ -124,15 +124,13 @@ describe("Web Review UI Edge Cases (Full)", () => {
       // Without a preamble there is no overview entry (as in the TUI), but
       // the title line still shows in the full raw view and takes comments.
       fixture = writeFixture("# Title\n\n## A\n\nbody\n");
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await open(web);
       await eventually(async () => expect(await count(page, "#sections .item")).toBe(1));
       await press(page, "r", "f", "g", "g");
       await eventually(async () => expect(await cursorLine(page)).toBe("1"));
       expect(await count(page, "#content .block:not(:has(.block-head))")).toBe(1);
-      await press(page, "c");
-      await page.keyboard.type("title");
-      await press(page, "Control+s");
+      await addWebComment(page, "title");
       await eventually(async () => expect((await stateOf(web!)).file.comments[0]).toMatchObject({ sectionId: "overview", startLine: 1 }));
 
       // Back to the section view: only section A's lines.
@@ -146,7 +144,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
     "unchanged diff sections say so and cannot be commented",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff", "doc.md"], repo.dir);
+      web = await launchWeb({ args: ["--diff", "doc.md"], cwd: repo.dir });
       const page = await open(web);
       // Step 1 has no changes.
       await page.locator("#sections .item").nth(1).click();
@@ -164,7 +162,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
   test(
     "keys and clicks during a slow request are applied in order afterwards",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       const page = await open(web);
       await page.route("**/api/files/**", async (route) => {
         await Bun.sleep(300);
@@ -192,7 +190,7 @@ describe("Web Review UI Edge Cases (Full)", () => {
   test(
     "mouse extras: view buttons, viewed checkbox, comment button, shift+click, resize, theme",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC, "--theme", "light"]);
+      web = await launchWeb({ file: FIXTURE_BASIC, args: ["--theme", "light"] });
       const page = await open(web);
       await eventually(async () => expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("light"));
       await page.getByRole("button", { name: "Toggle theme" }).click();
@@ -269,7 +267,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
       const probe = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
       const port = probe.port;
       probe.stop(true);
-      web = await launchWeb([FIXTURE_BASIC, "--port", String(port)]);
+      web = await launchWeb({ file: FIXTURE_BASIC, args: ["--port", String(port)] });
       expect(web.base).toBe(`http://127.0.0.1:${port}`);
       expect((await web.api("GET", "/api/state")).status).toBe(200);
     },
@@ -279,7 +277,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
   test(
     "a --port already in use fails to start",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       const port = new URL(web.base).port;
       const second = Bun.spawnSync([COMMD_BIN, "review", FIXTURE_BASIC, "--web", "--no-open", "--port", port], {
         cwd: PROJECT_ROOT,
@@ -294,12 +292,10 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
   test(
     "API errors show a toast; a failed or refused state load ends the page",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       await page.route("**/api/files/*/comments", (route) => route.fulfill({ status: 400, contentType: "application/json", body: '{"error":"boom"}' }));
-      await press(page, "c");
-      await page.keyboard.type("x");
-      await press(page, "Control+s");
+      await addWebComment(page, "x");
       await eventually(async () => expect(await text(page!, "#toast")).toBe("boom"));
       // The editor stays open so the comment is not lost.
       expect(await count(page, "#editor")).toBe(1);
@@ -335,7 +331,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
       changed[19] = "line twenty";
       const gapRepo = createRepoFrom({ "gap.md": ["## Only", "", ...body, ""].join("\n") }, { "gap.md": ["## Only", "", ...changed, ""].join("\n") });
       try {
-        const gapWeb = await launchWeb(["--diff", "gap.md"], gapRepo.dir);
+        const gapWeb = await launchWeb({ args: ["--diff", "gap.md"], cwd: gapRepo.dir });
         const gapPage = await openPage(gapWeb);
         await eventually(async () => expect(await count(gapPage, "#content tr.gap")).toBe(1));
         await closePage(gapPage);
@@ -345,11 +341,10 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
       }
 
       repo = createRepo(true);
-      web = await launchWeb(["--diff", "doc.md"], repo.dir);
+      web = await launchWeb({ args: ["--diff", "doc.md"], cwd: repo.dir });
       page = await openPage(web);
-      await press(page, "c"); // removed title line
-      await page.keyboard.type("old");
-      await press(page, "Control+s", "r");
+      await addWebComment(page, "old"); // removed title line
+      await press(page, "r");
       await eventually(async () => expect(await text(page!, "#content .comment .ref")).toBe("L1 (removed)"));
       expect(await text(page, "#content .comment .quote")).toBe("# Diff Doc");
     },
@@ -359,7 +354,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
   test(
     "input the TUI would not accept in the current mode is refused or ignored",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       // Tree toggle by clicking the triangle.
@@ -369,9 +364,8 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
       expect(await count(page, "#sections .item")).toBe(6);
 
       // Clicks during the comment list are refused with a hint.
-      await press(page, "c");
-      await page.keyboard.type("x");
-      await press(page, "Control+s", "C");
+      await addWebComment(page, "x");
+      await press(page, "C");
       await page.getByRole("button", { name: "Full view" }).click();
       await eventually(async () => expect(await text(page!, "#toast")).toContain("Finish the current action first"));
       await press(page, "Escape");
@@ -406,7 +400,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
     "picker ignores other keys and copies with a text selection",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff"], repo.dir);
+      web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
       page = await openPage(web);
       await eventually(async () => expect(await count(page!, ".picker")).toBe(1));
       await press(page, "x");
@@ -446,7 +440,7 @@ describe("Web Review UI Documents and Reload (Full)", () => {
       const fixture = writeFixture(`## Picture\n\n![dot](${imgName})\n`);
       cleanups.push(fixture.cleanup);
 
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
       await eventually(async () =>
         expect(await page!.locator("#content img").evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(1),
@@ -458,14 +452,12 @@ describe("Web Review UI Documents and Reload (Full)", () => {
   test(
     "reloading asks nothing and keeps the review",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       let dialogs = 0;
       page.on("dialog", () => dialogs++);
 
-      await press(page, "c");
-      await page.keyboard.type("kept");
-      await press(page, "Control+s");
+      await addWebComment(page, "kept");
       await eventually(async () => expect(await count(page!, "#content .comment")).toBe(1));
       await page.reload();
       await eventually(async () => expect(await text(page!, "#content .comment")).toContain("kept"));

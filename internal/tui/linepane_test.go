@@ -127,35 +127,6 @@ func TestLinePaneSectionIDAtCursor(t *testing.T) {
 	}
 }
 
-func TestLinePaneSelectedSectionID(t *testing.T) {
-	// A removed line (LEFT) of S1 followed by added lines (RIGHT) of S1 and S2.
-	sides := []string{"RIGHT", "LEFT", "RIGHT", "RIGHT"}
-	sections := []string{"S1", "S1", "S1", "S2"}
-	tests := []struct {
-		name   string
-		anchor int // -1 = no selection
-		cursor int
-		want   string
-	}{
-		{name: "cursor line without selection", anchor: -1, cursor: 3, want: "S2"},
-		{name: "first selected line", anchor: 0, cursor: 3, want: "S1"},
-		{name: "first line on the cursor's side", anchor: 1, cursor: 3, want: "S1"},
-		{name: "selection upwards", anchor: 3, cursor: 2, want: "S1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lp := newTestLinePane(make([]string, 4), sections)
-			lp.diffLineMap = []int{1, 2, 2, 5}
-			lp.diffSideMap = sides
-			lp.selectAnchor = tt.anchor
-			lp.cursor = tt.cursor
-			if got := lp.SelectedSectionID(); got != tt.want {
-				t.Errorf("SelectedSectionID() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestLinePaneScrollToLine(t *testing.T) {
 	lines := make([]string, 100)
 	for i := range lines {

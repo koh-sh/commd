@@ -28,9 +28,52 @@ func makeDocNoPreamble() *markdown.Document {
 	return p
 }
 
+func newTestSectionList(doc *markdown.Document) *SectionList {
+	return NewSectionList(markdown.NewReviewState(markdown.File{Doc: doc}))
+}
+
+func TestRenderBadge(t *testing.T) {
+	tests := []struct {
+		name     string
+		comments int
+		viewed   bool
+		want     []string
+	}{
+		{name: "no badge"},
+		{name: "single comment", comments: 1, want: []string{"[*]"}},
+		{name: "multiple comments", comments: 2, want: []string{"[*2]"}},
+		{name: "viewed", viewed: true, want: []string{"[✓]"}},
+		{name: "comments and viewed", comments: 1, viewed: true, want: []string{"[*]", "[✓]"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sl := newTestSectionList(makeDocWithChildren())
+			for range tt.comments {
+				if err := sl.review.SaveComment(markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionNote, Body: "b"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.viewed {
+				if err := sl.review.SetViewed("S1", true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			badge := sl.renderBadge("S1", defaultStyles())
+			if len(tt.want) == 0 && badge != "" {
+				t.Errorf("badge = %q, want none", badge)
+			}
+			for _, w := range tt.want {
+				if !strings.Contains(badge, w) {
+					t.Errorf("badge = %q, want it to contain %q", badge, w)
+				}
+			}
+		})
+	}
+}
+
 func TestNewSectionList(t *testing.T) {
 	t.Run("with preamble", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		if !sl.items[0].IsOverview {
 			t.Error("first item should be overview when preamble exists")
 		}
@@ -41,7 +84,7 @@ func TestNewSectionList(t *testing.T) {
 	})
 
 	t.Run("without preamble", func(t *testing.T) {
-		sl := NewSectionList(makeDocNoPreamble(), nil)
+		sl := newTestSectionList(makeDocNoPreamble())
 		if sl.items[0].IsOverview {
 			t.Error("first item should not be overview when no preamble")
 		}
@@ -52,7 +95,7 @@ func TestNewSectionList(t *testing.T) {
 }
 
 func TestCursorUpDown(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 
 	// Initial cursor at 0 (overview)
 	if sl.cursor != 0 {
@@ -93,7 +136,7 @@ func TestCursorUpDown(t *testing.T) {
 }
 
 func TestCursorUpDownSkipsHidden(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 
 	// Collapse S1 to hide children
 	sl.CursorDown() // move to S1
@@ -114,7 +157,7 @@ func TestCursorUpDownSkipsHidden(t *testing.T) {
 }
 
 func TestCursorTopBottom(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 
 	sl.CursorBottom()
 	if sl.items[sl.cursor].Section.ID != "S2" {
@@ -129,7 +172,7 @@ func TestCursorTopBottom(t *testing.T) {
 
 func TestToggleExpand(t *testing.T) {
 	t.Run("toggle with children", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.CursorDown() // S1
 
 		if !sl.items[sl.cursor].Expanded {
@@ -155,7 +198,7 @@ func TestToggleExpand(t *testing.T) {
 	})
 
 	t.Run("toggle without children", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.CursorBottom() // S2 (no children)
 		expanded := sl.items[sl.cursor].Expanded
 		sl.ToggleExpand() // should be no-op for leaf node
@@ -165,7 +208,7 @@ func TestToggleExpand(t *testing.T) {
 	})
 
 	t.Run("toggle overview", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		// cursor at overview
 		if !sl.IsOverviewSelected() {
 			t.Fatal("cursor should be on overview")
@@ -177,172 +220,9 @@ func TestToggleExpand(t *testing.T) {
 	})
 }
 
-func TestAddComment(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	// Normal add
-	c := &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "test"}
-	sl.AddComment("S1", c)
-	if len(sl.comments["S1"]) != 1 {
-		t.Errorf("comments count = %d, want 1", len(sl.comments["S1"]))
-	}
-
-	// Add nil
-	sl.AddComment("S1", nil)
-	if len(sl.comments["S1"]) != 1 {
-		t.Error("nil comment should not be added")
-	}
-
-	// Add empty body
-	sl.AddComment("S1", &markdown.ReviewComment{Body: ""})
-	if len(sl.comments["S1"]) != 1 {
-		t.Error("empty body comment should not be added")
-	}
-
-	// Add second
-	c2 := &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "issue"}
-	sl.AddComment("S1", c2)
-	if len(sl.comments["S1"]) != 2 {
-		t.Errorf("comments count = %d, want 2", len(sl.comments["S1"]))
-	}
-}
-
-func TestUpdateComment(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-	c := &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "original"}
-	sl.AddComment("S1", c)
-
-	// Normal update
-	updated := &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionIssue, Body: "updated"}
-	sl.UpdateComment("S1", 0, updated)
-	if sl.comments["S1"][0].Body != "updated" {
-		t.Errorf("body = %s, want updated", sl.comments["S1"][0].Body)
-	}
-
-	// Update with empty body -> deletes
-	sl.UpdateComment("S1", 0, &markdown.ReviewComment{Body: ""})
-	if len(sl.comments["S1"]) != 0 {
-		t.Error("update with empty body should delete")
-	}
-
-	// Update out of range should be no-op
-	sl.UpdateComment("S1", 5, updated)
-	if len(sl.comments["S1"]) != 0 {
-		t.Error("out-of-range update should not add comments")
-	}
-}
-
-func TestDeleteComment(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "a"})
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "b"})
-
-	// Delete first
-	sl.DeleteComment("S1", 0)
-	if len(sl.comments["S1"]) != 1 {
-		t.Errorf("comments count = %d, want 1", len(sl.comments["S1"]))
-	}
-	if sl.comments["S1"][0].Body != "b" {
-		t.Errorf("remaining comment = %s, want b", sl.comments["S1"][0].Body)
-	}
-
-	// Delete last -> map entry removed
-	sl.DeleteComment("S1", 0)
-	if _, exists := sl.comments["S1"]; exists {
-		t.Error("map entry should be removed when no comments remain")
-	}
-
-	// Delete out of range should be no-op
-	sl.DeleteComment("S1", 0)
-	if _, exists := sl.comments["S1"]; exists {
-		t.Error("out-of-range delete should not create map entry")
-	}
-}
-
-func TestToggleViewed(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	if sl.IsViewed("S1") {
-		t.Error("S1 should not be viewed initially")
-	}
-
-	sl.ToggleViewed("S1")
-	if !sl.IsViewed("S1") {
-		t.Error("S1 should be viewed after toggle")
-	}
-
-	sl.ToggleViewed("S1")
-	if sl.IsViewed("S1") {
-		t.Error("S1 should not be viewed after second toggle")
-	}
-}
-
-func TestHasComments(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	if sl.HasComments() {
-		t.Error("should have no comments initially")
-	}
-
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-	if !sl.HasComments() {
-		t.Error("should have comments after adding")
-	}
-
-	sl.DeleteComment("S1", 0)
-	if sl.HasComments() {
-		t.Error("should have no comments after deleting all")
-	}
-}
-
-func TestBuildReviewResult(t *testing.T) {
-	tests := []struct {
-		name     string
-		comments map[string][]*markdown.ReviewComment
-		wantIDs  []string
-	}{
-		{
-			name: "section order preserved",
-			comments: map[string][]*markdown.ReviewComment{
-				"S2": {{SectionID: "S2", Body: "s2 comment"}},
-				"S1": {{SectionID: "S1", Body: "s1 comment"}, {SectionID: "S1", Body: "s1 second"}},
-			},
-			wantIDs: []string{"S1", "S1", "S2"},
-		},
-		{
-			name: "overview comments come first",
-			comments: map[string][]*markdown.ReviewComment{
-				"S1":                       {{SectionID: "S1", Body: "s1 comment"}},
-				markdown.OverviewSectionID: {{SectionID: markdown.OverviewSectionID, Body: "overview comment"}},
-			},
-			wantIDs: []string{markdown.OverviewSectionID, "S1"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sl := NewSectionList(makeDocWithChildren(), nil)
-			for id, comments := range tt.comments {
-				for _, c := range comments {
-					sl.AddComment(id, c)
-				}
-			}
-			result := sl.BuildReviewResult()
-			if len(result.Comments) != len(tt.wantIDs) {
-				t.Fatalf("comments count = %d, want %d", len(result.Comments), len(tt.wantIDs))
-			}
-			for i, wantID := range tt.wantIDs {
-				if result.Comments[i].SectionID != wantID {
-					t.Errorf("comment[%d] sectionID = %s, want %s", i, result.Comments[i].SectionID, wantID)
-				}
-			}
-		})
-	}
-}
-
 func TestFilterByQuery(t *testing.T) {
 	t.Run("partial match", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("Sub")
 		// S1.1 and S1.2 match, S1 is ancestor
 		for _, item := range sl.items {
@@ -356,7 +236,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("step 2")
 		for _, item := range sl.items {
 			if item.Section != nil && item.Section.ID == "S2" && !item.Visible {
@@ -366,7 +246,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("shows descendants", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("Step 1")
 		// S1 matches, children should be visible
 		for _, item := range sl.items {
@@ -377,7 +257,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("overview match", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("over")
 		if !sl.items[0].Visible {
 			t.Error("overview should match 'over'")
@@ -385,7 +265,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("empty query clears filter", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("nonexistent")
 		sl.FilterByQuery("")
 		for _, item := range sl.items {
@@ -396,7 +276,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("body match", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.FilterByQuery("Body 2")
 		for _, item := range sl.items {
 			if item.Section != nil && item.Section.ID == "S2" && !item.Visible {
@@ -415,7 +295,7 @@ func TestFilterByQuery(t *testing.T) {
 	})
 
 	t.Run("cursor moves to visible on hidden", func(t *testing.T) {
-		sl := NewSectionList(makeDocWithChildren(), nil)
+		sl := newTestSectionList(makeDocWithChildren())
 		sl.CursorBottom() // S2
 		sl.FilterByQuery("Sub")
 		// S2 is hidden, cursor should move to a visible item
@@ -426,7 +306,7 @@ func TestFilterByQuery(t *testing.T) {
 }
 
 func TestClearFilter(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 	sl.FilterByQuery("nonexistent")
 	sl.ClearFilter()
 	for _, item := range sl.items {
@@ -437,7 +317,7 @@ func TestClearFilter(t *testing.T) {
 }
 
 func TestSelectedAndIsOverviewSelected(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 
 	// At overview
 	if !sl.IsOverviewSelected() {
@@ -457,7 +337,7 @@ func TestSelectedAndIsOverviewSelected(t *testing.T) {
 }
 
 func TestRender(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 	styles := defaultStyles()
 	output := sl.Render(80, 20, styles)
 
@@ -470,38 +350,6 @@ func TestRender(t *testing.T) {
 	// Cursor marker
 	if !strings.Contains(output, ">") {
 		t.Error("render should contain cursor marker '>'")
-	}
-}
-
-func TestRenderBadge(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-	styles := defaultStyles()
-
-	// No badge
-	badge := sl.renderBadge("S1", styles)
-	if badge != "" {
-		t.Errorf("empty badge expected, got %q", badge)
-	}
-
-	// Single comment
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-	badge = sl.renderBadge("S1", styles)
-	if !strings.Contains(badge, "[*]") {
-		t.Error("badge should contain [*] for single comment")
-	}
-
-	// Multiple comments
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "test2"})
-	badge = sl.renderBadge("S1", styles)
-	if !strings.Contains(badge, "[*2]") {
-		t.Error("badge should contain [*2] for 2 comments")
-	}
-
-	// Viewed
-	sl.ToggleViewed("S1")
-	badge = sl.renderBadge("S1", styles)
-	if !strings.Contains(badge, "[✓]") {
-		t.Error("badge should contain [✓] for viewed")
 	}
 }
 
@@ -520,7 +368,7 @@ func TestTruncateMaxWidthThree(t *testing.T) {
 }
 
 func TestRenderCollapsedSection(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 	styles := defaultStyles()
 
 	// Collapse S1 to get ▶ prefix rendered
@@ -544,7 +392,7 @@ func TestRenderCollapsedSection(t *testing.T) {
 }
 
 func TestSelectedOutOfBounds(t *testing.T) {
-	sl := NewSectionList(&markdown.Document{}, nil)
+	sl := newTestSectionList(&markdown.Document{})
 	// Empty document, no items - cursor is already out of range
 	sl.cursor = 999
 	if sl.Selected() != nil {
@@ -556,7 +404,7 @@ func TestSelectedOutOfBounds(t *testing.T) {
 }
 
 func TestToggleExpandOutOfBounds(t *testing.T) {
-	sl := NewSectionList(&markdown.Document{}, nil)
+	sl := newTestSectionList(&markdown.Document{})
 	sl.cursor = 999
 
 	sl.ToggleExpand()
@@ -565,137 +413,21 @@ func TestToggleExpandOutOfBounds(t *testing.T) {
 	}
 }
 
-func TestGetComments(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	// No comments
-	comments := sl.GetComments("S1")
-	if len(comments) != 0 {
-		t.Errorf("expected 0 comments, got %d", len(comments))
-	}
-
-	// With comments
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-	comments = sl.GetComments("S1")
-	if len(comments) != 1 {
-		t.Errorf("expected 1 comment, got %d", len(comments))
-	}
-}
-
 func TestTotalSectionCount(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 	// S1, S1.1, S1.2, S2 = 4 sections (overview excluded)
 	if got := sl.TotalSectionCount(); got != 4 {
 		t.Errorf("TotalSectionCount = %d, want 4", got)
 	}
 
-	sl2 := NewSectionList(makeDocNoPreamble(), nil)
+	sl2 := newTestSectionList(makeDocNoPreamble())
 	if got := sl2.TotalSectionCount(); got != 1 {
 		t.Errorf("TotalSectionCount (no preamble) = %d, want 1", got)
 	}
 }
 
-func TestViewedCount(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	if got := sl.ViewedCount(); got != 0 {
-		t.Errorf("ViewedCount initial = %d, want 0", got)
-	}
-
-	sl.ToggleViewed("S1")
-	sl.ToggleViewed("S2")
-	if got := sl.ViewedCount(); got != 2 {
-		t.Errorf("ViewedCount after marking 2 = %d, want 2", got)
-	}
-
-	sl.ToggleViewed("S1") // unmark
-	if got := sl.ViewedCount(); got != 1 {
-		t.Errorf("ViewedCount after unmarking 1 = %d, want 1", got)
-	}
-}
-
-func TestTotalCommentCount(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	if got := sl.TotalCommentCount(); got != 0 {
-		t.Errorf("TotalCommentCount initial = %d, want 0", got)
-	}
-
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "a"})
-	sl.AddComment("S1", &markdown.ReviewComment{Body: "b"})
-	sl.AddComment("S2", &markdown.ReviewComment{Body: "c"})
-	if got := sl.TotalCommentCount(); got != 3 {
-		t.Errorf("TotalCommentCount = %d, want 3", got)
-	}
-}
-
-func TestViewedStateRestoration(t *testing.T) {
-	p := makeDocWithChildren()
-	state := markdown.NewViewedState()
-	// Mark S1 as viewed with its current content
-	for _, s := range p.AllSections() {
-		if s.ID == "S1" {
-			state.MarkViewed(s)
-		}
-	}
-
-	sl := NewSectionList(p, state)
-
-	if !sl.IsViewed("S1") {
-		t.Error("S1 should be restored as viewed")
-	}
-	if sl.IsViewed("S2") {
-		t.Error("S2 should not be viewed")
-	}
-}
-
-func TestViewedStateStaleHash(t *testing.T) {
-	p := makeDocWithChildren()
-	state := markdown.NewViewedState()
-
-	// Mark S1 as viewed
-	s1 := p.FindSection("S1")
-	if s1 == nil {
-		t.Fatal("S1 not found in document")
-		return
-	}
-	state.MarkViewed(s1)
-
-	// Change S1's body before creating SectionList
-	s1.Body = "changed body content"
-
-	sl := NewSectionList(p, state)
-
-	if sl.IsViewed("S1") {
-		t.Error("S1 should not be viewed after content change (stale hash)")
-	}
-}
-
-func TestToggleViewedSyncsState(t *testing.T) {
-	p := makeDocWithChildren()
-	state := markdown.NewViewedState()
-	sl := NewSectionList(p, state)
-
-	s1 := p.FindSection("S1")
-	if s1 == nil {
-		t.Fatal("S1 not found in document")
-	}
-
-	// Toggle on
-	sl.ToggleViewed("S1")
-	if !state.IsSectionViewed(s1) {
-		t.Error("ViewedState should be updated after ToggleViewed on")
-	}
-
-	// Toggle off
-	sl.ToggleViewed("S1")
-	if state.IsSectionViewed(s1) {
-		t.Error("ViewedState should be updated after ToggleViewed off")
-	}
-}
-
 func TestSelectBySectionID(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 
 	// Move to S2
 	sl.SelectBySectionID("S2")
@@ -755,7 +487,7 @@ func TestCursorPageScroll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sl := NewSectionList(makeDocWithChildren(), nil)
+			sl := newTestSectionList(makeDocWithChildren())
 			// Move cursor to startID
 			if tt.startID != "" {
 				sl.SelectBySectionID(tt.startID)
@@ -784,7 +516,7 @@ func TestCursorPageScroll(t *testing.T) {
 }
 
 func TestCursorPageScrollSkipsHidden(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
+	sl := newTestSectionList(makeDocWithChildren())
 	// Collapse S1 so S1.1 and S1.2 are hidden
 	// Visible: overview(0), S1(1), S2(4)
 	sl.SelectBySectionID("S1")
@@ -798,16 +530,6 @@ func TestCursorPageScrollSkipsHidden(t *testing.T) {
 	}
 	if gotID != "S2" {
 		t.Errorf("half page down with collapsed children: cursor at %q, want S2", gotID)
-	}
-}
-
-func TestViewedStateNil(t *testing.T) {
-	sl := NewSectionList(makeDocWithChildren(), nil)
-
-	// ToggleViewed should not panic with nil state
-	sl.ToggleViewed("S1")
-	if !sl.IsViewed("S1") {
-		t.Error("S1 should be viewed after toggle even with nil state")
 	}
 }
 
@@ -847,7 +569,7 @@ func TestSelectBySectionIDFallbacks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := makeDocWithChildren()
 			doc.Preamble = "intro"
-			sl := NewSectionList(doc, nil)
+			sl := newTestSectionList(doc)
 			tt.setup(sl)
 
 			sl.SelectBySectionID(tt.sectionID)

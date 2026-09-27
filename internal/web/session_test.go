@@ -26,8 +26,7 @@ func (l *testLoader) load(path string) (markdown.File, bool) {
 
 // step is one action in a session flow test.
 type step struct {
-	pick    []string // pick these paths
-	cancel  bool     // cancel the picker
+	pick    []string // pick these paths; empty (not nil) cancels the picker
 	comment bool     // add a section comment to the current file
 	finish  string   // "submit" or "quit" the current file
 	stale   bool     // finish with an outdated seq, expecting errStale
@@ -97,7 +96,7 @@ func TestSessionFlow(t *testing.T) {
 			name:   "cancelled picker reviews nothing",
 			review: Review{Pick: []string{"a.md"}},
 			known:  []string{"a.md"},
-			steps:  []step{{cancel: true}},
+			steps:  []step{{pick: []string{}}},
 		},
 		{
 			name:       "a request for a finished file is stale",
@@ -116,11 +115,11 @@ func TestSessionFlow(t *testing.T) {
 			for _, st := range tt.steps {
 				var err error
 				switch {
-				case st.pick != nil || st.cancel:
-					err = s.pick(st.pick, st.cancel)
+				case st.pick != nil:
+					err = s.pick(st.pick)
 				case st.comment:
 					err = s.withFile(s.seq, func(f *fileState) error {
-						return f.addComment(commentInput{SectionID: "S1", Action: "note", Body: "b"})
+						return f.addComment(markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionNote, Body: "b"})
 					})
 				case st.stale:
 					if err := s.finish(s.seq-1, true); !errors.Is(err, errStale) {
@@ -138,12 +137,12 @@ func TestSessionFlow(t *testing.T) {
 			}
 			res := <-s.done
 			var got []fileOutcome
-			for _, f := range res.Files {
+			for _, f := range res {
 				n := 0
 				if f.Review != nil {
 					n = len(f.Review.Comments)
 				}
-				got = append(got, fileOutcome{f.File.Path, f.Status, n})
+				got = append(got, fileOutcome{f.Path, f.Status, n})
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("results = %v, want %v", got, tt.want)
@@ -175,7 +174,7 @@ func TestSessionPhaseErrors(t *testing.T) {
 			return s.withFile(s.seq, func(*fileState) error { return nil })
 		}},
 		{name: "finish while picking", start: picking, run: func(s *session) error { return s.finish(s.seq, true) }},
-		{name: "pick while reviewing", start: reviewing, run: func(s *session) error { return s.pick([]string{"a.md"}, false) }},
+		{name: "pick while reviewing", start: reviewing, run: func(s *session) error { return s.pick([]string{"a.md"}) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

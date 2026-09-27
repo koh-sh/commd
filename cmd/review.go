@@ -107,12 +107,11 @@ func (r *ReviewCmd) runFile(path string) error {
 	if r.TrackViewed {
 		file.Viewed = markdown.LoadViewedState(markdown.StatePath(path))
 	}
-	var status markdown.Status
-	var result *markdown.ReviewResult
+	var res markdown.FileResult
 	if r.Web {
-		status, result, err = r.reviewFileInBrowser(file)
+		res, err = r.reviewFileInBrowser(file)
 	} else {
-		status, result, err = r.reviewFileInTUI(file)
+		res, err = runReviewApp(file, tui.AppOptions{Theme: r.Theme}, r.teaOpts)
 	}
 	if err != nil {
 		return err
@@ -126,8 +125,8 @@ func (r *ReviewCmd) runFile(path string) error {
 	}
 
 	// Output review if submitted
-	if status == markdown.StatusSubmitted && result != nil {
-		output := markdown.FormatReview(result, p, path)
+	if res.Status == markdown.StatusSubmitted && res.Review != nil {
+		output := markdown.FormatReview(res.Review, p, path)
 		if output == "" {
 			return nil
 		}
@@ -135,49 +134,32 @@ func (r *ReviewCmd) runFile(path string) error {
 		if err := writeReviewOutput(output, r.Output, r.OutputPath); err != nil {
 			return err
 		}
-	} else if status == markdown.StatusApproved {
+	} else if res.Status == markdown.StatusApproved {
 		fmt.Fprintln(os.Stderr, "Approved.")
 	}
 
 	return nil
 }
 
-// reviewFileInTUI reviews a single file in the TUI.
-func (r *ReviewCmd) reviewFileInTUI(f markdown.File) (markdown.Status, *markdown.ReviewResult, error) {
-	app := tui.NewApp(f.Doc, tui.AppOptions{
-		Theme:    r.Theme,
-		FilePath: f.Path,
-		Viewed:   f.Viewed,
-	})
-	result, err := runReviewApp(app, r.teaOpts)
-	if err != nil {
-		return "", nil, err
-	}
-	return result.Status, result.Review, nil
-}
-
-// reviewFileInBrowser reviews a single file in the browser.
-func (r *ReviewCmd) reviewFileInBrowser(f markdown.File) (markdown.Status, *markdown.ReviewResult, error) {
-	res, err := r.serveWeb(web.Review{
+// reviewFileInBrowser reviews a single file in the browser. An interrupted
+// session has no result: it counts as quit.
+func (r *ReviewCmd) reviewFileInBrowser(f markdown.File) (markdown.FileResult, error) {
+	results, err := r.serveWeb(web.Review{
 		Paths: []string{f.Path},
 		Load:  func(string) (markdown.File, bool) { return f, true },
 	})
-	if err != nil {
-		return "", nil, err
+	if err != nil || len(results) == 0 {
+		return markdown.FileResult{File: f, Status: markdown.StatusCancelled}, err
 	}
-	// An interrupted session has no result: treat it as quit.
-	if len(res.Files) == 0 {
-		return markdown.StatusCancelled, nil, nil
-	}
-	return res.Files[0].Status, res.Files[0].Review, nil
+	return results[0], nil
 }
 
-// appendReview adds the review of f unless f was quit (skipped).
-func appendReview(reviews []markdown.FileReview, f markdown.File, status markdown.Status, review *markdown.ReviewResult) []markdown.FileReview {
-	if status == markdown.StatusCancelled {
+// appendReview adds the result unless its file was quit (skipped).
+func appendReview(reviews []markdown.FileResult, res markdown.FileResult) []markdown.FileResult {
+	if res.Status == markdown.StatusCancelled {
 		return reviews
 	}
-	return append(reviews, markdown.FileReview{Path: f.Path, Doc: f.Doc, Review: review})
+	return append(reviews, res)
 }
 
 // runDiff reviews local git changes to Markdown files in the diff view.
@@ -215,7 +197,7 @@ func (r *ReviewCmd) runDiff() error {
 		}
 	}
 
-	var reviews []markdown.FileReview
+	var reviews []markdown.FileResult
 	if r.Web {
 		reviews, err = r.reviewDiffInBrowser(repo, base, web.Review{Pick: pick, Paths: paths})
 	} else {
@@ -266,24 +248,19 @@ func loadDiffFile(repo *gitdiff.Repo, base, path string) (markdown.File, bool) {
 // reviewDiffInTUI reviews the files one after another. Each file is read
 // when its turn comes, so edits made while reviewing an earlier file are
 // picked up. A file quit in the TUI is skipped; the others are returned.
-func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []string) ([]markdown.FileReview, error) {
-	var reviews []markdown.FileReview
+func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []string) ([]markdown.FileResult, error) {
+	var reviews []markdown.FileResult
+	opts := tui.AppOptions{Theme: r.Theme, MultiFile: len(paths) > 1}
 	for _, path := range paths {
 		f, ok := loadDiffFile(repo, base, path)
 		if !ok {
 			continue
 		}
-		app := tui.NewApp(f.Doc, tui.AppOptions{
-			Theme:     r.Theme,
-			FilePath:  f.Path,
-			MultiFile: len(paths) > 1,
-			Diff:      tui.NewDiffData(f.Doc, f.Diff),
-		})
-		result, err := runReviewApp(app, r.teaOpts)
+		res, err := runReviewApp(f, opts, r.teaOpts)
 		if err != nil {
 			return nil, err
 		}
-		reviews = appendReview(reviews, f, result.Status, result.Review)
+		reviews = appendReview(reviews, res)
 	}
 	return reviews, nil
 }
@@ -291,22 +268,22 @@ func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []str
 // reviewDiffInBrowser reviews the files in the browser, one after another
 // like the TUI: each is loaded when its turn comes, and a file quit
 // (skipped) there is left out.
-func (r *ReviewCmd) reviewDiffInBrowser(repo *gitdiff.Repo, base string, review web.Review) ([]markdown.FileReview, error) {
+func (r *ReviewCmd) reviewDiffInBrowser(repo *gitdiff.Repo, base string, review web.Review) ([]markdown.FileResult, error) {
 	review.Load = func(path string) (markdown.File, bool) { return loadDiffFile(repo, base, path) }
-	res, err := r.serveWeb(review)
+	results, err := r.serveWeb(review)
 	if err != nil {
 		return nil, err
 	}
-	var reviews []markdown.FileReview
-	for _, f := range res.Files {
-		reviews = appendReview(reviews, f.File, f.Status, f.Review)
+	var reviews []markdown.FileResult
+	for _, res := range results {
+		reviews = appendReview(reviews, res)
 	}
 	return reviews, nil
 }
 
 // serveWeb runs a browser review until every file is finished or skipped
 // there. Interrupting the command abandons the session with no result.
-func (r *ReviewCmd) serveWeb(review web.Review) (web.Result, error) {
+func (r *ReviewCmd) serveWeb(review web.Review) ([]markdown.FileResult, error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	opts := web.Options{Port: r.Port, Theme: r.Theme, Log: os.Stderr}

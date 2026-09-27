@@ -300,14 +300,14 @@ func TestFormatReviews(t *testing.T) {
 	docB := &Document{Sections: []*Section{{ID: "S1", Title: "Beta", Level: 2}}}
 	tests := []struct {
 		name         string
-		files        []FileReview
+		files        []FileResult
 		wantEmpty    bool
 		wantContains []string
 		wantMissing  []string
 	}{
 		{
 			name: "two files with comments",
-			files: []FileReview{
+			files: []FileResult{
 				{Path: "docs/a.md", Doc: docA, Review: &ReviewResult{Comments: []ReviewComment{
 					{SectionID: "S1", Action: ActionSuggestion, Body: "Tighten."},
 				}}},
@@ -323,7 +323,7 @@ func TestFormatReviews(t *testing.T) {
 		},
 		{
 			name: "files without comments are omitted",
-			files: []FileReview{
+			files: []FileResult{
 				{Path: "docs/a.md", Doc: docA, Review: &ReviewResult{}},
 				{Path: "docs/b.md", Doc: docB, Review: &ReviewResult{Comments: []ReviewComment{
 					{SectionID: "S1", Action: ActionNote, Body: "Only this."},
@@ -334,7 +334,7 @@ func TestFormatReviews(t *testing.T) {
 		},
 		{
 			name: "nil and empty reviews yield empty output",
-			files: []FileReview{
+			files: []FileResult{
 				{Path: "docs/a.md", Doc: docA, Review: nil},
 				{Path: "docs/b.md", Doc: docB, Review: &ReviewResult{}},
 			},

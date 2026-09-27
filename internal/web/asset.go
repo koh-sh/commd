@@ -9,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 // assetURL returns the imageURL function for a file under review: relative
@@ -61,7 +63,7 @@ func (a *apiHandler) serveAsset(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil || st.IsDir() {
-		writeError(w, http.StatusNotFound, fmt.Errorf("%s: %w", name, errNotFound))
+		writeError(w, http.StatusNotFound, fmt.Errorf("%s: %w", name, markdown.ErrNotFound))
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
@@ -84,12 +86,12 @@ func (s *session) openAsset(seq int, name string) (*os.File, error) {
 	}
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, errNotFound)
+		return nil, fmt.Errorf("%s: %w", name, markdown.ErrNotFound)
 	}
 	defer root.Close()
 	f, err := root.Open(filepath.FromSlash(name))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", name, errNotFound)
+		return nil, fmt.Errorf("%s: %w", name, markdown.ErrNotFound)
 	}
 	return f, nil
 }

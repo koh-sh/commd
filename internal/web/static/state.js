@@ -13,7 +13,7 @@ export function setState(state) {
 
 // hooks are calls into higher modules, set by main.js, so that lower modules
 // never import them (the modules form no import cycle).
-export const hooks = { render() {} };
+export const hooks = { render() {}, refreshPanes() {} };
 
 // fileUIDefaults returns the per-file view state, reset for every file like
 // a fresh TUI App.
@@ -30,7 +30,7 @@ export const fileUIDefaults = () => ({
   collapsed: new Set(),
   leftRatio: 20, // list : content = 2 : 8 (wider screens than the TUI)
   pendingG: false,
-  editor: null, // { id, sectionId, startLine, endLine, side, label, deco, body, fromList }
+  editor: null, // { id, sectionId, startLine, endLine, side, label, deco, body }
   list: null, // { sectionId, cursor }
   confirm: null, // "submit" | "quit"
 });
@@ -99,10 +99,15 @@ export function listSections() {
   return out;
 }
 
-export function hasChildren(s) {
+// parentIds returns the IDs of the sections that have subsections (the
+// sections are in document order, so a child directly follows its parent).
+export function parentIds() {
   const secs = file().sections;
-  const i = secs.indexOf(s);
-  return i + 1 < secs.length && secs[i + 1].depth > s.depth;
+  const out = new Set();
+  secs.forEach((s, i) => {
+    if (i + 1 < secs.length && secs[i + 1].depth > s.depth) out.add(s.id);
+  });
+  return out;
 }
 
 // visibleLines returns the indices of file.lines the raw view shows: every
@@ -114,6 +119,25 @@ export function visibleLines() {
   const s = section(ui.cursor);
   if (!s) return [];
   return all.filter((i) => f.lines[i].section === s.id);
+}
+
+// edgeLine returns the first (or with atEnd the last) line the raw view
+// shows, or 0 when it shows none.
+export function edgeLine(atEnd) {
+  const vis = visibleLines();
+  return (atEnd ? vis.at(-1) : vis[0]) ?? 0;
+}
+
+// resetFileUI starts a new file with fresh view state, like the TUI creating
+// a new App per file.
+export function resetFileUI() {
+  const f = st.file;
+  Object.assign(ui, fileUIDefaults(), {
+    seq: st.seq,
+    cursor: f.sections.length ? f.sections[0].id : null,
+    rawView: f.diff, // diffs open in the raw (diff) view, like the TUI
+  });
+  ui.lineCursor = edgeLine(false);
 }
 
 // selectionRange returns the lines a line comment would cover: the cursor

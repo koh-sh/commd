@@ -2,7 +2,7 @@
 // which is applied and rendered.
 
 import { $, h, toast } from "./dom.js";
-import { token, st, setState, ui, hooks, fileUIDefaults, visibleLines } from "./state.js";
+import { token, st, setState, ui, hooks, resetFileUI } from "./state.js";
 
 // request sends an API request. It returns null when the command is gone,
 // after switching the page to the end screen.
@@ -29,13 +29,9 @@ async function errorOf(res) {
 export async function api(method, path, body) {
   const res = await request(method, path, body);
   if (!res) return false;
-  if (res.status === 409) {
-    toast(await errorOf(res));
-    await load();
-    return false;
-  }
   if (!res.ok) {
     toast(await errorOf(res));
+    if (res.status === 409) await load();
     return false;
   }
   apply(await res.json());
@@ -75,16 +71,6 @@ function apply(state) {
   }
   if (st.phase === "review" && st.seq !== ui.seq) resetFileUI();
   hooks.render();
-}
-
-function resetFileUI() {
-  const f = st.file;
-  Object.assign(ui, fileUIDefaults(), {
-    seq: st.seq,
-    cursor: f.sections.length ? f.sections[0].id : null,
-    rawView: f.diff, // diffs open in the raw (diff) view, like the TUI
-  });
-  ui.lineCursor = visibleLines()[0] ?? 0;
 }
 
 function showEnd(title, detail) {

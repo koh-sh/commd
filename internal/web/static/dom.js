@@ -22,6 +22,9 @@ export function h(tag, attrs, ...children) {
   return el;
 }
 
+// button builds a button that never submits a form.
+export const button = (label, attrs) => h("button", { type: "button", ...attrs }, label);
+
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 let toastTimer = 0;

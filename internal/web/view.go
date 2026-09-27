@@ -1,15 +1,8 @@
 package web
 
 import (
-	"bytes"
-	"strings"
-
+	"github.com/koh-sh/commd/internal/diff"
 	"github.com/koh-sh/commd/internal/markdown"
-	"github.com/koh-sh/commd/internal/mermaid"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/text"
 )
 
 // The JSON types below are the contract with the page (static/*.js).
@@ -22,13 +15,15 @@ type stateJSON struct {
 	Pick  []string  `json:"pick,omitempty"`
 	File  *fileJSON `json:"file,omitempty"`
 	// Seq identifies the file under review; requests echo it back.
-	Seq   int  `json:"seq"`
-	Multi bool `json:"multi"`
+	Seq int `json:"seq"`
+	// MultiFile is set when several files are reviewed: dialogs say
+	// finish/skip this file.
+	MultiFile bool `json:"multiFile"`
 	// Theme is the initial color theme (--theme).
-	Theme        string   `json:"theme"`
-	Labels       []string `json:"labels"`
-	Decorations  []string `json:"decorations"`
-	DefaultLabel string   `json:"defaultLabel"`
+	Theme        string                `json:"theme"`
+	Labels       []markdown.ActionType `json:"labels"`
+	Decorations  []markdown.Decoration `json:"decorations"`
+	DefaultLabel markdown.ActionType   `json:"defaultLabel"`
 	// OverviewID is the section ID of the overview, which is not a heading.
 	OverviewID string `json:"overviewId"`
 }
@@ -41,6 +36,9 @@ type fileJSON struct {
 	Lines    []lineJSON    `json:"lines"`
 	Comments []commentJSON `json:"comments"`
 	Viewed   []string      `json:"viewed"`
+	// The questions of the submit and quit dialogs, worded as in the TUI.
+	ConfirmSubmit string `json:"confirmSubmit"`
+	ConfirmQuit   string `json:"confirmQuit"`
 }
 
 type sectionJSON struct {
@@ -58,57 +56,37 @@ type lineJSON struct {
 	Section string `json:"section"`        // section the line belongs to
 }
 
+// commentJSON is a comment with its display strings, formatted here so the
+// page words them as the TUI and the review output do.
 type commentJSON struct {
-	ID         string   `json:"id"`
-	SectionID  string   `json:"sectionId"`
-	Action     string   `json:"action"`
-	Decoration string   `json:"decoration"`
-	Body       string   `json:"body"`
-	StartLine  int      `json:"startLine,omitempty"`
-	EndLine    int      `json:"endLine,omitempty"`
-	Side       string   `json:"side,omitempty"`
-	Quote      []string `json:"quote,omitempty"`
+	*markdown.ReviewComment
+	Label     string `json:"label"`               // "action (decoration)"
+	Ref       string `json:"ref,omitempty"`       // "L10-L15"
+	OutputRef string `json:"outputRef,omitempty"` // Ref as the review output shows it
 }
 
-// renderer converts Markdown to HTML. goldmark escapes raw HTML and drops
-// dangerous link URLs unless html.WithUnsafe is set, so the output is safe
-// to insert into the page.
-var renderer = goldmark.New(goldmark.WithExtensions(extension.GFM))
-
-// renderHTML renders Markdown, passing every image destination through
-// imageURL (nil keeps them as they are).
-func renderHTML(md string, imageURL func(dest string) string) string {
-	src := []byte(mermaid.RenderBlocks(md))
-	doc := renderer.Parser().Parse(text.NewReader(src))
-	if imageURL != nil {
-		_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-			if img, ok := n.(*ast.Image); ok && entering {
-				img.Destination = []byte(imageURL(string(img.Destination)))
-			}
-			return ast.WalkContinue, nil
-		})
+// sourceLines returns the full source, each line under its section.
+func sourceLines(doc *markdown.Document) []lineJSON {
+	sections := doc.LineSections()
+	lines := make([]lineJSON, len(doc.SourceLines))
+	for i, text := range doc.SourceLines {
+		lines[i] = lineJSON{Text: text, Line: i + 1, Section: sections[i]}
 	}
-	var buf bytes.Buffer
-	if err := renderer.Renderer().Render(&buf, src, doc); err != nil {
-		// goldmark only fails on writer errors, which bytes.Buffer never returns.
-		return ""
-	}
-	return buf.String()
+	return lines
 }
 
-// labelsJSON and decorationsJSON are the comment labels the editor cycles
-// through, in the TUI's order.
-var (
-	labelsJSON      = labelStrings(markdown.ActionLabels)
-	decorationsJSON = labelStrings(markdown.DecorationLabels)
-)
-
-func labelStrings[T ~string](labels []T) []string {
-	out := make([]string, len(labels))
-	for i, l := range labels {
-		out[i] = string(l)
+// diffLines returns the diff lines, each under its section (see
+// markdown.Document.DiffLineSections). Removed lines are numbered by the old
+// file.
+func diffLines(doc *markdown.Document, info *diff.Info) []lineJSON {
+	sections := doc.DiffLineSections(info)
+	lines := make([]lineJSON, len(info.Lines))
+	for i, dl := range info.Lines {
+		line := lineJSON{Text: dl.Content, Type: string(dl.Type), Section: sections[i]}
+		line.Line, line.Side = dl.Position()
+		lines[i] = line
 	}
-	return out
+	return lines
 }
 
 // state returns the session state for the browser.
@@ -118,103 +96,42 @@ func (s *session) state() stateJSON {
 	out := stateJSON{
 		Phase:        s.phase,
 		Seq:          s.seq,
-		Multi:        s.multi,
+		MultiFile:    s.multiFile,
 		Theme:        s.theme,
-		Labels:       labelsJSON,
-		Decorations:  decorationsJSON,
-		DefaultLabel: string(markdown.DefaultAction),
+		Labels:       markdown.ActionLabels,
+		Decorations:  markdown.DecorationLabels,
+		DefaultLabel: markdown.DefaultAction,
 		OverviewID:   markdown.OverviewSectionID,
 	}
 	switch s.phase {
 	case phasePick:
 		out.Pick = s.review.Pick
 	case phaseReview:
-		f := s.current.toJSON()
+		f := s.current.toJSON(s.multiFile)
 		out.File = &f
 	}
 	return out
 }
 
-func (f *fileState) toJSON() fileJSON {
+func (f *fileState) toJSON(multiFile bool) fileJSON {
 	out := fileJSON{
-		Path:     f.Path,
-		Title:    f.Doc.Title,
-		Diff:     f.Diff != nil,
-		Sections: f.rendered,
-		Lines:    f.lines,
-		Comments: f.commentsJSON(),
-		Viewed:   []string{},
+		Path:          f.Path,
+		Title:         f.Doc.Title,
+		Diff:          f.Diff != nil,
+		Sections:      f.rendered,
+		Lines:         f.lines,
+		Comments:      make([]commentJSON, len(f.Comments())),
+		Viewed:        []string{},
+		ConfirmSubmit: f.ConfirmSubmitMessage(multiFile),
+		ConfirmQuit:   f.ConfirmQuitMessage(multiFile),
+	}
+	for i, c := range f.Comments() {
+		out.Comments[i] = commentJSON{ReviewComment: c, Label: c.FormatLabel(), Ref: c.FormatLineRef(), OutputRef: c.DisplayLineRef()}
 	}
 	for _, sec := range out.Sections {
-		if f.viewed[sec.ID] {
+		if f.IsViewed(sec.ID) {
 			out.Viewed = append(out.Viewed, sec.ID)
 		}
 	}
 	return out
-}
-
-// renderSections returns the sections in display order, the overview first.
-// Each section is rendered from its own source lines, so headings keep their
-// inline formatting and setext style.
-func renderSections(doc *markdown.Document, imageURL func(string) string) []sectionJSON {
-	out := []sectionJSON{} // never null in JSON: the page reads .length
-	all := doc.AllSections()
-	if doc.HasOverview() {
-		// The overview is the preamble: the lines before the first heading.
-		end := len(doc.SourceLines)
-		if len(all) > 0 {
-			end = all[0].StartLine - 1
-		}
-		out = append(out, sectionJSON{
-			ID:    markdown.OverviewSectionID,
-			Title: markdown.OverviewTitle,
-			HTML:  renderHTML(sourceRange(doc, 1, end), imageURL),
-		})
-	}
-	var walk func(sections []*markdown.Section, depth int)
-	walk = func(sections []*markdown.Section, depth int) {
-		for _, sec := range sections {
-			out = append(out, sectionJSON{
-				ID:    sec.ID,
-				Title: sec.Title,
-				Depth: depth,
-				HTML:  renderHTML(sourceRange(doc, sec.StartLine, sec.EndLine), imageURL),
-			})
-			walk(sec.Children, depth+1)
-		}
-	}
-	walk(doc.Sections, 0)
-	return out
-}
-
-// sourceRange joins the 1-based source lines start..end, clamped to the file.
-func sourceRange(doc *markdown.Document, start, end int) string {
-	start = max(start, 1)
-	end = min(end, len(doc.SourceLines))
-	if start > end {
-		return ""
-	}
-	return strings.Join(doc.SourceLines[start-1:end], "\n")
-}
-
-func (f *fileState) commentsJSON() []commentJSON {
-	out := make([]commentJSON, len(f.comments))
-	for i, c := range f.comments {
-		out[i] = c.toJSON()
-	}
-	return out
-}
-
-func (c *comment) toJSON() commentJSON {
-	return commentJSON{
-		ID:         c.ID,
-		SectionID:  c.SectionID,
-		Action:     string(c.Action),
-		Decoration: string(c.Decoration),
-		Body:       c.Body,
-		StartLine:  c.StartLine,
-		EndLine:    c.EndLine,
-		Side:       c.Side,
-		Quote:      c.Quote,
-	}
 }

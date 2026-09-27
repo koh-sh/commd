@@ -84,15 +84,17 @@ func TestHandlerAPI(t *testing.T) {
 		wantBody string // substring of the response body
 	}{
 		{name: "state", method: http.MethodGet, path: "/api/state", status: http.StatusOK, wantBody: `"theme":"light"`},
+		{name: "confirm questions", method: http.MethodGet, path: "/api/state", status: http.StatusOK, wantBody: `"confirmSubmit":"Submit review? (1 comments)","confirmQuit":"You have review comments.\n\nQuit without submitting?"`},
 		{name: "invalid json", method: http.MethodPost, path: "/api/files/1/comments", body: "{", status: http.StatusBadRequest},
-		{name: "invalid comment", method: http.MethodPost, path: "/api/files/1/comments", body: `{"sectionId":"S1","action":"note","body":""}`, status: http.StatusBadRequest, wantBody: "empty"},
+		{name: "invalid comment", method: http.MethodPost, path: "/api/files/1/comments", body: `{"sectionId":"S1","action":"rant","body":"b"}`, status: http.StatusBadRequest, wantBody: "unknown label"},
+		{name: "line comment", method: http.MethodPost, path: "/api/files/1/comments", body: `{"action":"note","body":"b","startLine":7,"endLine":8}`, status: http.StatusOK, wantBody: `"quote":["line six","line seven"],"label":"note","ref":"L7-L8","outputRef":"L7-L8"`},
 		{name: "stale file", method: http.MethodPost, path: "/api/files/7/comments", body: `{"sectionId":"S1","action":"note","body":"b"}`, status: http.StatusConflict},
 		{name: "non-numeric file", method: http.MethodPost, path: "/api/files/x/comments", body: `{"sectionId":"S1","action":"note","body":"b"}`, status: http.StatusConflict},
 		{name: "pick while reviewing", method: http.MethodPost, path: "/api/pick", body: `{"paths":["doc.md"]}`, status: http.StatusConflict},
 		{name: "update", method: http.MethodPatch, path: commentPath, body: `{"action":"praise","decoration":"","body":"nice"}`, status: http.StatusOK, wantBody: `"body":"nice"`},
 		{name: "set viewed", method: http.MethodPut, path: "/api/files/1/viewed/S1", body: `{"viewed":true}`, status: http.StatusOK, wantBody: `"viewed":["S1"]`},
-		{name: "delete", method: http.MethodDelete, path: commentPath, status: http.StatusOK, wantBody: `"comments":[]`},
-		{name: "delete again", method: http.MethodDelete, path: commentPath, status: http.StatusNotFound},
+		{name: "emptying deletes", method: http.MethodPatch, path: commentPath, body: `{"action":"praise","body":" "}`, status: http.StatusOK},
+		{name: "delete a deleted comment", method: http.MethodDelete, path: commentPath, status: http.StatusNotFound},
 		{name: "search", method: http.MethodGet, path: "/api/files/1/search?q=SECOND", status: http.StatusOK, wantBody: `{"sections":["S2"]}`},
 		{name: "search the overview", method: http.MethodGet, path: "/api/files/1/search?q=over", status: http.StatusOK, wantBody: `{"sections":["overview"]}`},
 		{name: "search without matches", method: http.MethodGet, path: "/api/files/1/search?q=zzz", status: http.StatusOK, wantBody: `{"sections":[]}`},
@@ -127,7 +129,7 @@ func TestHandlerPick(t *testing.T) {
 	if status != http.StatusOK || !strings.Contains(body, `"phase":"review"`) || !strings.Contains(body, `"path":"b.md"`) {
 		t.Fatalf("pick: %d %s", status, body)
 	}
-	if !strings.Contains(body, `"multi":false`) {
+	if !strings.Contains(body, `"multiFile":false`) {
 		t.Errorf("one picked file should not be a multi-file review: %s", body)
 	}
 }
@@ -194,7 +196,7 @@ func TestServe(t *testing.T) {
 			logR, logW := io.Pipe()
 			opened := make(chan string, 1)
 			type served struct {
-				res Result
+				res []markdown.FileResult
 				err error
 			}
 			done := make(chan served, 1)
@@ -207,10 +209,7 @@ func TestServe(t *testing.T) {
 				done <- served{res, err}
 			}()
 
-			line, err := readLine(logR)
-			if err != nil {
-				t.Fatal(err)
-			}
+			line := readLineWithin(t, logR, 10*time.Second)
 			go func() { _, _ = io.Copy(io.Discard, logR) }()
 			m := urlPattern.FindStringSubmatch(line)
 			if m == nil {
@@ -241,7 +240,7 @@ func TestServe(t *testing.T) {
 					t.Fatal(got.err)
 				}
 				var statuses []markdown.Status
-				for _, f := range got.res.Files {
+				for _, f := range got.res {
 					statuses = append(statuses, f.Status)
 				}
 				if len(statuses) != len(tt.wantStatus) || (len(statuses) > 0 && statuses[0] != tt.wantStatus[0]) {
@@ -264,8 +263,33 @@ func TestServeNothingToReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Files) != 0 || log.Len() != 0 {
+	if len(res) != 0 || log.Len() != 0 {
 		t.Errorf("result = %+v, log = %q; want nothing", res, log.String())
+	}
+}
+
+// readLineWithin reads up to the first newline, failing the test when none
+// arrives in time (e.g. Serve stopped before printing its URL).
+func readLineWithin(t *testing.T, r io.Reader, timeout time.Duration) string {
+	t.Helper()
+	type read struct {
+		line string
+		err  error
+	}
+	ch := make(chan read, 1)
+	go func() {
+		line, err := readLine(r)
+		ch <- read{line, err}
+	}()
+	select {
+	case got := <-ch:
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		return got.line
+	case <-time.After(timeout):
+		t.Fatal("no line was written in time")
+		return ""
 	}
 }
 
@@ -286,7 +310,7 @@ func readLine(r io.Reader) (string, error) {
 
 func TestStateEmptyDocument(t *testing.T) {
 	f := newFileState(markdown.File{Path: "empty.md", Doc: mustParse(t, "")}, nil)
-	body, err := json.Marshal(f.toJSON())
+	body, err := json.Marshal(f.toJSON(false))
 	if err != nil {
 		t.Fatal(err)
 	}

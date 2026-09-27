@@ -15,13 +15,22 @@ export interface WebSession {
   stderrDone: Promise<string>;
 }
 
+export interface WebLaunchOptions {
+  /** Markdown file to review. Optional for `--diff`, which can pick files itself. */
+  file?: string;
+  args?: string[];
+  /** Working directory for commd (default: project root). `--diff` tests point this at a git repo. */
+  cwd?: string;
+}
+
 /**
  * Start `commd review --web` (without opening a browser, output to stdout)
  * and wait for the URL it prints.
  */
-export async function launchWeb(args: string[], cwd = PROJECT_ROOT): Promise<WebSession> {
+export async function launchWeb(opts: WebLaunchOptions): Promise<WebSession> {
+  const args = [...(opts.file ? [opts.file] : []), ...(opts.args ?? [])];
   const proc = Bun.spawn([COMMD_BIN, "review", ...args, "--web", "--no-open", "--output", "stdout"], {
-    cwd,
+    cwd: opts.cwd ?? PROJECT_ROOT,
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",

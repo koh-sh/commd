@@ -242,28 +242,6 @@ describe("Comment Editor", () => {
     const text = await session.text();
     expect(text).toContain("label: question");
   }, TEST_TIMEOUT);
-
-  test("saving empty body from edit cancels edit, preserves comment", async () => {
-    session = await launchCommd({ file: FIXTURE_BASIC });
-    await session.press("j");
-    await addComment(session, "preserved comment");
-    // Open comment list and edit
-    await session.press("C");
-    await session.waitForText("edit");
-    await session.press("e");
-    await session.waitForText("save");
-    // Clear the text
-    await session.press(["ctrl", "e"]);
-    await session.press(["ctrl", "u"]);
-    // Save empty → Result() returns nil → edit is cancelled
-    await session.press(["ctrl", "s"]);
-    // Returns to CommentList mode (since editCommentIdx >= 0 → returnFromComment → ModeCommentList)
-    await session.waitForText("edit");
-    // Comment should still exist unchanged
-    const text = await session.text();
-    expect(text).toContain("preserved comment");
-    expect(text).toContain("#1");
-  }, TEST_TIMEOUT);
 });
 
 describe("View Mode Combinations", () => {

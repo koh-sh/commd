@@ -68,7 +68,7 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 	}
 
 	// Review each file
-	var results []ghclient.FileReviewResult
+	var results []markdown.FileResult
 
 	for i, path := range selectedPaths {
 		fmt.Fprintf(os.Stderr, "Fetching %s (%d/%d)...\n", path, i+1, len(selectedPaths))
@@ -85,25 +85,13 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 			continue
 		}
 
-		app := tui.NewApp(doc, tui.AppOptions{
-			Theme:     p.Theme,
-			FilePath:  path,
-			MultiFile: true,
-			Diff:      tui.NewDiffData(doc, diff.ParsePatch(patches[path])),
-		})
-		appResult, err := runReviewApp(app, p.teaOpts)
+		f := markdown.File{Path: path, Doc: doc, Diff: diff.ParsePatch(patches[path])}
+		res, err := runReviewApp(f, tui.AppOptions{Theme: p.Theme, MultiFile: true}, p.teaOpts)
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
-
 		// Submitted or Approved = done with this file, Cancelled = skipped
-		if appResult.Status == markdown.StatusSubmitted || appResult.Status == markdown.StatusApproved {
-			results = append(results, ghclient.FileReviewResult{
-				Path:   path,
-				Doc:    doc,
-				Review: appResult.Review,
-			})
-		}
+		results = appendReview(results, res)
 	}
 
 	// Show final dialog only if at least one file was reviewed (not all skipped)
@@ -114,7 +102,7 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 }
 
 // showFinalDialog shows the post-review dialog after all files have been reviewed.
-func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []ghclient.FileReviewResult) error {
+func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []markdown.FileResult) error {
 	// Build summary lines
 	var summary []string
 	totalComments := 0
@@ -157,7 +145,7 @@ func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, re
 	}
 }
 
-func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []ghclient.FileReviewResult, event, body string) error {
+func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []markdown.FileResult, event, body string) error {
 	// Warn about overview comments (filtered by BuildPRReview/MapComment, not supported as inline PR comments)
 	for _, r := range results {
 		if r.Review == nil {

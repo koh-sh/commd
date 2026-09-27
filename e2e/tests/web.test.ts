@@ -27,7 +27,7 @@ describe("Web Review", () => {
   test(
     "serves the page and hands the submitted comments back",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
 
       const page = await fetch(web.base + "/");
       expect(page.status).toBe(200);
@@ -64,7 +64,7 @@ describe("Web Review", () => {
   test(
     "quit in the browser outputs nothing",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC, "--theme", "light"]);
+      web = await launchWeb({ file: FIXTURE_BASIC, args: ["--theme", "light"] });
       const state = await (await web.api("GET", "/api/state")).json();
       expect(state.theme).toBe("light");
       await web.api("POST", `/api/files/${state.seq}/comments`, { sectionId: "S1", action: "note", decoration: "", body: "dropped" });
@@ -81,7 +81,7 @@ describe("Web Review", () => {
     "--track-viewed persists and restores viewed marks",
     async () => {
       fixture = createTempFixture(FIXTURE_BASIC);
-      web = await launchWeb([fixture.path, "--track-viewed"]);
+      web = await launchWeb({ file: fixture.path, args: ["--track-viewed"] });
       let state = await (await web.api("GET", "/api/state")).json();
       const res = await web.api("PUT", `/api/files/${state.seq}/viewed/S1.1`, { viewed: true });
       expect(res.status).toBe(200);
@@ -90,7 +90,7 @@ describe("Web Review", () => {
       expect(existsSync(resolve(PROJECT_ROOT, fixture.path + ".reviewed.json"))).toBe(true);
 
       // A new session starts with the mark restored.
-      web = await launchWeb([fixture.path, "--track-viewed"]);
+      web = await launchWeb({ file: fixture.path, args: ["--track-viewed"] });
       state = await (await web.api("GET", "/api/state")).json();
       expect(state.file.viewed).toEqual(["S1.1"]);
     },
@@ -101,14 +101,14 @@ describe("Web Review", () => {
     "--diff picks files, then reviews them one by one",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff"], repo.dir);
+      web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
 
       // Like the TUI, the changed files are offered in a picker first.
       let state = await (await web.api("GET", "/api/state")).json();
       expect(state.phase).toBe("pick");
       expect([...state.pick].sort()).toEqual(["doc.md", "new.md"]);
       state = await (await web.api("POST", "/api/pick", { paths: state.pick })).json();
-      expect(state.multi).toBe(true);
+      expect(state.multiFile).toBe(true);
 
       // Comment on doc.md and finish it; skip new.md.
       const reviewed: string[] = [];
@@ -140,8 +140,8 @@ describe("Web Review", () => {
     "cancelling the picker outputs nothing",
     async () => {
       repo = createRepo(true);
-      web = await launchWeb(["--diff"], repo.dir);
-      const res = await web.api("POST", "/api/pick", { cancel: true });
+      web = await launchWeb({ args: ["--diff"], cwd: repo.dir });
+      const res = await web.api("POST", "/api/pick", { paths: [] });
       expect((await res.json()).phase).toBe("done");
       const { code, stdout } = await finished(web);
       expect(code).toBe(0);

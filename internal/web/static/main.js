@@ -6,14 +6,15 @@
 // from the returned state.
 //
 // Modules, lowest first (each imports only lower ones): state (client state
-// and derived views of the server state), dom (small DOM helpers), api
-// (server calls and the input queue), actions (what keys and clicks do),
-// render (DOM), keys (key bindings per mode), mouse. Lower modules reach
-// render through state.hooks.
+// and derived views of the server state), dom (small DOM helpers), text
+// (dialog and status bar text), api (server calls and the input queue),
+// actions (what keys and clicks do), picker (the file picker), render (DOM),
+// keys (key bindings per mode), mouse. Lower modules reach render through
+// state.hooks.
 
 import { st, ui, hooks } from "./state.js";
 import { load } from "./api.js";
-import { render } from "./render.js";
+import { render, refreshPanes } from "./render.js";
 import { onKeyDown } from "./keys.js";
 import { onLineMouseDown, onLineMouseOver, onMouseUp, onContentScroll, onClick, onWheel } from "./mouse.js";
 
@@ -24,11 +25,12 @@ function bind() {
   document.addEventListener("mouseup", onMouseUp);
   document.addEventListener("click", onClick);
   document.addEventListener("scroll", onContentScroll, true);
-  for (const type of ["wheel", "touchmove"]) document.addEventListener(type, () => (ui.spyPaused = false), { passive: true });
   document.addEventListener("wheel", onWheel, { passive: true });
+  document.addEventListener("touchmove", () => (ui.spyPaused = false), { passive: true });
 }
 
 hooks.render = render;
+hooks.refreshPanes = refreshPanes;
 bind();
 load().then(() => {
   if (st) {

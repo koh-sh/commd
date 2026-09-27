@@ -5,6 +5,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"embed"
@@ -18,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 //go:embed static
@@ -41,13 +44,16 @@ type Options struct {
 	Theme string // initial color theme: "dark" or "light"
 	// Open opens the URL in a browser. nil only prints it.
 	Open func(url string) error
-	Log  io.Writer // receives the URL and warnings
+	Log  io.Writer // receives the URL and warnings; nil discards them
 }
 
 // Serve starts the review server on the loopback interface and blocks until
 // every file was finished or skipped in the browser (or the picker was
-// cancelled), or ctx is cancelled, which abandons the whole session.
-func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
+// cancelled), or ctx is cancelled, which abandons the whole session. It
+// returns one result per file that was loaded, in review order: none when
+// the picker was cancelled or the session was interrupted.
+func Serve(ctx context.Context, review Review, opts Options) ([]markdown.FileResult, error) {
+	log := cmp.Or[io.Writer](opts.Log, io.Discard)
 	token := newID() + newID()
 	s := newSession(review, token, opts.Theme)
 	if s.phase == phaseDone {
@@ -55,7 +61,7 @@ func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
 	}
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(opts.Port)))
 	if err != nil {
-		return Result{}, fmt.Errorf("starting web server: %w", err)
+		return nil, fmt.Errorf("starting web server: %w", err)
 	}
 	srv := &http.Server{
 		Handler:           newHandler(s),
@@ -71,25 +77,25 @@ func Serve(ctx context.Context, review Review, opts Options) (Result, error) {
 	// The token travels in the fragment so it never appears in request lines
 	// or Referer headers.
 	url := fmt.Sprintf("http://%s/#token=%s", ln.Addr(), token)
-	fmt.Fprintf(opts.Log, "Reviewing in the browser: %s\n", url)
+	fmt.Fprintf(log, "Reviewing in the browser: %s\n", url)
 	if opts.Open != nil {
 		if err := opts.Open(url); err != nil {
-			fmt.Fprintf(opts.Log, "Could not open a browser (%v); open the URL above.\n", err)
+			fmt.Fprintf(log, "Could not open a browser (%v); open the URL above.\n", err)
 		}
 	}
 
-	var res Result
+	var res []markdown.FileResult
 	select {
 	case res = <-s.done:
 	case <-ctx.Done():
 	case err := <-serveErr:
-		return Result{}, fmt.Errorf("web server: %w", err)
+		return nil, fmt.Errorf("web server: %w", err)
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	// Shutdown waits for the last finish request's response to be written.
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		fmt.Fprintf(opts.Log, "commd: warning: stopping web server: %v\n", err)
+		fmt.Fprintf(log, "commd: warning: stopping web server: %v\n", err)
 	}
 	return res, nil
 }
@@ -171,17 +177,16 @@ func (a *apiHandler) search(w http.ResponseWriter, r *http.Request) {
 
 func (a *apiHandler) pick(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Paths  []string `json:"paths"`
-		Cancel bool     `json:"cancel"`
+		Paths []string `json:"paths"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	a.respond(w, a.s.pick(in.Paths, in.Cancel))
+	a.respond(w, a.s.pick(in.Paths))
 }
 
 func (a *apiHandler) addComment(w http.ResponseWriter, r *http.Request) {
-	var in commentInput
+	var in markdown.ReviewComment
 	if !decode(w, r, &in) {
 		return
 	}
@@ -191,7 +196,7 @@ func (a *apiHandler) addComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *apiHandler) updateComment(w http.ResponseWriter, r *http.Request) {
-	var in commentInput
+	var in markdown.ReviewComment
 	if !decode(w, r, &in) {
 		return
 	}
@@ -202,7 +207,7 @@ func (a *apiHandler) updateComment(w http.ResponseWriter, r *http.Request) {
 
 func (a *apiHandler) deleteComment(w http.ResponseWriter, r *http.Request) {
 	a.respond(w, a.s.withFile(fileSeq(r), func(f *fileState) error {
-		return f.deleteComment(r.PathValue("id"))
+		return f.DeleteComment(r.PathValue("id"))
 	}))
 }
 
@@ -214,7 +219,7 @@ func (a *apiHandler) setViewed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.respond(w, a.s.withFile(fileSeq(r), func(f *fileState) error {
-		return f.setViewed(r.PathValue("section"), in.Viewed)
+		return f.SetViewed(r.PathValue("section"), in.Viewed)
 	}))
 }
 
@@ -262,7 +267,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 // (the session moved on) tell the page to reload the state.
 func writeSessionError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, errNotFound):
+	case errors.Is(err, markdown.ErrNotFound):
 		writeError(w, http.StatusNotFound, err)
 	case errors.Is(err, errFinished), errors.Is(err, errStale), errors.Is(err, errPhase):
 		writeError(w, http.StatusConflict, err)

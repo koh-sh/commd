@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"github.com/koh-sh/commd/internal/markdown"
@@ -11,6 +9,7 @@ import (
 // CommentEditor wraps a textarea for entering review comments.
 type CommentEditor struct {
 	textarea   textarea.Model
+	id         string // ID of the comment being edited ("" = new)
 	sectionID  string
 	labelIndex int    // index into markdown.ActionLabels
 	decoIndex  int    // index into markdown.DecorationLabels
@@ -42,8 +41,10 @@ func NewCommentEditor() *CommentEditor {
 // Open opens the comment editor for a section, optionally pre-filling with existing comment.
 func (c *CommentEditor) Open(sectionID string, existing *markdown.ReviewComment) tea.Cmd {
 	c.sectionID = sectionID
+	c.id = ""
 
 	if existing != nil {
+		c.id = existing.ID
 		c.labelIndex = c.labelIndexFor(existing.Action)
 		c.decoIndex = c.decorationIndexFor(existing.Decoration)
 		c.textarea.SetValue(existing.Body)
@@ -62,10 +63,12 @@ func (c *CommentEditor) Open(sectionID string, existing *markdown.ReviewComment)
 	return c.textarea.Focus()
 }
 
-// OpenWithLines opens the comment editor for a new line-level comment.
-// Editing an existing comment goes through Open, which restores its lines.
-func (c *CommentEditor) OpenWithLines(sectionID string, startLine, endLine int, side string) tea.Cmd {
-	cmd := c.Open(sectionID, nil)
+// OpenWithLines opens the comment editor for a new line-level comment; its
+// section follows from the lines when it is saved (see
+// markdown.ReviewState.SaveComment). Editing an existing comment goes
+// through Open, which restores its lines.
+func (c *CommentEditor) OpenWithLines(startLine, endLine int, side string) tea.Cmd {
+	cmd := c.Open("", nil)
 	c.startLine = startLine
 	c.endLine = endLine
 	c.side = side
@@ -140,20 +143,20 @@ func indexInSlice[T comparable](slice []T, val T) int {
 	return 0
 }
 
-// Result returns the review comment from the editor content.
-// Returns nil if the body is empty.
-func (c *CommentEditor) Result() *markdown.ReviewComment {
-	body := strings.TrimSpace(c.textarea.Value())
+// IsEdit reports whether the editor edits an existing comment.
+func (c *CommentEditor) IsEdit() bool {
+	return c.id != ""
+}
 
-	if body == "" {
-		return nil
-	}
-
-	return &markdown.ReviewComment{
+// Result returns the review comment from the editor content, with the ID of
+// the edited comment ("" for a new one).
+func (c *CommentEditor) Result() markdown.ReviewComment {
+	return markdown.ReviewComment{
+		ID:         c.id,
 		SectionID:  c.sectionID,
 		Action:     markdown.ActionLabels[c.labelIndex],
 		Decoration: markdown.DecorationLabels[c.decoIndex],
-		Body:       body,
+		Body:       c.textarea.Value(),
 		StartLine:  c.startLine,
 		EndLine:    c.endLine,
 		Side:       c.side,

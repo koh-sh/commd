@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/koh-sh/commd/internal/markdown"
 	"github.com/koh-sh/commd/internal/tui"
 )
 
@@ -19,15 +20,15 @@ func runTea(model tea.Model, extraOpts []tea.ProgramOption) (tea.Model, error) {
 	return tea.NewProgram(model, extraOpts...).Run()
 }
 
-// runReviewApp runs the review TUI for one file and returns its result.
-func runReviewApp(app *tui.App, teaOpts []tea.ProgramOption) (tui.AppResult, error) {
-	finalModel, err := runTea(app, teaOpts)
+// runReviewApp reviews f in the TUI and returns its result.
+func runReviewApp(f markdown.File, opts tui.AppOptions, teaOpts []tea.ProgramOption) (markdown.FileResult, error) {
+	finalModel, err := runTea(tui.NewApp(f, opts), teaOpts)
 	if err != nil {
-		return tui.AppResult{}, fmt.Errorf("running TUI: %w", err)
+		return markdown.FileResult{}, fmt.Errorf("running TUI: %w", err)
 	}
 	reviewApp, ok := finalModel.(*tui.App)
 	if !ok {
-		return tui.AppResult{}, fmt.Errorf("unexpected model type: %T", finalModel)
+		return markdown.FileResult{}, fmt.Errorf("unexpected model type: %T", finalModel)
 	}
 	return reviewApp.Result(), nil
 }

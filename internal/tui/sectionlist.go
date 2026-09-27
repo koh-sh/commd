@@ -24,20 +24,14 @@ type SectionList struct {
 	items        []SectionListItem
 	cursor       int
 	scrollOffset int
-	comments     map[string][]*markdown.ReviewComment // sectionID -> comments
-	viewed       map[string]bool                      // sectionID -> viewed flag
-	viewedState  *markdown.ViewedState
+	review       *markdown.ReviewState // comments and viewed marks shown as badges
 	doc          *markdown.Document
 }
 
-// NewSectionList creates a new SectionList from a parsed document.
-func NewSectionList(doc *markdown.Document, state *markdown.ViewedState) *SectionList {
-	sl := &SectionList{
-		comments:    make(map[string][]*markdown.ReviewComment),
-		viewed:      make(map[string]bool),
-		viewedState: state,
-		doc:         doc,
-	}
+// NewSectionList creates a new SectionList for the document under review.
+func NewSectionList(review *markdown.ReviewState) *SectionList {
+	doc := review.Doc
+	sl := &SectionList{review: review, doc: doc}
 
 	// Add overview entry if there's a preamble
 	if doc.HasOverview() {
@@ -61,15 +55,6 @@ func NewSectionList(doc *markdown.Document, state *markdown.ViewedState) *Sectio
 		}
 	}
 	flatten(doc.Sections, 0)
-
-	// Restore viewed flags from persisted state
-	if state != nil {
-		for i, item := range sl.items {
-			if item.Section != nil && state.IsSectionViewed(item.Section) {
-				sl.viewed[sl.items[i].Section.ID] = true
-			}
-		}
-	}
 
 	return sl
 }
@@ -228,87 +213,6 @@ func (sl *SectionList) IsOverviewSelected() bool {
 	return sl.items[sl.cursor].IsOverview
 }
 
-// AddComment appends a comment for a section.
-func (sl *SectionList) AddComment(sectionID string, comment *markdown.ReviewComment) {
-	if comment == nil || comment.Body == "" {
-		return
-	}
-	sl.comments[sectionID] = append(sl.comments[sectionID], comment)
-}
-
-// UpdateComment replaces a comment at the given index for a section.
-func (sl *SectionList) UpdateComment(sectionID string, index int, comment *markdown.ReviewComment) {
-	comments := sl.comments[sectionID]
-	if index < 0 || index >= len(comments) {
-		return
-	}
-	if comment == nil || comment.Body == "" {
-		sl.DeleteComment(sectionID, index)
-		return
-	}
-	sl.comments[sectionID][index] = comment
-}
-
-// DeleteComment removes a comment at the given index for a section.
-func (sl *SectionList) DeleteComment(sectionID string, index int) {
-	comments := sl.comments[sectionID]
-	if index < 0 || index >= len(comments) {
-		return
-	}
-	sl.comments[sectionID] = append(comments[:index], comments[index+1:]...)
-	if len(sl.comments[sectionID]) == 0 {
-		delete(sl.comments, sectionID)
-	}
-}
-
-// ToggleViewed toggles the viewed flag for a section.
-func (sl *SectionList) ToggleViewed(sectionID string) {
-	sl.viewed[sectionID] = !sl.viewed[sectionID]
-
-	// Sync with persisted state
-	if sl.viewedState != nil {
-		if section := sl.doc.FindSection(sectionID); section != nil {
-			if sl.viewed[sectionID] {
-				sl.viewedState.MarkViewed(section)
-			} else {
-				sl.viewedState.UnmarkViewed(section)
-			}
-		}
-	}
-}
-
-// IsViewed returns whether a section is marked as viewed.
-func (sl *SectionList) IsViewed(sectionID string) bool {
-	return sl.viewed[sectionID]
-}
-
-// GetComments returns all comments for a section.
-func (sl *SectionList) GetComments(sectionID string) []*markdown.ReviewComment {
-	return sl.comments[sectionID]
-}
-
-// HasComments returns true if there are any comments.
-func (sl *SectionList) HasComments() bool {
-	for _, comments := range sl.comments {
-		if len(comments) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// BuildReviewResult creates a ReviewResult from all comments, in document
-// order (see markdown.NewReviewResult).
-func (sl *SectionList) BuildReviewResult() *markdown.ReviewResult {
-	var comments []markdown.ReviewComment
-	for _, list := range sl.comments {
-		for _, c := range list {
-			comments = append(comments, *c)
-		}
-	}
-	return markdown.NewReviewResult(sl.doc, comments)
-}
-
 // Render renders the section list for display within the given height.
 func (sl *SectionList) Render(width, height int, styles Styles) string {
 	// Build list of visible item indices
@@ -385,8 +289,8 @@ func (sl *SectionList) Render(width, height int, styles Styles) string {
 
 // renderBadge renders the badge for a section (comment indicator, viewed mark).
 func (sl *SectionList) renderBadge(sectionID string, styles Styles) string {
-	commentCount := len(sl.comments[sectionID])
-	isViewed := sl.viewed[sectionID]
+	commentCount := len(sl.review.SectionComments(sectionID))
+	isViewed := sl.review.IsViewed(sectionID)
 
 	var badge string
 	if commentCount == 1 {
@@ -411,26 +315,6 @@ func (sl *SectionList) TotalSectionCount() int {
 	return count
 }
 
-// ViewedCount returns the number of viewed sections.
-func (sl *SectionList) ViewedCount() int {
-	count := 0
-	for _, viewed := range sl.viewed {
-		if viewed {
-			count++
-		}
-	}
-	return count
-}
-
-// TotalCommentCount returns the total number of comments across all sections.
-func (sl *SectionList) TotalCommentCount() int {
-	count := 0
-	for _, comments := range sl.comments {
-		count += len(comments)
-	}
-	return count
-}
-
 // FilterByQuery filters the section list to show only sections matching the query.
 // Matching is case-insensitive against section ID, Title, and Body.
 // If a child matches, its ancestors are shown. If a parent matches, its children are shown.
@@ -443,13 +327,10 @@ func (sl *SectionList) FilterByQuery(query string) {
 	shown := sl.doc.SearchSections(query)
 	for i := range sl.items {
 		item := &sl.items[i]
-		switch {
-		case item.IsOverview:
+		if item.IsOverview {
 			item.Visible = shown[markdown.OverviewSectionID]
-		case item.Section != nil:
+		} else {
 			item.Visible = shown[item.Section.ID]
-		default:
-			item.Visible = false
 		}
 	}
 

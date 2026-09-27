@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -45,6 +47,21 @@ func NewLinePane(lines []string, width, height int, styles Styles, lineSections 
 		lineSections: lineSections,
 	}
 	lp.gutterWidth = len(fmt.Sprintf("%d", max(len(lines), 1))) + 1
+	return lp
+}
+
+// newDiffLinePane creates a LinePane showing the lines of a diff, numbered
+// by file line (removed lines by the old file). lineSections holds the
+// section ID of each diff line (see markdown.Document.DiffLineSections).
+func newDiffLinePane(info *diff.Info, styles Styles, lineSections []string) *LinePane {
+	lp := NewLinePane(info.FormatDiffLines(), 0, 0, styles, lineSections)
+	lp.diffLineMap, lp.diffSideMap, lp.diffTypeMap = info.LineSideMap()
+	// The gutter fits the largest file line number, not the diff length.
+	maxLine := 1
+	if len(lp.diffLineMap) > 0 {
+		maxLine = max(slices.Max(lp.diffLineMap), 1)
+	}
+	lp.gutterWidth = len(strconv.Itoa(maxLine)) + 1
 	return lp
 }
 
@@ -313,21 +330,6 @@ func (lp *LinePane) displayIndexForLine(line int) int {
 // "" when there is no such line.
 func (lp *LinePane) SectionIDAtCursor() string {
 	return lp.sectionAt(lp.cursor)
-}
-
-// SelectedSectionID returns the section of the first selected line (on the
-// cursor's diff side), which a line comment on the selection belongs to.
-func (lp *LinePane) SelectedSectionID() string {
-	if lp.selectAnchor < 0 {
-		return lp.SectionIDAtCursor()
-	}
-	side := lp.CursorSide()
-	for i := min(lp.selectAnchor, lp.cursor); i <= max(lp.selectAnchor, lp.cursor); i++ {
-		if side == "" || (i < len(lp.diffSideMap) && lp.diffSideMap[i] == side) {
-			return lp.sectionAt(i)
-		}
-	}
-	return ""
 }
 
 // sectionAt returns the section ID of display line i, or "" when out of range.

@@ -5,7 +5,7 @@
 import { $ } from "./dom.js";
 import { st, ui } from "./state.js";
 import { render, refreshCursor, visibleTop } from "./render.js";
-import { refuseAction, syncSectionFromLineCursor, openLineEditor, syncCursorToScroll, atScrollEdge, stepSection, lineHeight } from "./actions.js";
+import { refuseAction, startLineSelect, syncSectionFromLineCursor, openLineEditor, syncCursorToScroll, atScrollEdge, stepSection, lineHeight } from "./actions.js";
 
 let dragging = false;
 
@@ -18,9 +18,7 @@ export function onLineMouseDown(ev) {
     return;
   }
   const idx = Number(cell.dataset.idx);
-  ui.anchor = ev.shiftKey ? ui.lineCursor : idx;
-  ui.lineCursor = idx;
-  ui.mode = "lineSelect";
+  startLineSelect(ev.shiftKey ? ui.lineCursor : idx, idx);
   dragging = true;
   render();
 }
@@ -52,7 +50,11 @@ export function onMouseUp() {
 let spyQueued = false;
 export function onContentScroll() {
   if (!st || st.phase !== "review" || spyQueued) return;
-  if (ui.rawView ? ui.mode !== "normal" : !ui.fullView || ui.spyPaused) return;
+  if (ui.rawView) {
+    if (ui.mode !== "normal") return; // e.g. a selection being dragged
+  } else if (!ui.fullView || ui.spyPaused) {
+    return;
+  }
   spyQueued = true;
   requestAnimationFrame(() => {
     spyQueued = false;
@@ -93,6 +95,7 @@ export function onClick(ev) {
 // to the next (or previous) section and keeps scrolling there, so momentum
 // carries on as in one long page.
 export function onWheel(ev) {
+  ui.spyPaused = false; // the user scrolls: the full view follows again
   const content = ev.target.closest?.("#content");
   if (!content || ev.deltaY === 0) return;
   if (!st || st.phase !== "review" || ui.mode !== "normal" || ui.fullView) return;

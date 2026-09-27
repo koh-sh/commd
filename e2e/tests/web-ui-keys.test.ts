@@ -56,7 +56,7 @@ describe("Web Review UI Keys (Full)", () => {
     "j/k and arrows scroll the section and step to the next or previous one at its edges",
     async () => {
       fixture = writeFixture(WIDE_DOC);
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
 
       // Short sections fit: every press steps on.
@@ -109,7 +109,7 @@ describe("Web Review UI Keys (Full)", () => {
     "page keys scroll by pages and step on at the edges",
     async () => {
       fixture = writeFixture(WIDE_DOC);
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
       await page.locator("#sections .item").nth(2).click(); // Long
 
@@ -132,7 +132,7 @@ describe("Web Review UI Keys (Full)", () => {
     "the full view reads as one page and the section list follows the scroll",
     async () => {
       fixture = writeFixture(WIDE_DOC);
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
 
       await press(page, "f");
@@ -169,7 +169,7 @@ describe("Web Review UI Keys (Full)", () => {
     "wheel scrolling runs on across sections, carrying its movement",
     async () => {
       fixture = writeFixture(WIDE_DOC);
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
       await page.locator("#sections .item").nth(1).click(); // Code: fits, so already at its end
       await page.locator("#content").hover();
@@ -198,7 +198,7 @@ describe("Web Review UI Keys (Full)", () => {
   test(
     "raw view: scrolling brings the line cursor along, so keys continue on screen",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web, { width: 1000, height: 400 });
       await press(page, "r", "f"); // raw full view, cursor on line 1
       await eventually(async () => expect(await cursorLine(page!)).toBe("1"));
@@ -222,7 +222,7 @@ describe("Web Review UI Keys (Full)", () => {
     "raw section view: k moves up through a long section under its sticky header",
     async () => {
       fixture = writeFixture(["## Long", "", ...Array.from({ length: 80 }, (_, i) => `line ${i + 1}`), "", "## Other", "", "x", ""].join("\n"));
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web, { width: 1000, height: 500 });
       await press(page, "r", "G", "k", "k", "k"); // back into the end of Long
       await eventually(async () => expect(await activeSection(page!)).toContain("Long"));
@@ -242,7 +242,7 @@ describe("Web Review UI Keys (Full)", () => {
   test(
     "raw view scrolling keeps the section list where it was",
     async () => {
-      web = await launchWeb(["README.md"]);
+      web = await launchWeb({ file: "README.md" });
       page = await openPage(web, { width: 1000, height: 400 });
       await press(page, "r", "f");
       await page.locator("#sections .item").last().click(); // scrolls the list down to it
@@ -261,7 +261,7 @@ describe("Web Review UI Keys (Full)", () => {
     "gg and G reach the ends of the document even when collapsed or filtered",
     async () => {
       fixture = writeFixture("## A\n\na\n\n### A1\n\nchild end\n\n## B\n\nb\n\n### B1\n\nlast\n");
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
 
       // The last section is inside a collapsed parent: G expands it.
@@ -288,7 +288,7 @@ describe("Web Review UI Keys (Full)", () => {
     "h/l/H/L scroll wide blocks of the rendered view, not the raw view",
     async () => {
       fixture = writeFixture(WIDE_DOC);
-      web = await launchWeb([fixture.path]);
+      web = await launchWeb({ file: fixture.path });
       page = await openPage(web);
 
       await press(page, "j"); // Code section
@@ -311,7 +311,7 @@ describe("Web Review UI Keys (Full)", () => {
   test(
     "raw view: line cursor keys, section edges and the full view",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
 
       await press(page, "r"); // overview lines 1-4
@@ -372,7 +372,7 @@ describe("Web Review UI Keys (Full)", () => {
   test(
     "> and < resize the left pane within 10% to 50%",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       const width = () => page!.locator("#sidebar").evaluate((el) => (el as HTMLElement).style.width);
 
@@ -390,7 +390,7 @@ describe("Web Review UI Keys (Full)", () => {
   test(
     "help opens with ? and closes with Esc, Enter, ? or q",
     async () => {
-      web = await launchWeb([FIXTURE_BASIC]);
+      web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
       for (const close of ["Escape", "Enter", "?", "q"]) {
         await press(page, "?");

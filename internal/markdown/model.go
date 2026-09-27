@@ -1,7 +1,6 @@
 package markdown
 
 import (
-	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -169,38 +168,23 @@ func (d *Document) SearchSections(query string) map[string]bool {
 	return shown
 }
 
-// ReviewComment is a review comment on a single section.
+// ReviewComment is a review comment on a single section. The JSON form is
+// what the browser review exchanges with the page.
 type ReviewComment struct {
-	SectionID  string     // Target section ID
-	Action     ActionType // Comment action type
-	Decoration Decoration // Comment decoration (e.g. non-blocking, blocking)
-	Body       string     // Comment body text
-	StartLine  int        // 1-based start line (0 = section-level comment)
-	EndLine    int        // 1-based end line (0 = single line if StartLine > 0)
-	Side       string     // "RIGHT" or "LEFT" (for diff comments)
-	Quote      []string   // source text of the commented lines (line-level only)
+	ID         string     `json:"id"`                  // assigned by ReviewState
+	SectionID  string     `json:"sectionId"`           // Target section ID
+	Action     ActionType `json:"action"`              // Comment action type
+	Decoration Decoration `json:"decoration"`          // Comment decoration (e.g. non-blocking, blocking)
+	Body       string     `json:"body"`                // Comment body text
+	StartLine  int        `json:"startLine,omitempty"` // 1-based start line (0 = section-level comment)
+	EndLine    int        `json:"endLine,omitempty"`   // 1-based end line (0 = single line if StartLine > 0)
+	Side       string     `json:"side,omitempty"`      // "RIGHT" or "LEFT" (for diff comments)
+	Quote      []string   `json:"quote,omitempty"`     // source text of the commented lines (line-level only)
 }
 
 // IsRemoved reports whether the comment targets removed (old-side) diff lines.
 func (c *ReviewComment) IsRemoved() bool {
 	return c.Side == diff.SideLeft
-}
-
-// ParseAction returns the ActionType for a label string.
-func ParseAction(s string) (ActionType, bool) {
-	if a := ActionType(s); slices.Contains(ActionLabels, a) {
-		return a, true
-	}
-	return "", false
-}
-
-// ParseDecoration returns the Decoration for a label string; "" is
-// DecorationNone.
-func ParseDecoration(s string) (Decoration, bool) {
-	if d := Decoration(s); slices.Contains(DecorationLabels, d) {
-		return d, true
-	}
-	return "", false
 }
 
 // File is a file to review, as the TUI and the browser receive it.
@@ -211,11 +195,11 @@ type File struct {
 	Viewed *ViewedState // nil: viewed marks live only for the session
 }
 
-// FileReview pairs a reviewed file with its parsed document and comments.
-type FileReview struct {
-	Path   string
-	Doc    *Document
-	Review *ReviewResult
+// FileResult is the outcome of reviewing one file.
+type FileResult struct {
+	File
+	Status Status
+	Review *ReviewResult // nil when the file was quit (skipped)
 }
 
 // FormatLabel returns the formatted label string for display.
@@ -228,6 +212,17 @@ func (c *ReviewComment) FormatLabel() string {
 // Returns "L10" for single line, "L10-L15" for range, or "" for section-level.
 func (c *ReviewComment) FormatLineRef() string {
 	return FormatLineRef(c.StartLine, c.EndLine)
+}
+
+// DisplayLineRef returns FormatLineRef marked " (removed)" for removed diff
+// lines, which are numbered by the old file and must not be read as current
+// line numbers.
+func (c *ReviewComment) DisplayLineRef() string {
+	ref := c.FormatLineRef()
+	if ref != "" && c.IsRemoved() {
+		ref += " (removed)"
+	}
+	return ref
 }
 
 // FormatLineRef formats a line reference from start and end line numbers.
@@ -302,26 +297,6 @@ var DecorationLabels = []Decoration{
 // ReviewResult holds the entire review output.
 type ReviewResult struct {
 	Comments []ReviewComment
-}
-
-// NewReviewResult returns the comments in document order, which the output
-// follows: the overview first, then the sections depth-first, keeping the
-// given order within a section. Comments on unknown sections are dropped.
-func NewReviewResult(doc *Document, comments []ReviewComment) *ReviewResult {
-	rank := map[string]int{OverviewSectionID: 0}
-	for i, s := range doc.AllSections() {
-		rank[s.ID] = i + 1
-	}
-	var ordered []ReviewComment
-	for _, c := range comments {
-		if _, ok := rank[c.SectionID]; ok {
-			ordered = append(ordered, c)
-		}
-	}
-	slices.SortStableFunc(ordered, func(a, b ReviewComment) int {
-		return cmp.Compare(rank[a.SectionID], rank[b.SectionID])
-	})
-	return &ReviewResult{Comments: ordered}
 }
 
 // Status returns the status of a submitted review: approved when it has no

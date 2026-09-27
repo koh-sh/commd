@@ -65,7 +65,7 @@ func TestViewFitsTerminalHeight(t *testing.T) {
 
 	for _, sz := range sizes {
 		t.Run(sz.name, func(t *testing.T) {
-			app := NewApp(p, AppOptions{})
+			app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 			// Simulate window size message
 			model, _ := app.Update(tea.WindowSizeMsg{Width: sz.width, Height: sz.height})
@@ -86,7 +86,7 @@ func TestViewFitsTerminalHeight(t *testing.T) {
 
 func TestViewFitsInCommentMode(t *testing.T) {
 	p := makeLargeDoc(20, 3)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -109,7 +109,7 @@ func TestViewFitsInCommentMode(t *testing.T) {
 
 func TestViewFitsInConfirmMode(t *testing.T) {
 	p := makeLargeDoc(20, 3)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -129,7 +129,7 @@ func TestViewFitsInConfirmMode(t *testing.T) {
 
 func TestSectionListScrollsWithCursor(t *testing.T) {
 	p := makeLargeDoc(30, 0) // 30 top-level sections, no children
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 	a, ok := model.(*App)
@@ -162,7 +162,7 @@ func TestSectionListScrollsWithCursor(t *testing.T) {
 
 func TestGGGoesToTop(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -192,7 +192,7 @@ func TestGGGoesToTop(t *testing.T) {
 
 func TestShiftGGoesToBottom(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -215,7 +215,7 @@ func TestShiftGGoesToBottom(t *testing.T) {
 
 func TestPendingGResetOnOtherKey(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -272,7 +272,7 @@ func lipglossWidth(s string) int {
 
 func TestViewFitsInHelpMode(t *testing.T) {
 	p := makeLargeDoc(5, 2)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
@@ -293,7 +293,7 @@ func TestViewFitsInHelpMode(t *testing.T) {
 // initApp creates an App with a standard window size for testing.
 func initApp(t *testing.T, p *markdown.Document) *App {
 	t.Helper()
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
 	if !ok {
@@ -302,15 +302,26 @@ func initApp(t *testing.T, p *markdown.Document) *App {
 	return a
 }
 
+// addTestComment stores a comment on sectionID, defaulting the label.
+func addTestComment(a *App, sectionID string, c markdown.ReviewComment) {
+	c.SectionID = sectionID
+	if c.Action == "" {
+		c.Action = markdown.DefaultAction
+	}
+	if err := a.review.SaveComment(c); err != nil {
+		panic(err)
+	}
+}
+
 func TestInit(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	if app.Init() != nil {
 		t.Error("Init() should return nil")
 	}
 }
 
 func TestResult(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	result := app.Result()
 	if result.Status != markdown.StatusCancelled {
 		t.Errorf("initial status = %s, want cancelled", result.Status)
@@ -329,7 +340,7 @@ func TestQuitOpensConfirm(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := initApp(t, makeLargeDoc(3, 0))
 			if tt.addComment {
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+				addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 			}
 			a.Update(keyMsg("q"))
 			if a.mode != ModeConfirm {
@@ -422,7 +433,7 @@ func TestSubmitOpensConfirm(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := initApp(t, makeLargeDoc(3, 0))
 			if tt.addComment {
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "feedback"})
+				addTestComment(a, "S1", markdown.ReviewComment{Body: "feedback"})
 			}
 			a.Update(keyMsg("s"))
 			if a.mode != ModeConfirm {
@@ -534,7 +545,7 @@ func TestLeftPaneCommentList(t *testing.T) {
 	}
 
 	// Add comment, then C should work
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 	a.Update(keyMsg("C"))
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList", a.mode)
@@ -547,7 +558,7 @@ func TestLeftPaneViewed(t *testing.T) {
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("v"))
 
-	if !a.sectionList.IsViewed("S1") {
+	if !a.review.IsViewed("S1") {
 		t.Error("S1 should be viewed after v")
 	}
 }
@@ -626,7 +637,7 @@ func TestRightPaneSectionActions(t *testing.T) {
 			name: "comment_list",
 			setup: func(a *App) {
 				a.Update(keyMsg("j")) // S1
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+				addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 				a.Update(keyMsg("tab"))
 			},
 			key:      "C",
@@ -642,7 +653,7 @@ func TestRightPaneSectionActions(t *testing.T) {
 			wantMode: ModeNormal,
 			check: func(t *testing.T, a *App) {
 				t.Helper()
-				if !a.sectionList.IsViewed("S1") {
+				if !a.review.IsViewed("S1") {
 					t.Error("S1 should be viewed after v from right pane")
 				}
 			},
@@ -682,7 +693,7 @@ func TestCommentModeCtrlS(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Ctrl+S", a.mode)
 	}
-	comments := a.sectionList.GetComments("S1")
+	comments := a.review.SectionComments("S1")
 	if len(comments) != 1 {
 		t.Fatalf("comments count = %d, want 1", len(comments))
 	}
@@ -692,26 +703,45 @@ func TestCommentModeCtrlS(t *testing.T) {
 }
 
 func TestCommentModeCtrlSEdit(t *testing.T) {
-	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionSuggestion, Body: "original"})
-
-	a.Update(keyMsg("j")) // S1
-	a.Update(keyMsg("C")) // comment list
-	a.Update(keyMsg("e")) // edit
-
-	if a.mode != ModeComment {
-		t.Fatalf("mode = %d, want ModeComment", a.mode)
+	tests := []struct {
+		name       string
+		others     int // further comments on S1
+		body       string
+		wantMode   AppMode
+		wantBodies []string
+	}{
+		{name: "edited body is saved", body: "edited", wantMode: ModeCommentList, wantBodies: []string{"edited"}},
+		{name: "emptied body deletes the comment", body: "  ", wantMode: ModeNormal},
+		{name: "list stays open while comments remain", others: 1, body: "", wantMode: ModeCommentList, wantBodies: []string{"other"}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := initApp(t, makeLargeDoc(3, 0))
+			addTestComment(a, "S1", markdown.ReviewComment{Action: markdown.ActionSuggestion, Body: "original"})
+			for range tt.others {
+				addTestComment(a, "S1", markdown.ReviewComment{Body: "other"})
+			}
 
-	a.comment.textarea.SetValue("edited")
-	a.Update(keyMsg("ctrl+s"))
+			a.Update(keyMsg("j")) // S1
+			a.Update(keyMsg("C")) // comment list
+			a.Update(keyMsg("e")) // edit the first comment
+			if a.mode != ModeComment {
+				t.Fatalf("mode = %d, want ModeComment", a.mode)
+			}
+			a.comment.textarea.SetValue(tt.body)
+			a.Update(keyMsg("ctrl+s"))
 
-	if a.mode != ModeCommentList {
-		t.Errorf("mode = %d, want ModeCommentList after edit save", a.mode)
-	}
-	comments := a.sectionList.GetComments("S1")
-	if len(comments) != 1 || comments[0].Body != "edited" {
-		t.Errorf("comment not updated properly")
+			if a.mode != tt.wantMode {
+				t.Errorf("mode = %d, want %d", a.mode, tt.wantMode)
+			}
+			var bodies []string
+			for _, c := range a.review.SectionComments("S1") {
+				bodies = append(bodies, c.Body)
+			}
+			if !slices.Equal(bodies, tt.wantBodies) {
+				t.Errorf("comments = %q, want %q", bodies, tt.wantBodies)
+			}
+		})
 	}
 }
 
@@ -726,14 +756,14 @@ func TestCommentModeEsc(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after Esc", a.mode)
 	}
-	if len(a.sectionList.GetComments("S1")) != 0 {
+	if len(a.review.SectionComments("S1")) != 0 {
 		t.Error("cancelled comment should not be saved")
 	}
 }
 
 func TestCommentModeEscFromEdit(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "original"})
+	addTestComment(a, "S1", markdown.ReviewComment{SectionID: "S1", Body: "original"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C")) // comment list
@@ -778,7 +808,7 @@ func TestCommentModeCtrlDCyclesDecoration(t *testing.T) {
 
 func TestCommentListModeEsc(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -791,8 +821,8 @@ func TestCommentListModeEsc(t *testing.T) {
 
 func TestCommentListModeNav(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "first"})
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "second"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "first"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "second"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -814,7 +844,7 @@ func TestCommentListModeNav(t *testing.T) {
 
 func TestCommentListModeDelete(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "only"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "only"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -824,15 +854,15 @@ func TestCommentListModeDelete(t *testing.T) {
 	if a.mode != ModeNormal {
 		t.Errorf("mode = %d, want ModeNormal after deleting last comment", a.mode)
 	}
-	if len(a.sectionList.GetComments("S1")) != 0 {
+	if len(a.review.SectionComments("S1")) != 0 {
 		t.Error("comment should be deleted")
 	}
 }
 
 func TestCommentListModeDeleteWithRemaining(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "first"})
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "second"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "first"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "second"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C"))
@@ -842,7 +872,7 @@ func TestCommentListModeDeleteWithRemaining(t *testing.T) {
 	if a.mode != ModeCommentList {
 		t.Errorf("mode = %d, want ModeCommentList", a.mode)
 	}
-	if len(a.sectionList.GetComments("S1")) != 1 {
+	if len(a.review.SectionComments("S1")) != 1 {
 		t.Error("should have 1 remaining comment")
 	}
 }
@@ -866,7 +896,7 @@ func TestConfirmModeAccept(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := initApp(t, makeLargeDoc(3, 0))
 			if tt.addComment {
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "test"})
+				addTestComment(a, "S1", markdown.ReviewComment{SectionID: "S1", Body: "test"})
 			}
 			a.confirmAction = tt.action
 			a.mode = ModeConfirm
@@ -1042,7 +1072,7 @@ func TestRightPaneHorizontalScrollJump(t *testing.T) {
 }
 
 func TestViewNotReady(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	view := app.View().Content
 	if view != "Loading..." {
 		t.Errorf("view before ready = %q, want 'Loading...'", view)
@@ -1083,7 +1113,7 @@ func TestFullViewFromRightPane(t *testing.T) {
 
 func TestFullViewCursorScrollsDetail(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
 	if !ok {
@@ -1121,7 +1151,7 @@ func TestFullViewCursorScrollsDetail(t *testing.T) {
 
 func TestFullViewGGScrollsToTop(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
 	if !ok {
@@ -1148,7 +1178,7 @@ func TestFullViewGGScrollsToTop(t *testing.T) {
 
 func TestFullViewGScrollsToLastSection(t *testing.T) {
 	p := makeLargeDoc(10, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
 	if !ok {
@@ -1227,7 +1257,7 @@ func TestFullViewStatusBar(t *testing.T) {
 func TestFullViewScrollSyncsCursor(t *testing.T) {
 	// Use many sections so content exceeds viewport height
 	p := makeLargeDoc(20, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	// Use small height so scrolling is meaningful
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
@@ -1269,7 +1299,7 @@ func TestFullViewScrollSyncsCursor(t *testing.T) {
 
 func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 	p := makeLargeDoc(20, 0)
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 15})
 	a, ok := model.(*App)
 	if !ok {
@@ -1302,7 +1332,7 @@ func TestFullViewScrollSyncsCursorGG(t *testing.T) {
 }
 
 func TestSinglePaneMode(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 
 	// Width < 80 triggers single pane mode
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
@@ -1330,12 +1360,12 @@ func TestRenderStatusBarModes(t *testing.T) {
 	}
 
 	// Normal mode with comments - verify comment count display
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 	sb = a.renderStatusBar()
 	if !strings.Contains(sb, "comments") {
 		t.Error("normal mode status bar should show comment count when comments exist")
 	}
-	a.sectionList.DeleteComment("S1", 0)
+	_ = a.review.DeleteComment(a.review.Comments()[0].ID)
 
 	// Comment mode
 	a.mode = ModeComment
@@ -1363,7 +1393,7 @@ func TestRenderStatusBarModes(t *testing.T) {
 func TestRenderTitleBar(t *testing.T) {
 	t.Run("with title and filepath", func(t *testing.T) {
 		a := initApp(t, makeLargeDoc(3, 0))
-		a.opts.FilePath = "test.md"
+		a.result.Path = "test.md"
 		tb := a.renderTitleBar()
 		if !strings.Contains(tb, "test.md") {
 			t.Error("title bar should contain filepath")
@@ -1380,7 +1410,7 @@ func TestRenderTitleBar(t *testing.T) {
 	})
 
 	t.Run("zero width", func(t *testing.T) {
-		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+		app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 		tb := app.renderTitleBar()
 		if tb != "" {
 			t.Error("title bar should be empty when width is 0")
@@ -1518,8 +1548,8 @@ func TestRenderRightContentModes(t *testing.T) {
 
 	// Comment list mode
 	a.mode = ModeCommentList
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
-	a.commentList.Open("S1", a.sectionList.GetComments("S1"))
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
+	a.commentList.Open("S1", a.review.SectionComments("S1"))
 	content = a.renderRightContent(80, 20)
 	if content == "" {
 		t.Error("right content in comment list mode should not be empty")
@@ -1625,7 +1655,7 @@ func TestUpdateNonKeyMsgInNormalMode(t *testing.T) {
 }
 
 func TestSinglePaneFocusRight(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
@@ -1715,7 +1745,7 @@ func TestPaneResize(t *testing.T) {
 	})
 
 	t.Run("disabled in single pane", func(t *testing.T) {
-		app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+		app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 		model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 		a, ok := model.(*App)
 		if !ok {
@@ -1745,7 +1775,7 @@ func TestHandleKeyUnknownMode(t *testing.T) {
 
 func TestUpdateLayoutFirstTime(t *testing.T) {
 	// Test the path where detail is nil (first updateLayout call)
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	app.width = 120
 	app.height = 30
 	app.detail = nil
@@ -1756,7 +1786,7 @@ func TestUpdateLayoutFirstTime(t *testing.T) {
 }
 
 func TestRefreshDetailNilDetail(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	app.detail = nil
 	app.refreshDetail()
 	if app.detail != nil {
@@ -1766,7 +1796,7 @@ func TestRefreshDetailNilDetail(t *testing.T) {
 
 func TestSinglePaneTitleBar(t *testing.T) {
 	// Single pane with title bar and focus right
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{FilePath: "test.md"})
+	app := NewApp(markdown.File{Path: "test.md", Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
 	if !ok {
@@ -1799,7 +1829,7 @@ func TestCommentModeCtrlSEmptyBody(t *testing.T) {
 		t.Errorf("mode = %d, want ModeNormal", a.mode)
 	}
 	// Empty comment should not be saved
-	if len(a.sectionList.GetComments("S1")) != 0 {
+	if len(a.review.SectionComments("S1")) != 0 {
 		t.Error("empty comment should not be saved")
 	}
 }
@@ -1848,7 +1878,7 @@ func TestSearchModeRegularKey(t *testing.T) {
 }
 
 func TestWindowSizeResize(t *testing.T) {
-	app := NewApp(makeLargeDoc(3, 0), AppOptions{})
+	app := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	a, ok := model.(*App)
 	if !ok {
@@ -1872,7 +1902,7 @@ func TestWindowSizeResize(t *testing.T) {
 func TestSinglePaneNoTitleBar(t *testing.T) {
 	// Document without title, no filepath -> empty title bar
 	p := &markdown.Document{Sections: []*markdown.Section{{ID: "S1", Title: "Step", Level: 2}}}
-	app := NewApp(p, AppOptions{})
+	app := NewApp(markdown.File{Doc: p}, AppOptions{})
 	model, _ := app.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	a, ok := model.(*App)
 	if !ok {
@@ -1908,7 +1938,7 @@ func TestDualPaneNoTitleBar(t *testing.T) {
 
 func TestCommentListModeUnhandledKey(t *testing.T) {
 	a := initApp(t, makeLargeDoc(3, 0))
-	a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "test"})
+	addTestComment(a, "S1", markdown.ReviewComment{Body: "test"})
 
 	a.Update(keyMsg("j")) // S1
 	a.Update(keyMsg("C")) // comment list mode
@@ -1964,47 +1994,45 @@ func TestClipLines(t *testing.T) {
 	}
 }
 
-func TestNewDiffData(t *testing.T) {
+func TestNewDiffLinePane(t *testing.T) {
 	tests := []struct {
-		name  string
-		patch string
-		want  *DiffData
+		name       string
+		patch      string
+		wantLines  []string
+		wantLine   []int
+		wantSide   []string
+		wantType   string
+		wantGutter int
 	}{
-		{name: "nil info yields nil", patch: "", want: nil},
 		{
-			name:  "maps lines, sides, types, and sections",
-			patch: "@@ -1,2 +1,2 @@\n ## A\n-old\n+new",
-			want: &DiffData{
-				DisplayLines: []string{"  ## A", "- old", "+ new"},
-				LineMap:      []int{1, 2, 2},
-				SideMap:      []string{"RIGHT", "LEFT", "RIGHT"},
-				TypeMap:      []byte{' ', '-', '+'},
-				Sections:     []string{"S1", "S1", "S1"},
-			},
+			name:       "maps lines, sides and types",
+			patch:      "@@ -1,2 +1,2 @@\n ## A\n-old\n+new",
+			wantLines:  []string{"  ## A", "- old", "+ new"},
+			wantLine:   []int{1, 2, 2},
+			wantSide:   []string{"RIGHT", "LEFT", "RIGHT"},
+			wantType:   " -+",
+			wantGutter: 2,
 		},
-	}
-	doc, err := markdown.Parse([]byte("## A\nnew\n"))
-	if err != nil {
-		t.Fatal(err)
+		{
+			name:       "gutter fits the largest file line, not the diff length",
+			patch:      "@@ -120,1 +120,1 @@\n-old\n+new",
+			wantLines:  []string{"- old", "+ new"},
+			wantLine:   []int{120, 120},
+			wantSide:   []string{"LEFT", "RIGHT"},
+			wantType:   "-+",
+			wantGutter: 4,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := NewDiffData(doc, diff.ParsePatch(tt.patch))
-			if tt.want == nil {
-				if got != nil {
-					t.Fatalf("expected nil, got %+v", got)
-				}
-				return
+			lp := newDiffLinePane(diff.ParsePatch(tt.patch), Styles{}, nil)
+			if !slices.Equal(lp.lines, tt.wantLines) || !slices.Equal(lp.diffLineMap, tt.wantLine) ||
+				!slices.Equal(lp.diffSideMap, tt.wantSide) || string(lp.diffTypeMap) != tt.wantType {
+				t.Errorf("lines %q, line map %v, side map %v, types %q; want %q, %v, %v, %q",
+					lp.lines, lp.diffLineMap, lp.diffSideMap, lp.diffTypeMap, tt.wantLines, tt.wantLine, tt.wantSide, tt.wantType)
 			}
-			if got == nil {
-				t.Fatal("expected DiffData, got nil")
-			}
-			if fmt.Sprint(got.DisplayLines) != fmt.Sprint(tt.want.DisplayLines) ||
-				fmt.Sprint(got.LineMap) != fmt.Sprint(tt.want.LineMap) ||
-				fmt.Sprint(got.SideMap) != fmt.Sprint(tt.want.SideMap) ||
-				string(got.TypeMap) != string(tt.want.TypeMap) ||
-				fmt.Sprint(got.Sections) != fmt.Sprint(tt.want.Sections) {
-				t.Errorf("NewDiffData() = %+v, want %+v", got, tt.want)
+			if lp.gutterWidth != tt.wantGutter {
+				t.Errorf("gutterWidth = %d, want %d", lp.gutterWidth, tt.wantGutter)
 			}
 		})
 	}
@@ -2017,14 +2045,14 @@ func TestAppLineCommentCarriesQuote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app := NewApp(doc, AppOptions{})
+	app := NewApp(markdown.File{Doc: doc}, AppOptions{})
 	app.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
-	app.comment.OpenWithLines("S1", 5, 0, "")
+	app.comment.OpenWithLines(5, 0, "")
 	app.mode = ModeComment
 	app.comment.textarea.SetValue("check this")
 	app.handleCommentMode(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
-	comments := app.sectionList.GetComments("S1")
+	comments := app.review.SectionComments("S1")
 	if len(comments) != 1 {
 		t.Fatalf("got %d comments, want 1", len(comments))
 	}
@@ -2095,7 +2123,7 @@ func TestRawViewLineComment(t *testing.T) {
 				t.Fatalf("mode after save = %d, want ModeNormal", a.mode)
 			}
 
-			comments := a.sectionList.GetComments("S1")
+			comments := a.review.SectionComments("S1")
 			if len(comments) != 1 {
 				t.Fatalf("got %d comments on S1, want 1", len(comments))
 			}
@@ -2163,7 +2191,7 @@ func TestSinglePaneShowsRightPaneModes(t *testing.T) {
 		{
 			name: "comment list",
 			setup: func(a *App) {
-				a.sectionList.AddComment("S1", &markdown.ReviewComment{Body: "existing note"})
+				addTestComment(a, "S1", markdown.ReviewComment{Body: "existing note"})
 			},
 			key:      "C",
 			wantMode: ModeCommentList,
@@ -2172,7 +2200,7 @@ func TestSinglePaneShowsRightPaneModes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewApp(makeLargeDoc(3, 0), AppOptions{})
+			a := NewApp(markdown.File{Doc: makeLargeDoc(3, 0)}, AppOptions{})
 			a.Update(tea.WindowSizeMsg{Width: singlePaneWidth - 10, Height: 30})
 			a.Update(keyMsg("j")) // S1, left pane keeps focus
 			if tt.setup != nil {
@@ -2244,7 +2272,7 @@ func TestDiffEmptySectionBlocksLineComment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewApp(doc, AppOptions{Diff: NewDiffData(doc, diff.ParsePatch("@@ -3,1 +3,1 @@\n-a\n+b\n"))})
+			a := NewApp(markdown.File{Doc: doc, Diff: diff.ParsePatch("@@ -3,1 +3,1 @@\n-a\n+b\n")}, AppOptions{})
 			a.Update(tea.WindowSizeMsg{Width: 120, Height: 36})
 			a.Update(keyMsg("j")) // S1
 			a.Update(keyMsg("j")) // S2
@@ -2257,7 +2285,7 @@ func TestDiffEmptySectionBlocksLineComment(t *testing.T) {
 			if a.mode != ModeNormal {
 				t.Errorf("mode = %d, want ModeNormal", a.mode)
 			}
-			if a.sectionList.HasComments() {
+			if len(a.review.Comments()) > 0 {
 				t.Error("a comment was created on another section's line")
 			}
 		})
@@ -2274,7 +2302,7 @@ func TestCtrlCQuitsFromEveryMode(t *testing.T) {
 		{"comment editor", func(a *App) { a.Update(keyMsg("j")); a.Update(keyMsg("c")) }, ModeComment},
 		{"comment list", func(a *App) {
 			a.Update(keyMsg("j"))
-			a.sectionList.AddComment("S1", &markdown.ReviewComment{SectionID: "S1", Body: "x"})
+			addTestComment(a, "S1", markdown.ReviewComment{SectionID: "S1", Body: "x"})
 			a.Update(keyMsg("C"))
 		}, ModeCommentList},
 		{"confirm dialog", func(a *App) { a.Update(keyMsg("q")) }, ModeConfirm},
@@ -2325,7 +2353,7 @@ func TestStatusBarFitsWidth(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				a := NewApp(doc, AppOptions{})
+				a := NewApp(markdown.File{Doc: doc}, AppOptions{})
 				a.Update(tea.WindowSizeMsg{Width: w, Height: 30})
 				m.enter(a)
 

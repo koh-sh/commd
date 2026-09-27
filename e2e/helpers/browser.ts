@@ -59,6 +59,13 @@ export async function press(page: Page, ...keys: string[]): Promise<void> {
   for (const key of keys) await page.keyboard.press(key);
 }
 
+/** Add a comment at the cursor: c, type the body, Ctrl+S (the TUI's addComment). */
+export async function addWebComment(page: Page, body: string): Promise<void> {
+  await press(page, "c");
+  await page.keyboard.type(body);
+  await press(page, "Control+s");
+}
+
 /**
  * Retry an assertion until it passes: keys that go through the API update
  * the page asynchronously.

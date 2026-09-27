@@ -35,7 +35,7 @@ func FormatReview(result *ReviewResult, d *Document, filePath string) string {
 // FormatReviews formats reviews for several files as one Markdown document.
 // Each file gets its own "## path" heading with section headings nested one
 // level deeper. Files without comments are omitted; returns "" if none have any.
-func FormatReviews(files []FileReview) string {
+func FormatReviews(files []FileResult) string {
 	var sb strings.Builder
 	for _, f := range files {
 		if f.Review == nil || len(f.Review.Comments) == 0 {
@@ -102,21 +102,10 @@ func writeComments(sb *strings.Builder, result *ReviewResult, d *Document, headi
 	if len(lineComments) > 0 {
 		sb.WriteString("\n---\n")
 		for _, c := range lineComments {
-			fmt.Fprintf(sb, "\n`%s` [%s] %s\n", formatOutputLineRef(c), c.FormatLabel(), c.Body)
+			fmt.Fprintf(sb, "\n`%s` [%s] %s\n", c.DisplayLineRef(), c.FormatLabel(), c.Body)
 			writeQuote(sb, c.Quote)
 		}
 	}
-}
-
-// formatOutputLineRef renders the line reference for review output. Removed
-// diff lines are numbered by the old file, so they are marked to avoid being
-// read as current line numbers.
-func formatOutputLineRef(c ReviewComment) string {
-	ref := c.FormatLineRef()
-	if c.IsRemoved() {
-		ref += " (removed)"
-	}
-	return ref
 }
 
 // writeQuote writes the quoted source lines as a Markdown blockquote,

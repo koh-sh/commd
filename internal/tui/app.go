@@ -8,7 +8,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/koh-sh/commd/internal/diff"
 	"github.com/koh-sh/commd/internal/markdown"
 )
 
@@ -44,15 +43,10 @@ const (
 // scrollToEnd is a value large enough to be clamped to the maximum horizontal offset.
 const scrollToEnd = 1 << 30
 
-// AppResult is the result returned when the TUI exits.
-type AppResult struct {
-	Review *markdown.ReviewResult
-	Status markdown.Status
-}
-
 // App is the main Bubble Tea model for the TUI.
 type App struct {
 	doc         *markdown.Document
+	review      *markdown.ReviewState
 	sectionList *SectionList
 	detail      *DetailPane
 	linePane    *LinePane
@@ -72,92 +66,47 @@ type App struct {
 	leftRatio int // left pane width percentage (default 30, range 10-50)
 	opts      AppOptions
 
-	result         AppResult
-	confirmAction  confirmKind // what the confirm dialog is for
-	pendingG       bool        // gg chord: true when first 'g' was pressed
-	editCommentIdx int         // index of comment being edited in comment list mode (-1 = new)
-}
-
-// DiffData holds parsed diff information for PR mode display.
-type DiffData struct {
-	DisplayLines []string // formatted diff lines (with +/-/space prefix)
-	LineMap      []int    // maps display index → file line number for commenting
-	SideMap      []string // maps display index → "RIGHT" or "LEFT"
-	TypeMap      []byte   // maps display index → diff line type ('+', '-', ' ')
-	Sections     []string // maps display index → section ID
-	Info         *diff.Info
-}
-
-// NewDiffData converts a parsed patch into the display data the raw view
-// needs; doc is the new file the patch applies to. Returns nil when info is
-// nil so callers can pass it straight to AppOptions.Diff.
-func NewDiffData(doc *markdown.Document, info *diff.Info) *DiffData {
-	if info == nil {
-		return nil
-	}
-	lineMap, sideMap, typeMap := info.LineSideMap()
-	return &DiffData{
-		DisplayLines: info.FormatDiffLines(),
-		LineMap:      lineMap,
-		SideMap:      sideMap,
-		TypeMap:      typeMap,
-		Sections:     doc.DiffLineSections(info),
-		Info:         info,
-	}
+	result        markdown.FileResult
+	confirmAction confirmKind // what the confirm dialog is for
+	pendingG      bool        // gg chord: true when first 'g' was pressed
 }
 
 // AppOptions configures the TUI appearance.
 type AppOptions struct {
-	Theme    string // "dark" or "light"
-	FilePath string // file path (displayed in title bar)
-	// Viewed restores the viewed marks and is updated in place as sections
-	// are marked, for the caller to persist. nil keeps marks for the session.
-	Viewed    *markdown.ViewedState
-	MultiFile bool      // part of a multi-file flow: dialogs say "finish/skip this file" instead of "submit/quit"
-	Diff      *DiffData // when set, raw view shows diff instead of full source
+	Theme     string // "dark" or "light"
+	MultiFile bool   // part of a multi-file flow: dialogs say "finish/skip this file" instead of "submit/quit"
 }
 
-// NewApp creates a new App model.
-func NewApp(doc *markdown.Document, opts AppOptions) *App {
+// NewApp creates a new App model reviewing f. With f.Diff the raw view shows
+// the diff instead of the full source and is where the review starts. Marking
+// sections viewed updates f.Viewed in place, for the caller to persist.
+func NewApp(f markdown.File, opts AppOptions) *App {
 	styles := stylesForTheme(opts.Theme)
+	review := markdown.NewReviewState(f)
 	a := &App{
-		doc:            doc,
-		sectionList:    NewSectionList(doc, opts.Viewed),
-		comment:        NewCommentEditor(),
-		commentList:    NewCommentList(),
-		search:         NewSearchBar(),
-		keymap:         DefaultKeyMap(),
-		styles:         styles,
-		leftRatio:      30,
-		opts:           opts,
-		editCommentIdx: -1,
-		result: AppResult{
-			Status: markdown.StatusCancelled,
-		},
+		doc:         f.Doc,
+		review:      review,
+		sectionList: NewSectionList(review),
+		comment:     NewCommentEditor(),
+		commentList: NewCommentList(),
+		search:      NewSearchBar(),
+		keymap:      DefaultKeyMap(),
+		styles:      styles,
+		leftRatio:   30,
+		opts:        opts,
+		result:      markdown.FileResult{File: f, Status: markdown.StatusCancelled},
 	}
-	if opts.Diff != nil {
-		// PR mode: use diff lines, start in raw view with section filtering
-		a.linePane = NewLinePane(opts.Diff.DisplayLines, 0, 0, styles, opts.Diff.Sections)
-		a.linePane.diffLineMap = opts.Diff.LineMap
-		a.linePane.diffSideMap = opts.Diff.SideMap
-		a.linePane.diffTypeMap = opts.Diff.TypeMap
-		// Recalculate gutter width from max file line number
-		maxLine := 1
-		for _, l := range opts.Diff.LineMap {
-			if l > maxLine {
-				maxLine = l
-			}
-		}
-		a.linePane.gutterWidth = len(fmt.Sprintf("%d", maxLine)) + 1
+	if f.Diff != nil {
+		a.linePane = newDiffLinePane(f.Diff, styles, f.Doc.DiffLineSections(f.Diff))
 		a.rawView = true
-	} else if len(doc.SourceLines) > 0 {
-		a.linePane = NewLinePane(doc.SourceLines, 0, 0, styles, doc.LineSections())
+	} else if len(f.Doc.SourceLines) > 0 {
+		a.linePane = NewLinePane(f.Doc.SourceLines, 0, 0, styles, f.Doc.LineSections())
 	}
 	return a
 }
 
 // Result returns the final result after the TUI exits.
-func (a *App) Result() AppResult {
+func (a *App) Result() markdown.FileResult {
 	return a.result
 }
 
@@ -454,7 +403,6 @@ func (a *App) handleSectionActions(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		if sectionID == "" {
 			return nil, true
 		}
-		a.editCommentIdx = -1
 		cmd := a.comment.Open(sectionID, nil)
 		a.mode = ModeComment
 		return cmd, true
@@ -464,7 +412,7 @@ func (a *App) handleSectionActions(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		if sectionID == "" {
 			return nil, true
 		}
-		comments := a.sectionList.GetComments(sectionID)
+		comments := a.review.SectionComments(sectionID)
 		if len(comments) > 0 {
 			a.commentList.Open(sectionID, comments)
 			a.mode = ModeCommentList
@@ -473,7 +421,7 @@ func (a *App) handleSectionActions(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 	case key.Matches(msg, a.keymap.Viewed):
 		if section := a.sectionList.Selected(); section != nil {
-			a.sectionList.ToggleViewed(section.ID)
+			_ = a.review.SetViewed(section.ID, !a.review.IsViewed(section.ID)) // a real section
 		}
 		return nil, true
 	}
@@ -507,15 +455,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			a.syncSectionFromLineCursor()
 		}
 	case key.Matches(msg, a.keymap.Comment):
-		if !a.linePane.CanComment() {
-			return a, nil
-		}
-		startLine, endLine := a.linePane.SelectedRange()
-		sectionID := a.linePane.SelectedSectionID()
-		a.editCommentIdx = -1
-		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
-		a.mode = ModeComment
-		return a, cmd
+		return a, a.openLineComment()
 	case key.Matches(msg, a.keymap.VisualSelect):
 		if !a.linePane.CanComment() {
 			return a, nil
@@ -524,7 +464,7 @@ func (a *App) handleLinePaneKeys(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.mode = ModeLineSelect
 	case key.Matches(msg, a.keymap.CommentList):
 		sectionID := a.linePane.SectionIDAtCursor()
-		comments := a.sectionList.GetComments(sectionID)
+		comments := a.review.SectionComments(sectionID)
 		if len(comments) > 0 {
 			a.commentList.Open(sectionID, comments)
 			a.mode = ModeCommentList
@@ -542,21 +482,26 @@ func (a *App) handleLineSelectMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.linePane.CursorDown()
 		a.syncSectionFromLineCursor()
 	case key.Matches(msg, a.keymap.Comment):
-		startLine, endLine := a.linePane.SelectedRange()
-		if startLine == 0 {
-			return a, nil // no valid diff line selected
-		}
-		sectionID := a.linePane.SelectedSectionID()
-		a.linePane.CancelVisualSelect()
-		a.editCommentIdx = -1
-		cmd := a.comment.OpenWithLines(sectionID, startLine, endLine, a.linePane.CursorSide())
-		a.mode = ModeComment
-		return a, cmd
+		return a, a.openLineComment()
 	case key.Matches(msg, a.keymap.Cancel):
 		a.linePane.CancelVisualSelect()
 		a.mode = ModeNormal
 	}
 	return a, nil
+}
+
+// openLineComment opens the editor for a new comment on the selected lines
+// (the cursor line without a selection). It does nothing when no commentable
+// line is selected.
+func (a *App) openLineComment() tea.Cmd {
+	startLine, endLine := a.linePane.SelectedRange()
+	if startLine == 0 {
+		return nil
+	}
+	side := a.linePane.CursorSide()
+	a.linePane.CancelVisualSelect()
+	a.mode = ModeComment
+	return a.comment.OpenWithLines(startLine, endLine, side)
 }
 
 // syncSectionFromLineCursor updates the left pane cursor to match the section
@@ -574,24 +519,9 @@ func (a *App) syncSectionFromLineCursor() {
 func (a *App) handleCommentMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Save):
-		result := a.comment.Result()
-		if result != nil {
-			// Line-level comments carry the commented source text so the
-			// review output can quote it; line numbers alone go stale once
-			// the file is edited, and removed diff lines exist nowhere else.
-			if result.StartLine > 0 {
-				var info *diff.Info
-				if a.opts.Diff != nil {
-					info = a.opts.Diff.Info
-				}
-				result.Quote = a.doc.Quote(info, result.StartLine, result.EndLine, result.Side)
-			}
-			if a.editCommentIdx >= 0 {
-				a.sectionList.UpdateComment(a.comment.SectionID(), a.editCommentIdx, result)
-			} else {
-				a.sectionList.AddComment(a.comment.SectionID(), result)
-			}
-		}
+		// The editor only offers valid targets and labels, so saving cannot
+		// fail; an empty body drops a new comment and deletes an edited one.
+		_ = a.review.SaveComment(a.comment.Result())
 		a.returnFromComment()
 		a.refreshDetail()
 		return a, nil
@@ -623,14 +553,24 @@ func (a *App) returnFromComment() {
 	// Rendering the editor shrinks the detail pane to make room for it
 	// (renderRightContent); give the pane its full height back.
 	a.updateLayout()
-	if a.editCommentIdx >= 0 {
-		comments := a.sectionList.GetComments(a.comment.SectionID())
-		a.commentList.Open(a.comment.SectionID(), comments)
-		a.mode = ModeCommentList
+	if a.comment.IsEdit() {
+		a.reopenCommentList(a.comment.SectionID())
 	} else {
 		a.mode = ModeNormal
 	}
-	a.editCommentIdx = -1
+}
+
+// reopenCommentList shows the comment list of a section again after its
+// comments changed, or returns to normal mode when none is left.
+func (a *App) reopenCommentList(sectionID string) {
+	comments := a.review.SectionComments(sectionID)
+	if len(comments) == 0 {
+		a.commentList.Close()
+		a.mode = ModeNormal
+		return
+	}
+	a.commentList.Open(sectionID, comments)
+	a.mode = ModeCommentList
 }
 
 func (a *App) handleCommentListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -653,32 +593,31 @@ func (a *App) handleCommentListMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, a.keymap.Edit):
 		// Edit selected comment
-		sectionID := a.commentList.SectionID()
-		idx := a.commentList.Cursor()
-		comments := a.sectionList.GetComments(sectionID)
-		if idx >= 0 && idx < len(comments) {
-			a.editCommentIdx = idx
-			cmd := a.comment.Open(sectionID, comments[idx])
+		if c := a.selectedListComment(); c != nil {
+			cmd := a.comment.Open(c.SectionID, c)
 			a.mode = ModeComment
 			return a, cmd
 		}
 	case key.Matches(msg, a.keymap.Delete):
 		// Delete selected comment
-		sectionID := a.commentList.SectionID()
-		idx := a.commentList.Cursor()
-		a.sectionList.DeleteComment(sectionID, idx)
-		comments := a.sectionList.GetComments(sectionID)
-		if len(comments) == 0 {
-			a.commentList.Close()
-			a.mode = ModeNormal
-		} else {
-			a.commentList.Open(sectionID, comments)
+		if c := a.selectedListComment(); c != nil {
+			_ = a.review.DeleteComment(c.ID) // the comment exists: it is listed
+			a.reopenCommentList(c.SectionID)
+			a.refreshDetail()
 		}
-		a.refreshDetail()
 		return a, nil
 	}
 
 	return a, nil
+}
+
+// selectedListComment returns the comment under the comment list cursor.
+func (a *App) selectedListComment() *markdown.ReviewComment {
+	comments := a.review.SectionComments(a.commentList.SectionID())
+	if i := a.commentList.Cursor(); i >= 0 && i < len(comments) {
+		return comments[i]
+	}
+	return nil
 }
 
 func (a *App) handleConfirmMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -757,7 +696,7 @@ func (a *App) handleSearchMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a *App) submitReview() (tea.Model, tea.Cmd) {
-	a.result.Review = a.sectionList.BuildReviewResult()
+	a.result.Review = a.review.Result()
 	a.result.Status = a.result.Review.Status()
 
 	return a, tea.Quit
@@ -825,18 +764,18 @@ func (a *App) refreshDetail() {
 	}
 
 	if a.fullView {
-		a.detail.ShowAll(a.doc, a.sectionList.GetComments)
+		a.detail.ShowAll(a.doc, a.review.SectionComments)
 		return
 	}
 
 	if a.sectionList.IsOverviewSelected() {
-		comments := a.sectionList.GetComments(markdown.OverviewSectionID)
+		comments := a.review.SectionComments(markdown.OverviewSectionID)
 		a.detail.ShowOverview(a.doc, comments)
 		return
 	}
 
 	if section := a.sectionList.Selected(); section != nil {
-		comments := a.sectionList.GetComments(section.ID)
+		comments := a.review.SectionComments(section.ID)
 		a.detail.ShowSection(section, comments)
 	}
 }
@@ -846,14 +785,8 @@ func (a *App) refreshLinePane() {
 		return
 	}
 	a.updateLinePaneViewRange()
-	// Collect all comments (both section-level and line-level) for inline display
-	var allComments []*markdown.ReviewComment
-	overviewComments := a.sectionList.GetComments(markdown.OverviewSectionID)
-	allComments = append(allComments, overviewComments...)
-	for _, s := range a.doc.AllSections() {
-		allComments = append(allComments, a.sectionList.GetComments(s.ID)...)
-	}
-	a.linePane.SetComments(allComments)
+	// Both section-level and line-level comments are shown inline.
+	a.linePane.SetComments(a.review.Comments())
 }
 
 // updateLinePaneViewRange sets the linePane view range based on fullView and selected section.
@@ -894,8 +827,8 @@ func (a *App) renderTitleBar() string {
 	if a.doc.Title != "" {
 		parts = append(parts, a.doc.Title)
 	}
-	if a.opts.FilePath != "" {
-		parts = append(parts, "("+a.opts.FilePath+")")
+	if a.result.Path != "" {
+		parts = append(parts, "("+a.result.Path+")")
 	}
 
 	if len(parts) == 0 {
@@ -1210,7 +1143,7 @@ func (a *App) renderStatusBar() string {
 		viewMode = "section"
 	}
 	progress := ""
-	if commentCount := a.sectionList.TotalCommentCount(); commentCount > 0 {
+	if commentCount := len(a.review.Comments()); commentCount > 0 {
 		progress = fmt.Sprintf(" [%d comments]", commentCount)
 	}
 
@@ -1246,7 +1179,7 @@ func (a *App) renderStatusBar() string {
 		a.statusEntry("?", "help"),
 		a.statusEntry("q", "quit"),
 	)
-	viewed := fmt.Sprintf("[%d/%d viewed]", a.sectionList.ViewedCount(), a.sectionList.TotalSectionCount())
+	viewed := fmt.Sprintf("[%d/%d viewed]", a.review.ViewedCount(), a.sectionList.TotalSectionCount())
 	return a.statusLine(entries, viewed+progress)
 }
 
@@ -1277,20 +1210,9 @@ func (a *App) renderConfirm() string {
 	var message string
 	switch a.confirmAction {
 	case confirmSubmit:
-		if a.opts.MultiFile {
-			message = fmt.Sprintf("Finish reviewing this file? (%d comments)", a.sectionList.TotalCommentCount())
-		} else {
-			message = fmt.Sprintf("Submit review? (%d comments)", a.sectionList.TotalCommentCount())
-		}
+		message = a.review.ConfirmSubmitMessage(a.opts.MultiFile)
 	case confirmQuit:
-		switch {
-		case a.opts.MultiFile:
-			message = "Skip this file?"
-		case a.sectionList.HasComments():
-			message = "You have review comments.\n\nQuit without submitting?"
-		default:
-			message = "Quit review?"
-		}
+		message = a.review.ConfirmQuitMessage(a.opts.MultiFile)
 	}
 
 	dialog := lipgloss.NewStyle().
