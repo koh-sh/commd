@@ -11,7 +11,7 @@ function onPickerKey(ev) {
   const n = st.pick.length;
   const k = ev.key;
   const ctrlC = ev.ctrlKey && k === "c" && !hasTextSelection(); // with a selection it copies
-  if (k === "q" || k === "Escape" || ctrlC) cancelPick();
+  if (k === "q" || keyName(ev) === "esc" || ctrlC) cancelPick();
   else if (k === "Enter") confirmPick();
   else if (k === "j" || k === "ArrowDown") p.cursor = clamp(p.cursor + 1, 0, n - 1);
   else if (k === "k" || k === "ArrowUp") p.cursor = clamp(p.cursor - 1, 0, n - 1);
@@ -24,6 +24,8 @@ function onPickerKey(ev) {
 
 // keyName normalizes a key event to the TUI's key names.
 function keyName(ev) {
+  // ctrl+[ (and ctrl+{) sends Esc in a terminal, so it is Esc here too.
+  if (ev.ctrlKey && (ev.key === "[" || ev.key === "{")) return "esc";
   const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "enter", Escape: "esc", Tab: "tab", " ": "space" };
   let k = map[ev.key] || ev.key;
   if (ev.ctrlKey && k.length === 1) k = `ctrl+${k.toLowerCase()}`;

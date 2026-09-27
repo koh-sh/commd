@@ -37,6 +37,9 @@ describe("Web Review UI Modes (Full)", () => {
       await page.keyboard.type("dropped");
       await press(page, "Escape");
       await eventually(async () => expect(await count(page!, "#editor")).toBe(0));
+      // Ctrl+[ is Esc, as in a terminal.
+      await press(page, "c", "Control+BracketLeft");
+      await eventually(async () => expect(await count(page!, "#editor")).toBe(0));
       await press(page, "c", "Control+s");
       await eventually(async () => expect(await count(page!, "#editor")).toBe(0));
       expect((await stateOf(web)).file.comments).toEqual([]);
@@ -108,11 +111,11 @@ describe("Web Review UI Modes (Full)", () => {
   );
 
   test(
-    "confirm dialog: n, N, q and Esc cancel; buttons work",
+    "confirm dialog: n, N, q, Esc and Ctrl+[ cancel; buttons work",
     async () => {
       web = await launchWeb({ file: FIXTURE_BASIC });
       page = await openPage(web);
-      for (const cancel of ["n", "N", "q", "Escape"]) {
+      for (const cancel of ["n", "N", "q", "Escape", "Control+BracketLeft", "Control+Shift+BracketLeft"]) {
         await press(page, "s");
         await eventually(async () => expect(await text(page!, ".modal")).toContain("Submit review? (0 comments)"));
         await press(page, cancel);
