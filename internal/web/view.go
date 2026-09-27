@@ -26,6 +26,18 @@ type stateJSON struct {
 	DefaultLabel markdown.ActionType   `json:"defaultLabel"`
 	// OverviewID is the section ID of the overview, which is not a heading.
 	OverviewID string `json:"overviewId"`
+	// Reload reports a reload, set only in the reply to one.
+	Reload *reloadJSON `json:"reload,omitempty"`
+}
+
+// reloadJSON is the outcome of rereading the file under review.
+type reloadJSON struct {
+	Message string `json:"message"` // worded as in the TUI
+	Changed bool   `json:"changed"` // the page now shows the new content
+	Failed  bool   `json:"failed"`  // the file could not be read
+	// Sections maps the section IDs before the reload to the new ones, so R
+	// stays on the selected section (see markdown.ReloadResult).
+	Sections map[string]string `json:"sections,omitempty"`
 }
 
 type fileJSON struct {

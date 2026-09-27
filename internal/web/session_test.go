@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/koh-sh/commd/internal/markdown"
@@ -16,12 +17,12 @@ type testLoader struct {
 	loaded []string
 }
 
-func (l *testLoader) load(path string) (markdown.File, bool) {
+func (l *testLoader) load(path string) (markdown.File, error) {
 	l.loaded = append(l.loaded, path)
 	if !slices.Contains(l.known, path) {
-		return markdown.File{}, false
+		return markdown.File{}, errors.New("unknown")
 	}
-	return markdown.File{Path: path, Doc: mustParse(l.t, testSource)}, true
+	return markdown.File{Path: path, Doc: mustParse(l.t, testSource)}, nil
 }
 
 // step is one action in a session flow test.
@@ -111,7 +112,7 @@ func TestSessionFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			loader := &testLoader{t: t, known: tt.known}
 			tt.review.Load = loader.load
-			s := newSession(tt.review, testToken, "light")
+			s := newSession(tt.review, testToken, Options{Theme: "light"})
 			for _, st := range tt.steps {
 				var err error
 				switch {
@@ -160,10 +161,10 @@ func TestSessionFlow(t *testing.T) {
 
 func TestSessionPhaseErrors(t *testing.T) {
 	picking := func(t *testing.T) *session {
-		return newSession(Review{Pick: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, "light")
+		return newSession(Review{Pick: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, Options{Theme: "light"})
 	}
 	reviewing := func(t *testing.T) *session {
-		return newSession(Review{Paths: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, "light")
+		return newSession(Review{Paths: []string{"a.md"}, Load: (&testLoader{t: t, known: []string{"a.md"}}).load}, testToken, Options{Theme: "light"})
 	}
 	tests := []struct {
 		name  string
@@ -180,6 +181,67 @@ func TestSessionPhaseErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := tt.run(tt.start(t)); !errors.Is(err, errPhase) {
 				t.Errorf("err = %v, want %v", err, errPhase)
+			}
+		})
+	}
+}
+
+func TestSessionReload(t *testing.T) {
+	// The heading of the commented section is renamed on disk.
+	edited := strings.Replace(testSource, "## First", "## Renamed", 1)
+	tests := []struct {
+		name       string
+		pick       bool   // the session is still in the picker
+		source     string // "" fails the load
+		wantSeq    int
+		wantTitle  string // title of the first section after the reload
+		wantResult string // the reload message; "" when there is nothing to reload
+	}{
+		{name: "reads the file again", source: edited, wantSeq: 2, wantTitle: "Renamed", wantResult: "Reloaded; 1 comments no longer match the file and were moved to a section"},
+		{name: "an unchanged file is not reloaded", source: testSource, wantSeq: 1, wantTitle: "First", wantResult: "File unchanged"},
+		{name: "a failed read keeps the last content", wantSeq: 1, wantTitle: "First", wantResult: "Cannot reload: gone"},
+		{name: "nothing to read while picking", pick: true, source: edited, wantSeq: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			source := testSource
+			load := func(path string) (markdown.File, error) {
+				if source == "" {
+					return markdown.File{}, errors.New("gone")
+				}
+				return markdown.File{Path: path, Doc: mustParse(t, source)}, nil
+			}
+			review := Review{Paths: []string{"a.md"}, Load: load}
+			if tt.pick {
+				review = Review{Pick: []string{"a.md"}, Load: load}
+			}
+			s := newSession(review, testToken, Options{Theme: "light"})
+			if !tt.pick {
+				err := s.withFile(s.seq, func(f *fileState) error {
+					return f.addComment(markdown.ReviewComment{SectionID: "S1", Action: markdown.ActionNote, Body: "b"})
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			source = tt.source
+			res, ok := s.reload()
+			if got := res.Message(); ok != (tt.wantResult != "") || ok && got != tt.wantResult {
+				t.Errorf("reload = %q (ok %v), want %q", got, ok, tt.wantResult)
+			}
+			state := s.state()
+			if state.Seq != tt.wantSeq {
+				t.Errorf("seq = %d, want %d", state.Seq, tt.wantSeq)
+			}
+			if tt.pick {
+				return
+			}
+			if got := state.File.Sections[1].Title; got != tt.wantTitle {
+				t.Errorf("first section = %q, want %q", got, tt.wantTitle)
+			}
+			if len(state.File.Comments) != 1 {
+				t.Errorf("got %d comments, want 1 kept", len(state.File.Comments))
 			}
 		})
 	}

@@ -153,9 +153,9 @@ describe("Diff Mode", () => {
       file: "doc.md",
       args: ["--diff"],
       cwd: repo.dir,
-      waitFor: "No changes",
+      waitFor: "no changes",
     });
     const text = await session.text();
-    expect(text).toContain("No changes in doc.md vs HEAD");
+    expect(text).toContain("Skipping doc.md: no changes vs HEAD");
   }, TEST_TIMEOUT);
 });

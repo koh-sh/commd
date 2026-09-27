@@ -69,6 +69,7 @@ Review:
   v               Toggle viewed mark
   /               Search sections
   s               Submit review
+  R               Reload the file (comments are kept)
 
 Raw Source View (r to toggle):
   j/k             Move line cursor

@@ -272,6 +272,11 @@ func TestFormatReviewLineComments(t *testing.T) {
 			wantMissing:  []string{"> 6"},
 		},
 		{
+			name:         "section comment keeps the quote of lines edited away",
+			comment:      ReviewComment{SectionID: "S1", Action: ActionNote, Body: "Gone.", Quote: []string{"old line"}},
+			wantContains: []string{"## S1: Step\n[note] Gone.\n> old line\n"},
+		},
+		{
 			name:         "no quote omits blockquote",
 			comment:      ReviewComment{SectionID: "S1", Action: ActionNote, Body: "Bare.", StartLine: 2},
 			wantContains: []string{"`L2` [note] Bare.\n"},

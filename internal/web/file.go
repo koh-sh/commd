@@ -8,7 +8,7 @@ import (
 )
 
 // fileState is the file under review: its review state plus what the page
-// shows of it, derived once since the source never changes.
+// shows of it, derived once per read of the file.
 type fileState struct {
 	*markdown.ReviewState
 	lines    []lineJSON    // the source (or diff) view
@@ -18,16 +18,20 @@ type fileState struct {
 // newFileState prepares f for review, rendering its sections once with image
 // destinations passed through imageURL (see renderHTML).
 func newFileState(f markdown.File, imageURL func(string) string) *fileState {
-	fs := &fileState{
-		ReviewState: markdown.NewReviewState(f),
-		rendered:    renderSections(f.Doc, imageURL),
-	}
-	if f.Diff != nil {
-		fs.lines = diffLines(f.Doc, f.Diff)
-	} else {
-		fs.lines = sourceLines(f.Doc)
-	}
+	fs := &fileState{ReviewState: markdown.NewReviewState(f)}
+	fs.renderView(imageURL)
 	return fs
+}
+
+// renderView derives what the page shows of the file, again after it was
+// reread.
+func (fs *fileState) renderView(imageURL func(string) string) {
+	fs.rendered = renderSections(fs.Doc, imageURL)
+	if fs.Diff != nil {
+		fs.lines = diffLines(fs.Doc, fs.Diff)
+	} else {
+		fs.lines = sourceLines(fs.Doc)
+	}
 }
 
 // addComment stores a new comment. The page cannot choose its ID.

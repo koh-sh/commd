@@ -91,27 +91,28 @@ func (r *ReviewCmd) Run() error {
 
 // runFile reviews a single file in the rendered view.
 func (r *ReviewCmd) runFile(path string) error {
-	// Read file
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("reading file: %w", err)
-	}
-
-	// Parse document
-	p, err := markdown.Parse(source)
-	if err != nil {
-		return fmt.Errorf("parsing file: %w", err)
-	}
-
-	file := markdown.File{Path: path, Doc: p}
+	var viewed *markdown.ViewedState
 	if r.TrackViewed {
-		file.Viewed = markdown.LoadViewedState(markdown.StatePath(path))
+		viewed = markdown.LoadViewedState(markdown.StatePath(path))
 	}
+	// Reloading in the TUI or the browser reads the file again.
+	load := func(path string) (markdown.File, error) {
+		doc, err := readDocument(path)
+		if err != nil {
+			return markdown.File{}, err
+		}
+		return markdown.File{Path: path, Doc: doc, Viewed: viewed}, nil
+	}
+	file, err := load(path)
+	if err != nil {
+		return err
+	}
+
 	var res markdown.FileResult
 	if r.Web {
-		res, err = r.reviewFileInBrowser(file)
+		res, err = r.reviewFileInBrowser(file, load)
 	} else {
-		res, err = runReviewApp(file, tui.AppOptions{Theme: r.Theme}, r.teaOpts)
+		res, err = runReviewApp(file, tui.AppOptions{Theme: r.Theme, Load: load}, r.teaOpts)
 	}
 	if err != nil {
 		return err
@@ -126,7 +127,8 @@ func (r *ReviewCmd) runFile(path string) error {
 
 	// Output review if submitted
 	if res.Status == markdown.StatusSubmitted && res.Review != nil {
-		output := markdown.FormatReview(res.Review, p, path)
+		// The browser may have read the file again: quote its last read.
+		output := markdown.FormatReview(res.Review, res.Doc, path)
 		if output == "" {
 			return nil
 		}
@@ -141,13 +143,10 @@ func (r *ReviewCmd) runFile(path string) error {
 	return nil
 }
 
-// reviewFileInBrowser reviews a single file in the browser. An interrupted
-// session has no result: it counts as quit.
-func (r *ReviewCmd) reviewFileInBrowser(f markdown.File) (markdown.FileResult, error) {
-	results, err := r.serveWeb(web.Review{
-		Paths: []string{f.Path},
-		Load:  func(string) (markdown.File, bool) { return f, true },
-	})
+// reviewFileInBrowser reviews a single file in the browser, reading it with
+// load. An interrupted session has no result: it counts as quit.
+func (r *ReviewCmd) reviewFileInBrowser(f markdown.File, load markdown.Loader) (markdown.FileResult, error) {
+	results, err := r.serveWeb(web.Review{Paths: []string{f.Path}, Load: load})
 	if err != nil || len(results) == 0 {
 		return markdown.FileResult{File: f, Status: markdown.StatusCancelled}, err
 	}
@@ -220,29 +219,36 @@ func (r *ReviewCmd) runDiff() error {
 	return writeReviewOutput(output, r.Output, r.OutputPath)
 }
 
-// loadDiffFile reads and parses path with its patch against base. A file
-// that cannot be loaded or has no changes is reported and ok is false.
-func loadDiffFile(repo *gitdiff.Repo, base, path string) (markdown.File, bool) {
-	patch, err := repo.FilePatch(base, path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-		return markdown.File{}, false
-	}
-	if patch == "" {
-		fmt.Fprintf(os.Stderr, "No changes in %s vs %s.\n", path, base)
-		return markdown.File{}, false
-	}
+// readDocument reads and parses the Markdown file at path.
+func readDocument(path string) (*markdown.Document, error) {
 	source, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: reading %s: %v\n", path, err)
-		return markdown.File{}, false
+		return nil, fmt.Errorf("reading file: %w", err)
 	}
 	doc, err := markdown.Parse(source)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: parsing %s: %v\n", path, err)
-		return markdown.File{}, false
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
-	return markdown.File{Path: path, Doc: doc, Diff: diff.ParsePatch(patch)}, true
+	return doc, nil
+}
+
+// diffLoader reads and parses a file with its patch against base. A file
+// without changes cannot be reviewed.
+func diffLoader(repo *gitdiff.Repo, base string) markdown.Loader {
+	return func(path string) (markdown.File, error) {
+		patch, err := repo.FilePatch(base, path)
+		if err != nil {
+			return markdown.File{}, err
+		}
+		if patch == "" {
+			return markdown.File{}, fmt.Errorf("no changes vs %s", base)
+		}
+		doc, err := readDocument(path)
+		if err != nil {
+			return markdown.File{}, err
+		}
+		return markdown.File{Path: path, Doc: doc, Diff: diff.ParsePatch(patch)}, nil
+	}
 }
 
 // reviewDiffInTUI reviews the files one after another. Each file is read
@@ -250,10 +256,12 @@ func loadDiffFile(repo *gitdiff.Repo, base, path string) (markdown.File, bool) {
 // picked up. A file quit in the TUI is skipped; the others are returned.
 func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []string) ([]markdown.FileResult, error) {
 	var reviews []markdown.FileResult
-	opts := tui.AppOptions{Theme: r.Theme, MultiFile: len(paths) > 1}
+	load := diffLoader(repo, base)
+	opts := tui.AppOptions{Theme: r.Theme, MultiFile: len(paths) > 1, Load: load}
 	for _, path := range paths {
-		f, ok := loadDiffFile(repo, base, path)
-		if !ok {
+		f, err := load(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, markdown.SkipNotice(path, err))
 			continue
 		}
 		res, err := runReviewApp(f, opts, r.teaOpts)
@@ -269,7 +277,7 @@ func (r *ReviewCmd) reviewDiffInTUI(repo *gitdiff.Repo, base string, paths []str
 // like the TUI: each is loaded when its turn comes, and a file quit
 // (skipped) there is left out.
 func (r *ReviewCmd) reviewDiffInBrowser(repo *gitdiff.Repo, base string, review web.Review) ([]markdown.FileResult, error) {
-	review.Load = func(path string) (markdown.File, bool) { return loadDiffFile(repo, base, path) }
+	review.Load = diffLoader(repo, base)
 	results, err := r.serveWeb(review)
 	if err != nil {
 		return nil, err

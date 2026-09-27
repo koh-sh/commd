@@ -13,7 +13,8 @@
 // state.hooks.
 
 import { st, ui, hooks } from "./state.js";
-import { load } from "./api.js";
+import { toast } from "./dom.js";
+import { reload } from "./api.js";
 import { render, refreshPanes } from "./render.js";
 import { onKeyDown } from "./keys.js";
 import { onLineMouseDown, onLineMouseOver, onMouseUp, onContentScroll, onClick, onWheel } from "./mouse.js";
@@ -32,7 +33,8 @@ function bind() {
 hooks.render = render;
 hooks.refreshPanes = refreshPanes;
 bind();
-load().then(() => {
+reload().then((r) => {
+  if (r && (r.changed || r.failed)) toast(r.message); // opening the page is quiet unless the file changed
   if (st) {
     ui.theme = st.theme === "light" ? "light" : "dark";
     if (st.phase === "pick") ui.picker.selected = new Set(st.pick.map((_, i) => i)); // all selected, like the TUI

@@ -4,7 +4,7 @@ import { $ } from "./dom.js";
 import { st, ui, file, commentsOf, clamp, visibleLines } from "./state.js";
 import { inputDeferred, deferInput } from "./api.js";
 import { render, updateEditorChrome } from "./render.js";
-import { moveCursorBy, jumpToEdge, toggleExpand, toggleFull, toggleRaw, moveLineCursor, verticalMove, lineHeight, pageRows, scrollHorizontal, resizeLeft, toggleViewed, openSectionEditor, startLineSelect, exitLineSelect, openLineEditor, saveEditor, closeEditor, cycle, openList, closeList, editFromList, deleteFromList, openHelp, closeHelp, openConfirm, closeModal, executeConfirm, finish, openSearch, closeSearch, togglePick, toggleAllPicks, confirmPick, cancelPick } from "./actions.js";
+import { moveCursorBy, jumpToEdge, toggleExpand, toggleFull, toggleRaw, moveLineCursor, verticalMove, lineHeight, pageRows, scrollHorizontal, resizeLeft, toggleViewed, reloadFile, openSectionEditor, startLineSelect, exitLineSelect, openLineEditor, saveEditor, closeEditor, cycle, openList, closeList, editFromList, deleteFromList, openHelp, closeHelp, openConfirm, closeModal, executeConfirm, finish, openSearch, closeSearch, togglePick, toggleAllPicks, confirmPick, cancelPick } from "./actions.js";
 
 function onPickerKey(ev) {
   const p = ui.picker;
@@ -210,6 +210,9 @@ function onNormalKey(k) {
       return true; // no panes to switch in the browser
     case "s":
       openConfirm("submit");
+      return true;
+    case "R":
+      reloadFile();
       return true;
     case ">":
       resizeLeft(5);

@@ -45,7 +45,6 @@ const scrollToEnd = 1 << 30
 
 // App is the main Bubble Tea model for the TUI.
 type App struct {
-	doc         *markdown.Document
 	review      *markdown.ReviewState
 	sectionList *SectionList
 	detail      *DetailPane
@@ -69,12 +68,16 @@ type App struct {
 	result        markdown.FileResult
 	confirmAction confirmKind // what the confirm dialog is for
 	pendingG      bool        // gg chord: true when first 'g' was pressed
+	notice        string      // shown in the status bar until the next key
 }
 
 // AppOptions configures the TUI appearance.
 type AppOptions struct {
 	Theme     string // "dark" or "light"
 	MultiFile bool   // part of a multi-file flow: dialogs say "finish/skip this file" instead of "submit/quit"
+	// Load reads the file again when R is pressed; nil when it cannot be
+	// reloaded (e.g. a PR file).
+	Load markdown.Loader
 }
 
 // NewApp creates a new App model reviewing f. With f.Diff the raw view shows
@@ -84,9 +87,7 @@ func NewApp(f markdown.File, opts AppOptions) *App {
 	styles := stylesForTheme(opts.Theme)
 	review := markdown.NewReviewState(f)
 	a := &App{
-		doc:         f.Doc,
 		review:      review,
-		sectionList: NewSectionList(review),
 		comment:     NewCommentEditor(),
 		commentList: NewCommentList(),
 		search:      NewSearchBar(),
@@ -96,13 +97,49 @@ func NewApp(f markdown.File, opts AppOptions) *App {
 		opts:        opts,
 		result:      markdown.FileResult{File: f, Status: markdown.StatusCancelled},
 	}
-	if f.Diff != nil {
-		a.linePane = newDiffLinePane(f.Diff, styles, f.Doc.DiffLineSections(f.Diff))
-		a.rawView = true
-	} else if len(f.Doc.SourceLines) > 0 {
-		a.linePane = NewLinePane(f.Doc.SourceLines, 0, 0, styles, f.Doc.LineSections())
-	}
+	a.buildPanes()
+	a.rawView = f.Diff != nil
 	return a
+}
+
+// buildPanes creates the panes that show the file under review: the section
+// list and, with source lines or a diff, the line pane.
+func (a *App) buildPanes() {
+	f := a.review.File
+	a.sectionList = NewSectionList(a.review)
+	a.linePane = nil
+	if f.Diff != nil {
+		a.linePane = newDiffLinePane(f.Diff, a.styles, f.Doc.DiffLineSections(f.Diff))
+	} else if len(f.Doc.SourceLines) > 0 {
+		a.linePane = NewLinePane(f.Doc.SourceLines, 0, 0, a.styles, f.Doc.LineSections())
+	}
+}
+
+// reload reads the file again (R) and shows the outcome in the status bar.
+// The comments and viewed marks carry over (see markdown.ReviewState.Reread),
+// and the view stays on the selected section when it is still there.
+func (a *App) reload() {
+	if a.opts.Load == nil {
+		a.notice = "Reload is not available for this file"
+		return
+	}
+	selected := a.selectedSectionID()
+	res := a.review.Reread(a.opts.Load)
+	a.notice = res.Message()
+	if !res.Changed {
+		return
+	}
+	a.result.File = a.review.File
+	a.buildPanes()
+	a.rawView = a.rawView && a.linePane != nil
+	if a.ready {
+		a.updateLayout()
+	}
+	if id, ok := res.Sections[selected]; ok {
+		a.sectionList.SelectBySectionID(id)
+	}
+	a.refreshDetail()
+	a.refreshAfterCursorMove()
 }
 
 // Result returns the final result after the TUI exits.
@@ -157,6 +194,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		a.result.Status = markdown.StatusCancelled
 		return a, tea.Quit
 	}
+	a.notice = ""
 	switch a.mode {
 	case ModeNormal:
 		return a.handleNormalMode(msg)
@@ -248,6 +286,10 @@ func (a *App) handleNormalMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, a.keymap.Submit):
 		a.confirmAction = confirmSubmit
 		a.mode = ModeConfirm
+		return a, nil
+
+	case key.Matches(msg, a.keymap.Reload):
+		a.reload()
 		return a, nil
 
 	case key.Matches(msg, a.keymap.PaneGrow):
@@ -764,13 +806,13 @@ func (a *App) refreshDetail() {
 	}
 
 	if a.fullView {
-		a.detail.ShowAll(a.doc, a.review.SectionComments)
+		a.detail.ShowAll(a.review.Doc, a.review.SectionComments)
 		return
 	}
 
 	if a.sectionList.IsOverviewSelected() {
 		comments := a.review.SectionComments(markdown.OverviewSectionID)
-		a.detail.ShowOverview(a.doc, comments)
+		a.detail.ShowOverview(a.review.Doc, comments)
 		return
 	}
 
@@ -824,8 +866,8 @@ func (a *App) renderTitleBar() string {
 	}
 
 	var parts []string
-	if a.doc.Title != "" {
-		parts = append(parts, a.doc.Title)
+	if a.review.Doc.Title != "" {
+		parts = append(parts, a.review.Doc.Title)
 	}
 	if a.result.Path != "" {
 		parts = append(parts, "("+a.result.Path+")")
@@ -1137,6 +1179,10 @@ func (a *App) renderStatusBar() string {
 		return a.statusLine([]string{a.search.View()}, "")
 	}
 
+	if a.notice != "" {
+		return a.styles.StatusBar.MaxWidth(a.width).Render(a.notice)
+	}
+
 	// Label shows the mode that f will switch TO (not the current mode)
 	viewMode := "full"
 	if a.fullView {
@@ -1281,6 +1327,7 @@ func (a *App) renderHelp() string {
     v               Toggle viewed mark
     /               Search sections
     s               Submit review
+    R               Reload the file (comments are kept)
 %s
   Comment Editor:
     Tab             Cycle label (forward)

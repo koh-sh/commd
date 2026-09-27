@@ -41,14 +41,27 @@ export async function api(method, path, body) {
 // fileAPI calls an endpoint of the file under review.
 export const fileAPI = (method, path, body) => api(method, `/api/files/${st.seq}${path}`, body);
 
-export async function load() {
-  const res = await request("GET", "/api/state");
-  if (!res) return;
+// load fetches the session state, e.g. after a conflict.
+export const load = () => fetchState("GET", "/api/state");
+
+// reload reads the file under review again (the page was opened or R was
+// pressed) and fetches the state. It returns the outcome (see reloadJSON in
+// view.go), or null when there is no file under review.
+export async function reload() {
+  const state = await fetchState("POST", "/api/reload");
+  return (state && state.reload) || null;
+}
+
+async function fetchState(method, path) {
+  const res = await request(method, path);
+  if (!res) return null;
   if (!res.ok) {
     showEnd("Cannot load the review", await errorOf(res));
-    return;
+    return null;
   }
-  apply(await res.json());
+  const state = await res.json();
+  apply(state);
+  return state;
 }
 
 // searchSections returns the IDs of the sections a search for query shows,

@@ -3,7 +3,10 @@ import type { Page } from "playwright";
 import { TEST_TIMEOUT, FIXTURE_BASIC } from "../helpers/session";
 import { createRepo } from "../helpers/git-repo";
 import { launchWeb, finished, stopWeb, type WebSession } from "../helpers/web";
-import { useBrowser, openPage, closePage, press, addWebComment, eventually, text, count, activeSection } from "../helpers/browser";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { PROJECT_ROOT } from "../helpers/paths";
+import { useBrowser, openPage, closePage, press, addWebComment, eventually, text, count, activeSection, writeFixture } from "../helpers/browser";
 
 // Basic tier: the critical paths of the `commd review --web` page in a real
 // browser, checked against the TUI's behavior. web-ui-*.test.ts cover the
@@ -185,6 +188,64 @@ describe("Web Review UI (Basic)", () => {
       expect(stdout).toContain("on: doc.md");
       expect(stdout).toContain("`L1 (removed)` [question] why rename?\n> # Diff Doc");
       expect(stdout).not.toContain("new.md");
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "reloading the page reads the file again, keeping the comments",
+    async () => {
+      const fixture = writeFixture("# Doc\n\n## Alpha\n\nalpha body\n\n## Beta\n\nbeta line\n");
+      try {
+        web = await launchWeb({ file: fixture.path });
+        page = await openPage(web);
+        await press(page, "j"); // Beta
+        await eventually(async () => expect(await activeSection(page!)).toContain("Beta"));
+        await addWebComment(page, "on beta");
+        await press(page, "r", "j", "j");
+        await eventually(async () => expect(await text(page!, "#statusbar .indicator")).toStartWith("L9/"));
+        await addWebComment(page, "on line");
+        await eventually(async () => expect(await page!.locator("#sections .active .badge").innerText()).toBe("2"));
+
+        // A section added above shifts Beta to S3 and its line to L13.
+        writeFileSync(join(PROJECT_ROOT, fixture.path), "# Doc\n\n## New\n\nnew body\n\n## Alpha\n\nalpha body\n\n## Beta\n\nbeta line\n");
+        await page.reload();
+        await eventually(async () => expect(await text(page!, "#sections")).toContain("New"));
+        expect(await text(page, "#toast")).not.toContain("moved");
+
+        await press(page, "s", "y");
+        const { stdout } = await finished(web);
+        expect(stdout).toContain("## S3: Beta\n[question] on beta");
+        expect(stdout).toContain("`L13` [question] on line\n> beta line");
+      } finally {
+        fixture.cleanup();
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
+  test(
+    "R reads the file again, staying on the selected section and view",
+    async () => {
+      const fixture = writeFixture("# Doc\n\n## Alpha\n\nalpha body\n\n## Beta\n\nbeta line\n");
+      try {
+        web = await launchWeb({ file: fixture.path });
+        page = await openPage(web);
+        await press(page, "j", "r"); // Beta, raw view
+        await eventually(async () => expect(await activeSection(page!)).toContain("Beta"));
+
+        writeFileSync(join(PROJECT_ROOT, fixture.path), "# Doc\n\n## New\n\nnew body\n\n## Alpha\n\nalpha body\n\n## Beta\n\nbeta line\n");
+        await press(page, "R");
+        await eventually(async () => expect(await text(page!, "#toast")).toContain("Reloaded"));
+        expect(await text(page, "#sections")).toContain("New");
+        expect(await activeSection(page)).toContain("Beta");
+        expect(await text(page, "#statusbar .indicator")).toStartWith("L11/"); // still raw, on Beta's heading
+
+        await press(page, "R");
+        await eventually(async () => expect(await text(page!, "#toast")).toContain("File unchanged"));
+      } finally {
+        fixture.cleanup();
+      }
     },
     TEST_TIMEOUT,
   );

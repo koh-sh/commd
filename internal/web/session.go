@@ -1,10 +1,12 @@
 package web
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"sync"
 
@@ -20,9 +22,9 @@ type Review struct {
 	Pick []string
 	// Paths are reviewed in order when Pick is empty.
 	Paths []string
-	// Load reads a file when its turn comes. ok=false skips it; Load reports
-	// the reason itself.
-	Load func(path string) (f markdown.File, ok bool)
+	// Load reads a file when its turn comes (an error skips it), and again
+	// when the page is loaded or R is pressed while it is under review.
+	Load markdown.Loader
 }
 
 // Session phases, as reported to the browser.
@@ -57,12 +59,16 @@ type session struct {
 	// done receives the results once when the session ends: one per file
 	// that was loaded, in review order.
 	done  chan []markdown.FileResult
-	token string // authenticates the API and the /assets/ URLs
-	theme string // initial color theme of the page
+	token string    // authenticates the API and the /assets/ URLs
+	theme string    // initial color theme of the page
+	log   io.Writer // receives the files skipped
 }
 
-func newSession(review Review, token, theme string) *session {
-	s := &session{review: review, done: make(chan []markdown.FileResult, 1), token: token, theme: theme}
+func newSession(review Review, token string, opts Options) *session {
+	s := &session{
+		review: review, done: make(chan []markdown.FileResult, 1),
+		token: token, theme: opts.Theme, log: cmp.Or[io.Writer](opts.Log, io.Discard),
+	}
 	if len(review.Pick) > 0 {
 		s.phase = phasePick
 	} else {
@@ -85,12 +91,15 @@ func (s *session) advance() {
 	for len(s.queue) > 0 {
 		path := s.queue[0]
 		s.queue = s.queue[1:]
-		if f, ok := s.review.Load(path); ok {
-			s.seq++
-			s.current = newFileState(f, assetURL(s.seq, s.token))
-			s.phase = phaseReview
-			return
+		f, err := s.review.Load(path)
+		if err != nil {
+			fmt.Fprintln(s.log, markdown.SkipNotice(path, err))
+			continue
 		}
+		s.seq++
+		s.current = newFileState(f, assetURL(s.seq, s.token))
+		s.phase = phaseReview
+		return
 	}
 	s.phase = phaseDone
 	s.done <- s.results
@@ -113,6 +122,24 @@ func (s *session) pick(paths []string) error {
 	}
 	s.start(chosen)
 	return nil
+}
+
+// reload reads the file under review again, for a page that was (re)loaded
+// or asked for it with R, so edits made meanwhile show up. ok is false when
+// there is no file under review.
+func (s *session) reload() (res markdown.ReloadResult, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.phase != phaseReview {
+		return res, false
+	}
+	res = s.current.Reread(s.review.Load)
+	if res.Changed {
+		// Other pages still show the old lines: their changes now conflict.
+		s.seq++
+		s.current.renderView(assetURL(s.seq, s.token))
+	}
+	return res, true
 }
 
 // withFile runs fn on the file under review if seq still names it.

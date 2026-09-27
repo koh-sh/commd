@@ -313,7 +313,7 @@ describe("Web Review UI Errors and Remaining Paths (Full)", () => {
       // A state load that fails (commd gone) ends the page.
       const gone = await (await import("playwright")).chromium.launch();
       const p = await gone.newPage();
-      await p.route("**/api/state", (route) => route.abort());
+      await p.route("**/api/reload", (route) => route.abort());
       await p.goto(web.url);
       await eventually(async () => expect(await p.locator(".done").innerText()).toContain("Review session ended"));
       await gone.close();

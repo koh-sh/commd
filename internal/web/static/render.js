@@ -337,7 +337,9 @@ function renderComment(c, withRef) {
       c.decoration ? h("span", { class: "deco" }, `(${c.decoration})`) : null,
       withRef && c.outputRef ? h("span", { class: "ref" }, c.outputRef) : null,
     ),
-    withRef && c.quote && c.quote.length ? h("div", { class: "quote" }, c.quote.join("\n")) : null,
+    // Inline line comments sit under their lines; a section comment quotes
+    // only when it was a line comment whose lines were edited away.
+    (withRef || !c.startLine) && c.quote && c.quote.length ? h("div", { class: "quote" }, c.quote.join("\n")) : null,
     h("div", { class: "comment-body" }, c.body),
   );
 }

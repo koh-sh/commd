@@ -89,7 +89,7 @@ When `--track-viewed` is enabled, commd saves which sections you've marked as vi
 - With `--diff` and no file argument, the changed files are offered in a picker first and then reviewed one by one, as in the TUI (`s` finishes a file, `q` or `Ctrl+C` skips it)
 - `Ctrl+S` saves a comment (`Ctrl+Enter` / `⌘+Enter` also work); `Ctrl+C` copies instead of quitting while text is selected
 - Pressing `Ctrl+C` in the terminal abandons the whole review without output
-- Reloading the page is safe: the review lives in commd, so comments and progress are kept (only a comment being typed is lost)
+- Reloading the page is safe: the review lives in commd, so comments and progress are kept (only a comment being typed is lost). Like `R`, it also reads the file again (see [Reloading](#reloading)), noting it only when the file changed
 - The URL carries a random token that the page needs to read or change the review, so other web pages cannot access it and other local users need the token. Treat the URL like a password: it is printed to the terminal, passed to the browser launcher (briefly visible in the process list), and kept in the browser history. Besides the page, only images referenced by relative paths in the document are served, and only from the document's directory
 - To review on a remote machine, run with `--port` and forward the port (e.g. `ssh -L 8080:127.0.0.1:8080 host`), then open the printed URL locally
 
@@ -151,8 +151,20 @@ commd version
 | `v` | Toggle viewed mark |
 | `/` | Search sections |
 | `s` | Submit review and exit |
+| `R` | Reload the file from disk (see [Reloading](#reloading)) |
 | `q` / `Ctrl+C` | Quit |
 | `?` | Show help |
+
+### Reloading
+
+`R` reads the file under review again, so edits made while you review show up (in `--diff`, the diff against the base is taken again). The review carries over:
+
+- Comments follow their heading, and line comments follow the lines they quote. A comment whose target was edited away becomes a comment on its section (or the first one listed) and keeps its quote; the status bar says how many were moved
+- Viewed marks stay on sections whose content is unchanged
+- The view stays on the selected section
+- An unchanged file, or one that cannot be read, leaves the review as it was
+
+Files from a PR (`commd pr`) cannot be reloaded.
 
 ### Comment Mode
 

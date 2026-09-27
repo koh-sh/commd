@@ -64,6 +64,7 @@ commd - Help
     v               Toggle viewed mark
     /               Search sections
     s               Submit review
+    R               Reload the file (comments are kept)
 
   Raw Source View (r to toggle):
     j/k             Move line cursor
@@ -76,8 +77,7 @@ commd - Help
   Comment Editor:
     Tab             Cycle label (forward)
     Shift+Tab       Cycle label (reverse)
-    Ctrl+D          Cycle decoration
-    Ctrl+S          Save comment"
+    Ctrl+D          Cycle decoration"
 `;
 
 exports[`Snapshot quit confirmation dialog 1`] = `

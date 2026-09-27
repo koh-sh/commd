@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,7 @@ func do(t *testing.T, h http.Handler, method, path, token, body string) (int, st
 
 func singleFileSession(t *testing.T) *session {
 	t.Helper()
-	return newSession(Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, bool) { return testFile(t, false), true }}, testToken, "light")
+	return newSession(Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, error) { return testFile(t, false), nil }}, testToken, Options{Theme: "light"})
 }
 
 func TestHandlerToken(t *testing.T) {
@@ -102,6 +103,7 @@ func TestHandlerAPI(t *testing.T) {
 		{name: "unknown finish action", method: http.MethodPost, path: "/api/files/1/finish", body: `{"action":"maybe"}`, status: http.StatusBadRequest},
 		{name: "finish", method: http.MethodPost, path: "/api/files/1/finish", body: `{"action":"submit"}`, status: http.StatusOK, wantBody: `"phase":"done"`},
 		{name: "change after the end", method: http.MethodPut, path: "/api/files/1/viewed/S1", body: `{"viewed":false}`, status: http.StatusConflict},
+		{name: "reload after the end", method: http.MethodPost, path: "/api/reload", status: http.StatusOK, wantBody: `"phase":"done"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,7 +120,7 @@ func TestHandlerAPI(t *testing.T) {
 
 func TestHandlerPick(t *testing.T) {
 	loader := &testLoader{t: t, known: []string{"a.md", "b.md"}}
-	s := newSession(Review{Pick: []string{"a.md", "b.md"}, Load: loader.load}, testToken, "light")
+	s := newSession(Review{Pick: []string{"a.md", "b.md"}, Load: loader.load}, testToken, Options{Theme: "light"})
 	h := newHandler(s)
 
 	status, body := do(t, h, http.MethodGet, "/api/state", testToken, "")
@@ -201,7 +203,7 @@ func TestServe(t *testing.T) {
 			}
 			done := make(chan served, 1)
 			go func() {
-				review := Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, bool) { return testFile(t, false), true }}
+				review := Review{Paths: []string{"doc.md"}, Load: func(string) (markdown.File, error) { return testFile(t, false), nil }}
 				res, err := Serve(ctx, review, Options{
 					Log:  logW,
 					Open: func(url string) error { opened <- url; return nil },
@@ -255,7 +257,7 @@ func TestServe(t *testing.T) {
 
 func TestServeNothingToReview(t *testing.T) {
 	var log bytes.Buffer
-	review := Review{Paths: []string{"gone.md"}, Load: func(string) (markdown.File, bool) { return markdown.File{}, false }}
+	review := Review{Paths: []string{"gone.md"}, Load: func(string) (markdown.File, error) { return markdown.File{}, errors.New("gone") }}
 	res, err := Serve(context.Background(), review, Options{Log: &log, Open: func(string) error {
 		t.Error("no browser should open when nothing can be reviewed")
 		return nil
@@ -263,8 +265,8 @@ func TestServeNothingToReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res) != 0 || log.Len() != 0 {
-		t.Errorf("result = %+v, log = %q; want nothing", res, log.String())
+	if len(res) != 0 || log.String() != "Skipping gone.md: gone\n" {
+		t.Errorf("result = %+v, log = %q; want only the skip", res, log.String())
 	}
 }
 
@@ -365,9 +367,9 @@ func TestServeAsset(t *testing.T) {
 		}
 	}
 	docPath := filepath.Join(dir, "docs", "doc.md")
-	s := newSession(Review{Paths: []string{docPath}, Load: func(string) (markdown.File, bool) {
-		return markdown.File{Path: docPath, Doc: mustParse(t, "![demo](img/demo.gif)\n")}, true
-	}}, testToken, "light")
+	s := newSession(Review{Paths: []string{docPath}, Load: func(string) (markdown.File, error) {
+		return markdown.File{Path: docPath, Doc: mustParse(t, "![demo](img/demo.gif)\n")}, nil
+	}}, testToken, Options{Theme: "light"})
 	h := newHandler(s)
 
 	// The rendered document points at the asset route.

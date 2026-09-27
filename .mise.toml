@@ -73,7 +73,7 @@ run = ["bun install", "bunx playwright install chromium", "bun test"]
 description = "Run basic E2E tests (critical path only)"
 depends = ["build"]
 dir = "e2e"
-run = ["bun install", "bunx playwright install chromium", "bun test tests/navigation.test.ts tests/comment.test.ts tests/confirm.test.ts tests/confirm-accept.test.ts tests/help.test.ts tests/search.test.ts tests/viewed.test.ts tests/wrap.test.ts tests/pr.test.ts tests/diff.test.ts tests/line-comment.test.ts tests/web.test.ts tests/web-ui.test.ts"]
+run = ["bun install", "bunx playwright install chromium", "bun test tests/navigation.test.ts tests/comment.test.ts tests/confirm.test.ts tests/confirm-accept.test.ts tests/help.test.ts tests/search.test.ts tests/viewed.test.ts tests/wrap.test.ts tests/pr.test.ts tests/diff.test.ts tests/line-comment.test.ts tests/reload.test.ts tests/web.test.ts tests/web-ui.test.ts"]
 
 [tasks.install-skills]
 description = "Install tuistory Claude Code skill"

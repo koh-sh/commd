@@ -48,6 +48,7 @@ type KeyMap struct {
 
 	// Line mode
 	RawView      key.Binding
+	Reload       key.Binding
 	VisualSelect key.Binding
 
 	// Search mode: only arrow keys navigate so that letters (including j/k)
@@ -178,6 +179,10 @@ func DefaultKeyMap() KeyMap {
 		RawView: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "raw/rendered"),
+		),
+		Reload: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "reload file"),
 		),
 		VisualSelect: key.NewBinding(
 			key.WithKeys("V"),

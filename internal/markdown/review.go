@@ -95,6 +95,8 @@ func writeComments(sb *strings.Builder, result *ReviewResult, d *Document, headi
 		fmt.Fprintf(sb, "\n%s %s\n", heading, g.title)
 		for _, c := range g.comments {
 			fmt.Fprintf(sb, "[%s] %s\n", c.FormatLabel(), c.Body)
+			// A line comment whose lines were edited away keeps its quote.
+			writeQuote(sb, c.Quote)
 		}
 	}
 

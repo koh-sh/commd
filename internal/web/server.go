@@ -55,9 +55,9 @@ type Options struct {
 func Serve(ctx context.Context, review Review, opts Options) ([]markdown.FileResult, error) {
 	log := cmp.Or[io.Writer](opts.Log, io.Discard)
 	token := newID() + newID()
-	s := newSession(review, token, opts.Theme)
+	s := newSession(review, token, opts)
 	if s.phase == phaseDone {
-		return <-s.done, nil // nothing could be loaded; Load reported why
+		return <-s.done, nil // nothing could be loaded; the skips were logged
 	}
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(opts.Port)))
 	if err != nil {
@@ -111,6 +111,7 @@ func newHandler(s *session) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/state", api.getState)
+	mux.HandleFunc("POST /api/reload", api.reload)
 	mux.HandleFunc("GET /api/files/{seq}/search", api.search)
 	mux.HandleFunc("POST /api/pick", api.pick)
 	mux.HandleFunc("POST /api/files/{seq}/comments", api.addComment)
@@ -158,6 +159,17 @@ type apiHandler struct {
 
 func (a *apiHandler) getState(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, a.s.state())
+}
+
+// reload reads the file under review again and returns the state with the
+// outcome. The page calls it when it loads and on R.
+func (a *apiHandler) reload(w http.ResponseWriter, _ *http.Request) {
+	res, ok := a.s.reload()
+	state := a.s.state()
+	if ok {
+		state.Reload = &reloadJSON{Message: res.Message(), Changed: res.Changed, Failed: res.Err != nil, Sections: res.Sections}
+	}
+	writeJSON(w, http.StatusOK, state)
 }
 
 // search returns the IDs of the sections a search for the q parameter shows

@@ -2,7 +2,7 @@
 
 import { $, toast } from "./dom.js";
 import { st, ui, hooks, file, section, commentsOf, isViewed, isRealSection, clamp, ancestorsOf, clearSearch, listSections, visibleLines, edgeLine, selectionRange, clampCursorToList } from "./state.js";
-import { api, fileAPI, send, inputDeferred, deferInput, searchSections } from "./api.js";
+import { api, fileAPI, send, inputDeferred, deferInput, searchSections, reload } from "./api.js";
 
 // guarded runs a mouse action only in the modes where the TUI would
 // accept the equivalent key, then re-renders. Like keys, a click during a
@@ -242,6 +242,23 @@ export function startResize(ev) {
   document.addEventListener("mousemove", move, { signal: drag.signal });
   document.addEventListener("mouseup", end, { signal: drag.signal });
   window.addEventListener("blur", end, { signal: drag.signal });
+}
+
+// reloadFile reads the file again (R), as the TUI does: the view stays on
+// the selected section, keeping its full/raw view and pane width.
+export function reloadFile() {
+  const { cursor, fullView, rawView, leftRatio } = ui;
+  send(async () => {
+    const r = await reload();
+    if (!r) return;
+    if (r.changed) {
+      // The page reset its view state for the new content.
+      Object.assign(ui, { fullView, rawView: rawView && file().lines.length > 0, leftRatio });
+      moveCursorTo(r.sections?.[cursor] ?? ui.cursor);
+      hooks.render();
+    }
+    toast(r.message);
+  });
 }
 
 export function toggleViewed(id) {
