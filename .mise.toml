@@ -1,5 +1,5 @@
 [settings]
-install_before = "3d"
+minimum_release_age = "3d"
 
 [tools]
 go = "1.27.3"
