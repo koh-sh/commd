@@ -21,7 +21,7 @@ This project uses Kong (`github.com/alecthomas/kong`) for the CLI surface. The p
 
 ## File layout
 
-- `cmd/cli.go` is reserved for struct definitions, Kong tags, and the top-level `CLI` type. Do not put `Run` or `Validate` method bodies here; the one existing exception is the three-line `VersionCmd.Run`.
+- `cmd/cli.go` is reserved for struct definitions, Kong tags, and the top-level `CLI` type. Do not put `Run` or `Validate` method bodies here; the one existing exception is the short `VersionCmd.Run`.
 - Place `Run` and `Validate` for a subcommand in its domain file (e.g. `cmd/review.go` for `ReviewCmd`, `cmd/pr.go` for `PRCmd`, `cmd/cclocate.go` for `LocateCmd`).
 - godoc on `Validate` must state what is checked, not just "validates the command". Example: `// Validate requires --output-path when --output=file.`
 
