@@ -14,7 +14,7 @@ commd is a Go CLI tool for reviewing Markdown files in an interactive TUI or a w
 
 ## Build & Test Commands
 
-Dev tools (Go, golangci-lint, tparse, gofumpt, octocov, goreleaser, bun) are managed by mise (`.mise.toml`). Run `mise install` to set up the toolchain.
+Dev tools (Go, golangci-lint, tparse, gofumpt, octocov, goreleaser, bun, vhs) are managed by mise (`.mise.toml`). Run `mise install` to set up the toolchain.
 
 ```bash
 mise run ci                             # Run full CI pipeline (MUST pass)
@@ -29,6 +29,8 @@ mise run fix                            # Run go fix (modernize)
 mise run tidy                           # Run go mod tidy -v
 mise run vuln                           # Run go mod verify + govulncheck
 mise run install-skills                 # Install tuistory Claude Code skill
+mise run demo                           # Record the README demo GIF (vhs/demo.gif; needs ttyd + ffmpeg)
+mise run demo-validate                  # Validate vhs/demo.tape syntax without recording
 go test -v ./internal/markdown           # Run tests for a specific package
 go test -run TestParsePreamble ./internal/markdown  # Run a single test
 ```
@@ -41,7 +43,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Entry Point & CLI
 
-`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version); `cclocate` and `cchook` are deprecated (hidden from `--help`, kept working until removal). Cross-field constraints are enforced via `Validate()` methods on each command struct (called by Kong post-parse). The GitHub client is wired with `kong.BindToProvider(ghclient.NewClient)` and lazily injected only into commands that take `*ghclient.Client` in their `Run()` signature (currently `PRCmd`).
+`main.go` → `cmd/cli.go`: Kong struct-based CLI with 5 subcommands (review, pr, cclocate, cchook, version); `cclocate` and `cchook` are deprecated (hidden from `--help`, kept working until removal). Cross-field constraints are enforced via a `Validate()` method on the command struct that has them (called by Kong post-parse). The GitHub client is wired with `kong.BindToProvider(ghclient.NewClient)` and lazily injected only into commands that take `*ghclient.Client` in their `Run()` signature (currently `PRCmd`).
 
 ### Package Layout
 
