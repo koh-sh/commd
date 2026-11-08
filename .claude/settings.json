@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go doc *)",
+      "Bash(go build ./...)",
+      "Bash(go list -m *)",
+      "Bash(go vet ./...)",
+      "Bash(go tool cover -func=coverage.out)"
+    ]
+  }
+}
