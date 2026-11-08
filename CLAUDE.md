@@ -81,13 +81,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Code
 
-- Follow Go idioms and best practices
 - Keep design style consistent across subcommands (Kong struct tags, error handling patterns, etc.)
-- Follow the DRY principle and eliminate duplicate code
-- Keep package and function responsibilities single-purpose. Do not mix multiple responsibilities
-- Keep functions unexported (lowercase) unless they are referenced externally
-- Use function and variable names that clearly represent their responsibilities
-- Add comments for code or logic that is not immediately obvious
 
 ### Tests
 
@@ -98,7 +92,6 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### Documentation
 
-- Keep the README clear and concise for users
 - Update the README when code specifications change
 
 ## Key Design Decisions
@@ -122,11 +115,4 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 ### E2E Tests
 
-E2E tests in `e2e/` use tuistory (terminal UI automation) with bun:test:
-
-- `launchCommd()` helper spawns the built binary in a virtual terminal and waits for Bubble Tea to render
-- Each test runs with a fixed terminal size (120×36 by default)
-- Snapshot tests (`snapshot.test.ts`) capture full screen state for layout regression detection
-- Fixtures reuse `internal/markdown/testdata/basic.md`
-- `addComment()` shared helper for comment creation sequences
-- `review --web` is tested at two levels: `web.test.ts` drives the JSON API over HTTP, and `web-ui*.test.ts` drive the page in headless Chromium via Playwright (the `playwright` library under bun:test, not the Playwright test runner). Like the TUI tests, the critical paths (`web-ui.test.ts`) are in the basic tier and the rest (`web-ui-keys` / `web-ui-modes` / `web-ui-edge`) only in the full suite, which aims to cover every key binding and mode. Helpers: `launchWeb()` (`helpers/web.ts`), `useBrowser()` / `openPage()` / `eventually()` (`helpers/browser.ts`; wrap assertions after server-bound keys in `eventually()` since the page updates asynchronously). `mise run e2e-cov` collects V8 coverage of the page scripts (`COMMD_JS_COVERAGE=1`) and prints it per file (`bun scripts/js-coverage.ts --uncovered` lists missed lines). The e2e tasks run `bunx playwright install chromium` first
+See `e2e/CLAUDE.md` (loaded when working under `e2e/`).
