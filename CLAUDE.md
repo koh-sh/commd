@@ -74,6 +74,7 @@ Linter config: `.golangci.yml` (enabled: asciicheck, gocritic, misspell, nolintl
 
 - Use `go doc` to look up library APIs and usage (more accurate than web searches)
 - Do not use Python for complex scripting. Use shell scripts instead
+- Edit files with the Edit tool, not `perl` / `sed` in-place substitution — a wrong delimiter or escape silently corrupts the file
 - Do not use `/tmp`. Keep temporary files within the project directory
 
 ## Implementation Guidelines
