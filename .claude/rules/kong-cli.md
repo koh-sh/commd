@@ -11,7 +11,7 @@ This project uses Kong (`github.com/alecthomas/kong`) for the CLI surface. The p
 ## Dispatch with `Run(...) error`
 
 - Every subcommand struct must implement a `Run(...) error` method. `main.go` dispatches via `ctx.Run(...)`.
-- Do not add `switch ctx.Command()` branching in `main.go`. The README's "switch on the command string" pattern is fragile and explicitly avoided here.
+- Do not add `switch ctx.Command()` branching in `main.go`. Kong's own README shows that "switch on the command string" pattern; it is fragile and explicitly avoided here.
 
 ## Cross-field validation goes in `Validate()`, not `Run()`
 
@@ -21,7 +21,7 @@ This project uses Kong (`github.com/alecthomas/kong`) for the CLI surface. The p
 
 ## File layout
 
-- `cmd/cli.go` is reserved for struct definitions, Kong tags, and the top-level `CLI` type. Do not put `Run` or `Validate` method bodies here.
+- `cmd/cli.go` is reserved for struct definitions, Kong tags, and the top-level `CLI` type. Do not put `Run` or `Validate` method bodies here; the one existing exception is the short `VersionCmd.Run`.
 - Place `Run` and `Validate` for a subcommand in its domain file (e.g. `cmd/review.go` for `ReviewCmd`, `cmd/pr.go` for `PRCmd`, `cmd/cclocate.go` for `LocateCmd`).
 - godoc on `Validate` must state what is checked, not just "validates the command". Example: `// Validate requires --output-path when --output=file.`
 
