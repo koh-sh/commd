@@ -280,6 +280,8 @@ describe("Review Dialog", () => {
     await session.waitIdle({ timeout: 10000 });
     expect(mock.submittedReviews).toHaveLength(1);
     expect(mock.submittedReviews[0].event).toBe("APPROVE");
+    // The approval is pinned to the head commit the files were fetched at.
+    expect(mock.submittedReviews[0].commit_id).toBe("abc123");
   }, TEST_TIMEOUT);
 
   test("body text is included in submitted review", async () => {

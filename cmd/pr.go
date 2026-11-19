@@ -98,11 +98,11 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 	if len(results) == 0 {
 		return nil
 	}
-	return p.showFinalDialog(ctx, client, ref, results)
+	return p.showFinalDialog(ctx, client, ref, headSHA, results)
 }
 
 // showFinalDialog shows the post-review dialog after all files have been reviewed.
-func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []markdown.FileResult) error {
+func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, headSHA string, results []markdown.FileResult) error {
 	// Build summary lines
 	var summary []string
 	totalComments := 0
@@ -136,16 +136,16 @@ func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, re
 	result := rd.Result()
 	switch result.Action {
 	case tui.ReviewActionApprove:
-		return p.submitReview(ctx, client, ref, results, "APPROVE", result.Body)
+		return p.submitReview(ctx, client, ref, headSHA, results, "APPROVE", result.Body)
 	case tui.ReviewActionComment:
-		return p.submitReview(ctx, client, ref, results, "COMMENT", result.Body)
+		return p.submitReview(ctx, client, ref, headSHA, results, "COMMENT", result.Body)
 	default:
 		fmt.Fprintln(os.Stderr, "Review cancelled.")
 		return nil
 	}
 }
 
-func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, results []markdown.FileResult, event, body string) error {
+func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *ghclient.PRRef, headSHA string, results []markdown.FileResult, event, body string) error {
 	// Warn about overview comments (filtered by BuildPRReview/MapComment, not supported as inline PR comments)
 	for _, r := range results {
 		if r.Review == nil {
@@ -158,7 +158,7 @@ func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *
 		}
 	}
 
-	review := ghclient.BuildPRReview(results, event, body)
+	review := ghclient.BuildPRReview(results, headSHA, event, body)
 
 	// Check if any comments remain after filtering
 	if len(review.Comments) == 0 && body == "" && event == "COMMENT" {

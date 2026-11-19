@@ -75,10 +75,11 @@ func (c *Client) GetHeadSHA(ctx context.Context, ref *PRRef) (string, error) {
 		return "", fmt.Errorf("getting PR: %w", err)
 	}
 
+	// Files are fetched at this SHA and the review is pinned to it, so a
+	// moving branch name is no substitute.
 	sha := pr.GetHead().GetSHA()
-	// Defensive fallback: use ref name if SHA is empty.
 	if sha == "" {
-		sha = pr.GetHead().GetRef()
+		return "", fmt.Errorf("getting PR: head commit SHA is empty")
 	}
 	return sha, nil
 }

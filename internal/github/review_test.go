@@ -227,7 +227,10 @@ func TestBuildPRReview(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BuildPRReview(tt.results, tt.event, tt.body)
+			got := BuildPRReview(tt.results, "abc123", tt.event, tt.body)
+			if got.GetCommitID() != "abc123" {
+				t.Errorf("CommitID = %q, want the reviewed head SHA %q", got.GetCommitID(), "abc123")
+			}
 			if got.GetEvent() != tt.event {
 				t.Errorf("Event = %q, want %q", got.GetEvent(), tt.event)
 			}

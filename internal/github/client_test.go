@@ -223,10 +223,10 @@ func TestGetHeadSHA(t *testing.T) {
 			wantSHA: "abc123",
 		},
 		{
-			name:    "falls back to ref when SHA is empty",
+			name:    "empty SHA is an error, not the branch name",
 			sha:     "",
 			ref:     "feature-branch",
-			wantSHA: "feature-branch",
+			wantErr: true,
 		},
 		{
 			name:       "PR not found",

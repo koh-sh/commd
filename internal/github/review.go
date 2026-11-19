@@ -62,7 +62,10 @@ func MapComment(c markdown.ReviewComment, path string, doc *markdown.Document) *
 }
 
 // BuildPRReview builds a GitHub PR review request from file review results.
-func BuildPRReview(results []markdown.FileResult, event, body string) *gh.PullRequestReviewRequest {
+// The review is pinned to headSHA, the commit the files were fetched at:
+// without it GitHub attaches the review to whatever the PR head is when it
+// is submitted, which may include commits the reviewer never saw.
+func BuildPRReview(results []markdown.FileResult, headSHA, event, body string) *gh.PullRequestReviewRequest {
 	var comments []*gh.DraftReviewComment
 
 	for _, fr := range results {
@@ -89,6 +92,7 @@ func BuildPRReview(results []markdown.FileResult, event, body string) *gh.PullRe
 	}
 
 	review := &gh.PullRequestReviewRequest{
+		CommitID: new(headSHA),
 		Event:    new(event),
 		Comments: comments,
 	}

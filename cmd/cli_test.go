@@ -544,7 +544,7 @@ func TestPRCmdSubmitReviewComment(t *testing.T) {
 	}}
 
 	p := &PRCmd{Theme: "dark"}
-	err := p.submitReview(context.Background(), client, ref, results, "COMMENT", "")
+	err := p.submitReview(context.Background(), client, ref, "abc123", results, "COMMENT", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestPRCmdSubmitReviewApprove(t *testing.T) {
 	ref := &ghclient.PRRef{Owner: "owner", Repo: "repo", Number: 1}
 
 	p := &PRCmd{Theme: "dark"}
-	err := p.submitReview(context.Background(), client, ref, nil, "APPROVE", "")
+	err := p.submitReview(context.Background(), client, ref, "abc123", nil, "APPROVE", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -589,7 +589,7 @@ func TestPRCmdSubmitReviewError(t *testing.T) {
 	}}
 
 	p := &PRCmd{Theme: "dark"}
-	err := p.submitReview(context.Background(), client, ref, results, "COMMENT", "")
+	err := p.submitReview(context.Background(), client, ref, "abc123", results, "COMMENT", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -631,8 +631,17 @@ func prTestServer(t *testing.T, files []map[string]string, fileContent string) *
 		})
 	}
 
-	// Create review
-	mux.HandleFunc("POST /repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
+	// Create review: it must be pinned to the head SHA the files were fetched at.
+	mux.HandleFunc("POST /repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, r *http.Request) {
+		var review struct {
+			CommitID string `json:"commit_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+			t.Errorf("decoding review: %v", err)
+		}
+		if review.CommitID != "abc123" {
+			t.Errorf("review commit_id = %q, want the fetched head SHA %q", review.CommitID, "abc123")
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"id": 1}); err != nil {
 			t.Fatalf("encoding review: %v", err)

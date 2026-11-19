@@ -118,7 +118,7 @@ commd pr https://github.com/owner/repo/pull/123 --file docs/README.md
 
 **Review flow**: After selecting files, you review them one by one. For each file you can add comments, then press `s` to finish or `q` to skip. After all files, a summary dialog lets you choose to approve, comment, or cancel the review.
 
-**Submit behavior**: Comments are posted as a GitHub PR Review with inline comments on each file. If no comments are added, you can optionally approve the PR. Note: Overview (file-level) comments are not posted to GitHub due to API limitations — only section-level and line-level comments are submitted.
+**Submit behavior**: Comments are posted as a GitHub PR Review with inline comments on each file. The review is pinned to the head commit the files were fetched at, so commits pushed while you review are not covered by your approval. If no comments are added, you can optionally approve the PR. Note: Overview (file-level) comments are not posted to GitHub due to API limitations — only section-level and line-level comments are submitted.
 
 ### `commd version`
 
