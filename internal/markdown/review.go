@@ -20,7 +20,7 @@ func FormatReview(result *ReviewResult, d *Document, filePath string) string {
 		return ""
 	}
 
-	target := filePath
+	target := EscapeControl(filePath)
 	if target == "" {
 		target = "the file"
 	}
@@ -45,7 +45,7 @@ func FormatReviews(files []FileResult) string {
 			sb.WriteString(reviewHeader)
 			sb.WriteString("Please review and address the following comments.\n")
 		}
-		fmt.Fprintf(&sb, "\n## %s\n", f.Path)
+		fmt.Fprintf(&sb, "\n## %s\n", EscapeControl(f.Path))
 		writeComments(&sb, f.Review, f.Doc, 3)
 	}
 	return sb.String()
@@ -77,7 +77,7 @@ func writeComments(sb *strings.Builder, result *ReviewResult, d *Document, headi
 				section := d.FindSection(c.SectionID)
 				title = c.SectionID
 				if section != nil {
-					title = fmt.Sprintf("%s: %s", c.SectionID, section.Title)
+					title = fmt.Sprintf("%s: %s", c.SectionID, EscapeControl(section.Title))
 				}
 			}
 			g = &group{title: title}
@@ -118,6 +118,6 @@ func writeQuote(sb *strings.Builder, quote []string) {
 			sb.WriteString("> ...\n")
 			return
 		}
-		fmt.Fprintf(sb, "> %s\n", line)
+		fmt.Fprintf(sb, "> %s\n", EscapeControl(line))
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/koh-sh/commd/internal/markdown"
 )
 
 // FilePickerResult is the result of the file picker interaction.
@@ -178,7 +179,7 @@ func (fp *FilePicker) renderFilePicker() string {
 			check = "[✓]"
 		}
 
-		raw := fitToWidth(fmt.Sprintf("%s%s %s", cursor, check, fp.files[i]), fp.width)
+		raw := fitToWidth(fmt.Sprintf("%s%s %s", cursor, check, markdown.EscapeControl(fp.files[i])), fp.width)
 		style := lipgloss.NewStyle()
 		if i == fp.cursor {
 			style = style.Foreground(lipgloss.Color("14"))

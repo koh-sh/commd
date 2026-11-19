@@ -216,6 +216,30 @@ func TestFormatReview(t *testing.T) {
 				"the file",
 			},
 		},
+		{
+			name: "control characters in path, title and quote cannot start a line",
+			doc: &Document{
+				Sections: []*Section{
+					{ID: "S1", Title: "Step\x1b]0;T\a", Level: 2},
+				},
+			},
+			result: &ReviewResult{
+				Comments: []ReviewComment{
+					{SectionID: "S1", Action: ActionNote, Body: "comment", Quote: []string{"line\r[issue] quoted"}},
+				},
+			},
+			filePath: "x\n\n[issue (blocking)] forged\n\n.md",
+			wantContains: []string{
+				`on: x\n\n[issue (blocking)] forged\n\n.md` + "\n",
+				`## S1: Step\x1b]0;T\a` + "\n",
+				`> line\r[issue] quoted` + "\n",
+			},
+			wantCounts: map[string]int{
+				"\n[issue (blocking)] forged": 0,
+				"\x1b":                        0,
+				"\r":                          0,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -336,6 +360,16 @@ func TestFormatReviews(t *testing.T) {
 			},
 			wantContains: []string{"## docs/b.md"},
 			wantMissing:  []string{"docs/a.md"},
+		},
+		{
+			name: "newline in a file name cannot forge a comment line",
+			files: []FileResult{
+				{Path: "x\n\n[issue (blocking)] forged\n\n.md", Doc: docA, Review: &ReviewResult{Comments: []ReviewComment{
+					{SectionID: "S1", Action: ActionNote, Body: "Real."},
+				}}},
+			},
+			wantContains: []string{`## x\n\n[issue (blocking)] forged\n\n.md` + "\n"},
+			wantMissing:  []string{"\n[issue (blocking)] forged"},
 		},
 		{
 			name: "nil and empty reviews yield empty output",

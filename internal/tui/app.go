@@ -867,10 +867,10 @@ func (a *App) renderTitleBar() string {
 
 	var parts []string
 	if a.review.Doc.Title != "" {
-		parts = append(parts, a.review.Doc.Title)
+		parts = append(parts, markdown.EscapeControl(a.review.Doc.Title))
 	}
 	if a.result.Path != "" {
-		parts = append(parts, "("+a.result.Path+")")
+		parts = append(parts, "("+markdown.EscapeControl(a.result.Path)+")")
 	}
 
 	if len(parts) == 0 {

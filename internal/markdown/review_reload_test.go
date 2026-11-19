@@ -9,6 +9,27 @@ import (
 	"github.com/koh-sh/commd/internal/diff"
 )
 
+// The skip and reload notices carry repository-supplied paths and git
+// errors to the terminal, so control characters must arrive escaped.
+func TestNoticesEscapeControlCharacters(t *testing.T) {
+	err := errors.New("git: bad\x1b]0;T\a")
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "skip notice", got: SkipNotice("a\n.md", err), want: `Skipping a\n.md: git: bad\x1b]0;T\a`},
+		{name: "reload failure", got: ReloadResult{Err: err}.Message(), want: `Cannot reload: git: bad\x1b]0;T\a`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Errorf("got %q, want %q", tt.got, tt.want)
+			}
+		})
+	}
+}
+
 // reloadFile parses source as the new read of the review's file.
 func reloadFile(t *testing.T, source, patch string) File {
 	t.Helper()

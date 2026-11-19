@@ -271,7 +271,7 @@ func (sl *SectionList) Render(width, height int, styles Styles) string {
 			}
 
 			badge := sl.renderBadge(item.Section.ID, styles)
-			sectionText := fmt.Sprintf("%s%s %s %s", indent, prefix, item.Section.ID, item.Section.Title)
+			sectionText := fmt.Sprintf("%s%s %s %s", indent, prefix, item.Section.ID, markdown.EscapeControl(item.Section.Title))
 			line = truncate(sectionText, width-4-lipgloss.Width(badge)) + badge
 		}
 

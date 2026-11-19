@@ -13,9 +13,10 @@ import (
 type Loader func(path string) (File, error)
 
 // SkipNotice is how the front ends report a file that could not be loaded
-// and is skipped.
+// and is skipped. The path and the error (which may carry git's stderr) come
+// from the repository, so control characters are escaped.
 func SkipNotice(path string, err error) string {
-	return fmt.Sprintf("Skipping %s: %v", path, err)
+	return EscapeControl(fmt.Sprintf("Skipping %s: %v", path, err))
 }
 
 // ReloadResult is the outcome of ReviewState.Reread.
@@ -28,11 +29,12 @@ type ReloadResult struct {
 	Sections map[string]string
 }
 
-// Message is how the front ends report the reload.
+// Message is how the front ends report the reload. As in SkipNotice, the
+// error may carry the path or git's stderr, so control characters are escaped.
 func (res ReloadResult) Message() string {
 	switch {
 	case res.Err != nil:
-		return fmt.Sprintf("Cannot reload: %v", res.Err)
+		return EscapeControl(fmt.Sprintf("Cannot reload: %v", res.Err))
 	case !res.Changed:
 		return "File unchanged"
 	case res.Moved > 0:

@@ -172,6 +172,7 @@ func (d *DetailPane) ShowAll(doc *markdown.Document, getComments func(string) []
 // renderMarkdown renders Markdown to a styled string without setting viewport content.
 func (d *DetailPane) renderMarkdown(md string) string {
 	wrapWidth := d.viewport.Width() - glamourHorizontalOverhead
+	md = escapeControlLines(md)
 	md = mermaid.RenderBlocks(md)
 	md = wrapProse(md, wrapWidth)
 	if d.renderer != nil {
@@ -196,6 +197,16 @@ func (d *DetailPane) showContent(key, content string) {
 		d.viewport.GotoTop()
 	}
 	d.contentKey = key
+}
+
+// escapeControlLines escapes control characters in each line of md (see
+// markdown.EscapeControl), keeping the line breaks.
+func escapeControlLines(md string) string {
+	lines := strings.Split(md, "\n")
+	for i, line := range lines {
+		lines[i] = markdown.EscapeControl(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // wrapProse wraps prose lines in Markdown to the given width using Markdown

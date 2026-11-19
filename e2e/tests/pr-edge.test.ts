@@ -44,6 +44,30 @@ describe("PR Edge Cases", () => {
     expect(text).toContain("No Markdown files");
   }, TEST_TIMEOUT);
 
+  test("control characters in PR file names and content are shown escaped", async () => {
+    // A PR author controls file names and content; an OSC sequence must be
+    // displayed as text, not interpreted by the terminal.
+    mock = createMockGitHubServer({
+      ...defaultConfig(),
+      files: [
+        { filename: "docs/evil\x1b]0;PWNED\x07.md", status: "added", content: SECOND_MD },
+        { filename: "docs/README.md", status: "added", content: "# Title\x1b]0;PWNED\x07\n\nBody text.\n" },
+      ],
+    });
+    session = await launchCommdPR({ prURL: MOCK_PR_URL, mockServerURL: mock.url });
+    let text = await session.waitForText("Select Markdown files", { timeout: 15000 });
+    expect(text).toContain("docs/evil\\x1b]0;PWNED\\a.md");
+    session.close();
+
+    session = await launchCommdPR({
+      prURL: MOCK_PR_URL,
+      mockServerURL: mock.url,
+      file: "docs/README.md",
+    });
+    text = await session.waitForText("quit", { timeout: 15000 });
+    expect(text).toContain("Title\\x1b]0;PWNED\\a");
+  }, TEST_TIMEOUT);
+
   test("all files skipped exits without ReviewDialog", async () => {
     mock = createMockGitHubServer({
       ...defaultConfig(),

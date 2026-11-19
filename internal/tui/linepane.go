@@ -413,7 +413,7 @@ func (lp *LinePane) View() string {
 		gutter := lp.styles.LineGutter.Render(gutterText)
 		separator := lp.styles.LineGutter.Render("│")
 
-		content := lp.lines[i]
+		content := markdown.EscapeControl(lp.lines[i])
 
 		// Determine diff color style for this line
 		diffStyle := lp.diffStyleForLine(i)

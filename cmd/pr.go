@@ -71,24 +71,24 @@ func (p *PRCmd) Run(client *ghclient.Client) error {
 	var results []markdown.FileResult
 
 	for i, path := range selectedPaths {
-		fmt.Fprintf(os.Stderr, "Fetching %s (%d/%d)...\n", path, i+1, len(selectedPaths))
+		fmt.Fprintf(os.Stderr, "Fetching %s (%d/%d)...\n", markdown.EscapeControl(path), i+1, len(selectedPaths))
 
 		source, err := client.FetchFileContent(ctx, ref, path, headSHA)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", markdown.EscapeControl(err.Error())) // the error names the PR file
 			continue
 		}
 
 		doc, err := markdown.Parse(source)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: parsing %s: %v\n", path, err)
+			fmt.Fprintf(os.Stderr, "Warning: parsing %s: %v\n", markdown.EscapeControl(path), err)
 			continue
 		}
 
 		f := markdown.File{Path: path, Doc: doc, Diff: diff.ParsePatch(patches[path])}
 		res, err := runReviewApp(f, tui.AppOptions{Theme: p.Theme, MultiFile: true}, p.teaOpts)
 		if err != nil {
-			return fmt.Errorf("%s: %w", path, err)
+			return fmt.Errorf("%s: %w", markdown.EscapeControl(path), err)
 		}
 		// Submitted or Approved = done with this file, Cancelled = skipped
 		results = appendReview(results, res)
@@ -113,7 +113,7 @@ func (p *PRCmd) showFinalDialog(ctx context.Context, client *ghclient.Client, re
 		count := len(r.Review.Comments)
 		totalComments += count
 		if count > 0 {
-			summary = append(summary, fmt.Sprintf("%s: %d comment(s)", r.Path, count))
+			summary = append(summary, fmt.Sprintf("%s: %d comment(s)", markdown.EscapeControl(r.Path), count))
 		}
 	}
 	hasComments := totalComments > 0
@@ -153,7 +153,7 @@ func (p *PRCmd) submitReview(ctx context.Context, client *ghclient.Client, ref *
 		}
 		for _, c := range r.Review.Comments {
 			if c.SectionID == markdown.OverviewSectionID {
-				fmt.Fprintf(os.Stderr, "Warning: overview comment on %s skipped (not supported as inline PR comment)\n", r.Path)
+				fmt.Fprintf(os.Stderr, "Warning: overview comment on %s skipped (not supported as inline PR comment)\n", markdown.EscapeControl(r.Path))
 			}
 		}
 	}

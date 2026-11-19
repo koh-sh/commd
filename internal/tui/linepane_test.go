@@ -163,6 +163,39 @@ func TestLinePaneViewContainsLineNumbers(t *testing.T) {
 	}
 }
 
+// Untrusted document text must not reach the terminal as a live escape
+// sequence: the raw view and the rendered view show it escaped.
+func TestViewsEscapeControlCharacters(t *testing.T) {
+	const payload = "Title\x1b]0;PWNED\a"
+	tests := []struct {
+		name string
+		view func() string
+	}{
+		{name: "raw line pane", view: func() string {
+			lp := newTestLinePane([]string{payload}, nil)
+			lp.SetSize(60, 5)
+			return lp.View()
+		}},
+		{name: "rendered detail pane", view: func() string {
+			dp := NewDetailPane(80, 20, "dark")
+			dp.ShowSection(&markdown.Section{ID: "S1", Title: payload, Body: payload}, nil)
+			return dp.View()
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			view := tt.view()
+			if strings.Contains(view, "\x1b]") || strings.Contains(view, "\a") {
+				t.Errorf("view passes the OSC sequence through: %q", view)
+			}
+			// glamour splits styling inside the text; compare without SGR codes.
+			if !strings.Contains(ansiRe.ReplaceAllString(view, ""), `\x1b]0;PWNED\a`) {
+				t.Errorf("view should show the sequence escaped, got: %q", view)
+			}
+		})
+	}
+}
+
 func TestLinePaneEmptyLines(t *testing.T) {
 	lp := newTestLinePane([]string{}, nil)
 	lp.SetSize(40, 10)
