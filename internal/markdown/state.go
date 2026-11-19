@@ -3,6 +3,7 @@ package markdown
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -28,8 +29,12 @@ func contentHash(s *Section) string {
 	return fmt.Sprintf("%x", h[:8])
 }
 
-// LoadViewedState reads a viewed state file. Returns an empty state on any error.
+// LoadViewedState reads a viewed state file. Returns an empty state on any
+// error, or when the path is not a regular file (see SaveViewedState).
 func LoadViewedState(path string) *ViewedState {
+	if err := checkRegularOrAbsent(path); err != nil {
+		return NewViewedState()
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return NewViewedState()
@@ -44,14 +49,36 @@ func LoadViewedState(path string) *ViewedState {
 	return &state
 }
 
-// SaveViewedState writes the viewed state to a JSON file.
+// SaveViewedState writes the viewed state to a JSON file. The sidecar sits
+// next to the reviewed file, so a repository can ship one; a symlink (or any
+// other non-regular file) there is refused rather than followed, so the
+// write cannot be redirected to another file.
 func SaveViewedState(path string, state *ViewedState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling viewed state: %w", err)
 	}
+	if err := checkRegularOrAbsent(path); err != nil {
+		return fmt.Errorf("writing viewed state: %w", err)
+	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		return fmt.Errorf("writing viewed state: %w", err)
+	}
+	return nil
+}
+
+// checkRegularOrAbsent returns an error unless path is missing or a regular
+// file. It does not follow symlinks.
+func checkRegularOrAbsent(path string) error {
+	fi, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", path)
 	}
 	return nil
 }

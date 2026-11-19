@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,5 +148,48 @@ func TestSaveViewedStateError(t *testing.T) {
 	err := SaveViewedState("/nonexistent/dir/state.json", NewViewedState())
 	if err == nil {
 		t.Error("should return error for invalid path")
+	}
+}
+
+// A repository can ship the sidecar as a symlink; it must be neither
+// followed nor written through.
+func TestViewedStateRefusesSymlink(t *testing.T) {
+	const victimContent = `{"keep":1,"sections":{"Step 1":"abc123def456abcd"}}`
+	tests := []struct {
+		name         string
+		victimExists bool
+	}{
+		{name: "symlink to an existing file", victimExists: true},
+		{name: "dangling symlink", victimExists: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			victim := filepath.Join(dir, "victim.json")
+			if tt.victimExists {
+				if err := os.WriteFile(victim, []byte(victimContent), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sidecar := filepath.Join(dir, "doc.md.reviewed.json")
+			if err := os.Symlink(victim, sidecar); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := LoadViewedState(sidecar); len(got.Sections) != 0 {
+				t.Errorf("LoadViewedState read through the symlink: %v", got.Sections)
+			}
+			if err := SaveViewedState(sidecar, NewViewedState()); err == nil {
+				t.Error("SaveViewedState should refuse a symlink")
+			}
+
+			data, err := os.ReadFile(victim)
+			switch {
+			case tt.victimExists && string(data) != victimContent:
+				t.Errorf("symlink target changed: %q", data)
+			case !tt.victimExists && !errors.Is(err, os.ErrNotExist):
+				t.Errorf("symlink target was created (err = %v)", err)
+			}
+		})
 	}
 }

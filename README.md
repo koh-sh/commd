@@ -67,7 +67,7 @@ commd review --web --diff
 | `--port` | Port for `--web` (default: a free port) |
 | `--no-open` | With `--web`, print the URL instead of opening a browser |
 
-When `--track-viewed` is enabled, commd saves which sections you've marked as viewed in a `.reviewed.json` sidecar file. On subsequent runs, viewed marks are restored automatically. If a section's content has changed, its viewed mark is cleared (detected via content hash).
+When `--track-viewed` is enabled, commd saves which sections you've marked as viewed in a `.reviewed.json` sidecar file. On subsequent runs, viewed marks are restored automatically. If a section's content has changed, its viewed mark is cleared (detected via content hash). A sidecar that is a symlink (or anything other than a regular file) is ignored and never written to.
 
 #### Diff mode
 
